@@ -16,6 +16,10 @@ from .icao import (
     open_codes_browser, CodesPage,
     AirlineSearchResult, AirportSearchResult, AircraftSearchResult
 )
+from .atis import (
+    fetch_atis, fetch_all_atis, open_atis_browser,
+    AtisInfo, ATIS_AIRPORTS
+)
 
 
 def _is_page_alive(page) -> bool:
@@ -354,6 +358,63 @@ def aircraft(query: tuple[str, ...], browser: bool, no_cache: bool):
                 click.echo("Failed to retrieve aircraft types.", err=True)
 
 
+@main.command()
+@click.argument("airport", required=False)
+@click.option("--all", "-a", "show_all", is_flag=True, help="Show ATIS for all airports")
+@click.option("--browser", is_flag=True, help="Open browser instead of CLI display")
+def atis(airport: str | None, show_all: bool, browser: bool):
+    """Look up current ATIS for an airport.
+
+    Examples:
+
+        zoa atis SFO          - Show ATIS for SFO
+
+        zoa atis OAK          - Show ATIS for OAK
+
+        zoa atis --all        - Show ATIS for all airports
+
+        zoa atis SFO --browser - Open ATIS page in browser
+    """
+    if browser:
+        with BrowserSession(headless=False) as session:
+            page = session.new_page()
+            success = open_atis_browser(page)
+            if success:
+                _wait_for_input_or_close(session, "ATIS page open. Press Enter to close browser...", page)
+            else:
+                _wait_for_input_or_close(session, "Failed to load ATIS page. Press Enter to close browser...", page)
+        return
+
+    if not airport and not show_all:
+        click.echo(f"Available airports: {', '.join(ATIS_AIRPORTS)}")
+        click.echo("Error: Please specify an airport or use --all", err=True)
+        return
+
+    click.echo("Fetching ATIS...")
+
+    with BrowserSession(headless=True) as session:
+        page = session.new_page()
+
+        if show_all:
+            result = fetch_all_atis(page)
+            if result and result.atis_list:
+                _display_atis(result.atis_list)
+            else:
+                click.echo("Failed to retrieve ATIS.", err=True)
+        elif airport:
+            airport = airport.upper()
+            if airport not in ATIS_AIRPORTS:
+                click.echo(f"Warning: {airport} is not a known ATIS airport")
+                click.echo(f"Available airports: {', '.join(ATIS_AIRPORTS)}")
+                return
+
+            atis_info = fetch_atis(page, airport)
+            if atis_info:
+                _display_atis([atis_info])
+            else:
+                click.echo(f"Failed to retrieve ATIS for {airport}.", err=True)
+
+
 def _display_routes(result: RouteSearchResult, max_real_world: int | None = 5, show_flights: bool = False) -> None:
     """Display route search results in formatted CLI output."""
     click.echo()
@@ -548,6 +609,17 @@ def _display_aircraft(result: AircraftSearchResult) -> None:
     click.echo()
 
 
+def _display_atis(atis_list: list[AtisInfo]) -> None:
+    """Display ATIS information in formatted CLI output."""
+    for atis in atis_list:
+        click.echo()
+        click.echo("=" * 80)
+        click.echo(f"ATIS - {atis.airport}")
+        click.echo("=" * 80)
+        click.echo(atis.raw_text)
+    click.echo()
+
+
 def _display_chart_matches(matches: list[ChartMatch], max_display: int = 10) -> None:
     """Display a list of matching charts."""
     click.echo("\nMatching charts:")
@@ -712,6 +784,7 @@ def interactive_mode():
     click.echo("  charts <query>     - Browse charts in browser (e.g., charts OAK CNDEL5)")
     click.echo("  list <airport>     - List charts for an airport")
     click.echo("  route <dep> <arr>  - Look up routes (e.g., route SFO LAX)")
+    click.echo("  atis <airport>     - Look up ATIS (e.g., atis SFO or atis all)")
     click.echo("  airline <query>    - Look up airline codes (e.g., airline UAL)")
     click.echo("  airport <query>    - Look up airport codes (e.g., airport KSFO)")
     click.echo("  aircraft <query>   - Look up aircraft types (e.g., aircraft B738)")
@@ -751,6 +824,7 @@ def interactive_mode():
                 click.echo("  charts <query>     - Browse charts in browser (e.g., charts OAK CNDEL5)")
                 click.echo("  list <airport>     - List charts for an airport")
                 click.echo("  route <dep> <arr>  - Look up routes (e.g., route SFO LAX)")
+                click.echo("  atis <airport>     - Look up ATIS (e.g., atis SFO or atis all)")
                 click.echo("  airline <query>    - Look up airline codes (e.g., airline UAL)")
                 click.echo("  airport <query>    - Look up airport codes (e.g., airport KSFO)")
                 click.echo("  aircraft <query>   - Look up aircraft types (e.g., aircraft B738)")
@@ -824,6 +898,41 @@ def interactive_mode():
                         click.echo("Failed to retrieve routes.")
                 else:
                     click.echo("Usage: route <departure> <arrival>  (e.g., route SFO LAX)")
+                click.echo()
+                continue
+
+            if lower_query.startswith("atis"):
+                # Handle "atis", "atis SFO", "atis all"
+                parts = query[4:].strip().upper().split()
+                if not parts or (len(parts) == 1 and parts[0] == "ALL"):
+                    # Fetch all ATIS
+                    click.echo("Fetching ATIS for all airports...")
+                    page = session.new_page()
+                    result = fetch_all_atis(page)
+                    page.close()
+
+                    if result and result.atis_list:
+                        _display_atis(result.atis_list)
+                    else:
+                        click.echo("Failed to retrieve ATIS.")
+                elif len(parts) == 1:
+                    # Fetch single airport ATIS
+                    airport = parts[0]
+                    if airport not in ATIS_AIRPORTS:
+                        click.echo(f"Unknown airport: {airport}")
+                        click.echo(f"Available: {', '.join(ATIS_AIRPORTS)}")
+                    else:
+                        click.echo(f"Fetching ATIS for {airport}...")
+                        page = session.new_page()
+                        atis_info = fetch_atis(page, airport)
+                        page.close()
+
+                        if atis_info:
+                            _display_atis([atis_info])
+                        else:
+                            click.echo(f"Failed to retrieve ATIS for {airport}.")
+                else:
+                    click.echo("Usage: atis <airport>  (e.g., atis SFO or atis all)")
                 click.echo()
                 continue
 

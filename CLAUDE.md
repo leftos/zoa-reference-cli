@@ -20,6 +20,8 @@ uv venv && uv pip install -e .
 .venv/Scripts/zoa charts OAK CNDEL5     # Browse charts (stays on Reference Tool)
 .venv/Scripts/zoa list OAK              # List charts for an airport
 .venv/Scripts/zoa route SFO LAX         # Look up routes
+.venv/Scripts/zoa atis SFO              # Look up ATIS for an airport
+.venv/Scripts/zoa atis --all            # Look up ATIS for all airports
 .venv/Scripts/zoa airline UAL           # Look up airline codes
 .venv/Scripts/zoa airport KSFO          # Look up airport codes
 .venv/Scripts/zoa aircraft B738         # Look up aircraft types
@@ -28,12 +30,13 @@ uv venv && uv pip install -e .
 
 ## Architecture
 
-The codebase consists of five modules in `src/zoa_ref/`:
+The codebase consists of six modules in `src/zoa_ref/`:
 
-- **cli.py**: Click-based CLI with commands (`chart`, `charts`, `list`, `airports`, `route`, `airline`, `airport`, `aircraft`) and interactive mode. Entry point is `main()`.
+- **cli.py**: Click-based CLI with commands (`chart`, `charts`, `list`, `airports`, `route`, `atis`, `airline`, `airport`, `aircraft`) and interactive mode. Entry point is `main()`.
 - **browser.py**: `BrowserSession` class wrapping Playwright's sync API for Chromium automation. Supports context manager pattern and child sessions (for headless ICAO lookups alongside visible browser).
 - **charts.py**: Chart lookup logic using the charts API (`charts-api.oakartcc.org`). `ChartQuery.parse()` normalizes queries. Uses fuzzy matching via `_calculate_similarity()`. Supports multi-page PDF merging via pypdf.
 - **routes.py**: Route search logic. Scrapes TEC/AAR/ADR routes, LOA rules, real-world routes, and recent flights from tables.
+- **atis.py**: ATIS lookup for 5 airports (SFO, SJC, RNO, OAK, SMF). Scrapes live ATIS data from the reference tool (no caching - data is time-sensitive).
 - **icao.py**: ICAO code lookups for airlines, airports, and aircraft. Includes caching system (`~/.zoa-ref/cache/`, 7-day TTL) and `CodesPage` class for persistent page reuse in interactive mode.
 
 ## Key Patterns
@@ -53,4 +56,5 @@ The codebase consists of five modules in `src/zoa_ref/`:
 - **Charts API**: `https://charts-api.oakartcc.org/v1/charts?apt=<airport>`
 - **Reference Tool**: `https://reference.oakartcc.org/charts` (browser-based)
 - **Routes**: `https://reference.oakartcc.org/routes` (browser scraping)
+- **ATIS**: `https://reference.oakartcc.org/atis` (browser scraping, no caching)
 - **ICAO Codes**: `https://reference.oakartcc.org/codes` (browser scraping with caching)

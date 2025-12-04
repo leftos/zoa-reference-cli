@@ -1,6 +1,6 @@
 # ZOA Reference CLI
 
-A command-line tool for quick lookups to [ZOA's Reference Tool](https://reference.oakartcc.org). Look up aviation charts, routes, and ICAO codes for Oakland ARTCC airports directly from your terminal.
+A command-line tool for quick lookups to [ZOA's Reference Tool](https://reference.oakartcc.org). Look up aviation charts, routes, ATIS, and ICAO codes for Oakland ARTCC airports directly from your terminal.
 
 ## Installation
 
@@ -94,6 +94,21 @@ Route results include:
 - Real world routes from historical data
 - Recent flights (with `-f` flag)
 
+### ATIS Lookup
+
+Get current ATIS for ZOA airports:
+
+```bash
+zoa atis SFO            # Show ATIS for SFO
+zoa atis OAK            # Show ATIS for Oakland
+zoa atis --all          # Show ATIS for all airports
+zoa atis SFO --browser  # Open ATIS page in browser
+```
+
+Supported ATIS airports: SFO, SJC, RNO, OAK, SMF
+
+ATIS data is fetched live (not cached) since it changes frequently.
+
 ### Airline Lookup
 
 Search for airlines by ICAO code, telephony, or name:
@@ -160,6 +175,7 @@ Available interactive commands:
 - `charts <query>` - Browse charts in browser (e.g., `charts OAK CNDEL5`)
 - `list <airport>` - List charts for an airport
 - `route <dep> <arr>` - Look up routes
+- `atis <airport>` - Look up ATIS (e.g., `atis SFO` or `atis all`)
 - `airline <query>` - Look up airline codes
 - `airport <query>` - Look up airport codes
 - `aircraft <query>` - Look up aircraft types
@@ -176,6 +192,10 @@ Available interactive commands:
 - `-a, --all-routes` - Show all real world routes
 - `-f, --flights` - Show recent flights
 - `-n, --top N` - Number of real world routes to show (default: 5)
+
+### ATIS Command
+- `-a, --all` - Show ATIS for all airports
+- `--browser` - Open browser instead of CLI display
 
 ### ICAO Commands (airline, airport, aircraft)
 - `--browser` - Open browser instead of CLI display
