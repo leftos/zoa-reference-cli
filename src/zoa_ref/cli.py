@@ -62,9 +62,9 @@ def main(ctx):
 
     Examples:
 
-        zoa chart OAK CNDEL5     - Look up the CNDEL FIVE departure at OAK
+        zoa chart OAK CNDEL5     - Open the CNDEL FIVE PDF directly
 
-        zoa chart SFO ILS 28L    - Look up the ILS 28L approach at SFO
+        zoa charts SFO ILS 28L   - Open ILS 28L, browse other SFO charts
 
         zoa list OAK             - List all charts available for OAK
 
@@ -76,9 +76,12 @@ def main(ctx):
 
 @main.command()
 @click.argument("query", nargs=-1, required=True)
-@click.option("--headless", is_flag=True, help="Run browser in headless mode")
+@click.option("--headless", is_flag=True, help="Run browser in headless mode (outputs PDF URL)")
 def chart(query: tuple[str, ...], headless: bool):
-    """Look up a chart.
+    """Look up a chart and open the PDF directly.
+
+    Opens the PDF in the browser for viewing. Use 'charts' command instead
+    if you want to stay on the Reference Tool page to browse other charts.
 
     Examples:
 
@@ -89,7 +92,26 @@ def chart(query: tuple[str, ...], headless: bool):
         zoa chart SFO RNAV 28L   - RNAV approach to runway 28L
     """
     query_str = " ".join(query)
-    _lookup_chart(query_str, headless=headless)
+    _lookup_chart(query_str, headless=headless, browse=False)
+
+
+@main.command()
+@click.argument("query", nargs=-1, required=True)
+def charts(query: tuple[str, ...]):
+    """Look up a chart and stay on the Reference Tool page.
+
+    Opens the chart in the Reference Tool, allowing you to browse
+    other charts for the same airport. Use 'chart' command instead
+    if you just want to view a single PDF.
+
+    Examples:
+
+        zoa charts OAK CNDEL5    - Open CNDEL FIVE, browse other OAK charts
+
+        zoa charts SFO ILS 28L   - Open ILS 28L, browse other SFO charts
+    """
+    query_str = " ".join(query)
+    _lookup_chart(query_str, headless=False, browse=True)
 
 
 @main.command("list")
@@ -303,8 +325,22 @@ def _display_recent_flights_table(flights: list) -> None:
     click.echo()
 
 
-def _lookup_chart(query_str: str, headless: bool = False, session: BrowserSession | None = None) -> bool:
-    """Internal function to look up a chart."""
+def _lookup_chart(
+    query_str: str,
+    headless: bool = False,
+    session: BrowserSession | None = None,
+    browse: bool = False,
+) -> str | None:
+    """Internal function to look up a chart.
+
+    Args:
+        query_str: The chart query string (e.g., "OAK CNDEL5")
+        headless: Run browser in headless mode
+        session: Existing browser session to use
+        browse: If True, stay on Reference Tool page; if False, navigate to PDF URL
+
+    Returns the PDF URL if found, None otherwise.
+    """
     try:
         parsed = ChartQuery.parse(query_str)
         click.echo(f"Looking up: {parsed.airport} - {parsed.chart_name}")
@@ -312,7 +348,7 @@ def _lookup_chart(query_str: str, headless: bool = False, session: BrowserSessio
             click.echo(f"  Detected type: {parsed.chart_type.value.upper()}")
     except ValueError as e:
         click.echo(f"Error: {e}", err=True)
-        return False
+        return None
 
     own_session = session is None
     if own_session:
@@ -321,17 +357,26 @@ def _lookup_chart(query_str: str, headless: bool = False, session: BrowserSessio
 
     try:
         page = session.new_page()
-        success = lookup_chart(page, parsed)
+        pdf_url = lookup_chart(page, parsed)
 
-        if success:
-            click.echo("Chart found! Browser will remain open.")
+        if pdf_url:
+            if headless:
+                click.echo(pdf_url)
+            else:
+                # Navigate directly to PDF unless in browse mode
+                if not browse:
+                    page.goto(pdf_url)
+                click.echo("Chart found! Browser will remain open.")
         else:
-            click.echo("Could not find chart. Browser will remain open for manual navigation.")
+            if not headless:
+                click.echo("Could not find chart. Browser will remain open for manual navigation.")
+            else:
+                click.echo("Could not find chart.", err=True)
 
         if own_session and not headless:
             _wait_for_input_or_close(session, page=page)
 
-        return success
+        return pdf_url
     finally:
         if own_session:
             session.stop()
@@ -431,9 +476,9 @@ def interactive_mode():
                 click.echo(f"Looking up: {parsed.airport} - {parsed.chart_name}")
 
                 page = session.new_page()
-                success = lookup_chart(page, parsed)
+                pdf_url = lookup_chart(page, parsed)
 
-                if success:
+                if pdf_url:
                     click.echo("Chart found!")
                 else:
                     click.echo("Could not find chart automatically. Check the browser.")

@@ -101,11 +101,11 @@ def _normalize_chart_name(name: str) -> str:
     return name
 
 
-def lookup_chart(page: Page, query: ChartQuery, timeout: int = 30000) -> bool:
+def lookup_chart(page: Page, query: ChartQuery, timeout: int = 30000) -> str | None:
     """
     Navigate to the charts page and look up the specified chart.
 
-    Returns True if the chart was found and displayed.
+    Returns the PDF URL if found, None otherwise.
     """
     # Navigate to charts page
     page.goto(CHARTS_URL, wait_until="networkidle", timeout=timeout)
@@ -115,7 +115,7 @@ def lookup_chart(page: Page, query: ChartQuery, timeout: int = 30000) -> bool:
         page.wait_for_selector("button:has-text('SFO')", timeout=10000)
     except PlaywrightTimeout:
         print("Warning: Page load timeout, airport buttons not found")
-        return False
+        return None
 
     # Check if the airport button exists
     airport_btn = page.locator(f"button:has-text('{query.airport}')")
@@ -129,7 +129,7 @@ def lookup_chart(page: Page, query: ChartQuery, timeout: int = 30000) -> bool:
         add_btn = page.locator("button:has(svg)").first
         if not add_btn.is_visible(timeout=2000):
             print(f"Airport {query.airport} not found and unable to add custom airport")
-            return False
+            return None
 
         add_btn.click()
 
@@ -141,7 +141,7 @@ def lookup_chart(page: Page, query: ChartQuery, timeout: int = 30000) -> bool:
             airport_input.press("Enter")
         except PlaywrightTimeout:
             print(f"Airport {query.airport} not found and custom airport input not available")
-            return False
+            return None
 
     # Wait for chart buttons to load (not just a fixed timeout)
     # After clicking/adding airport, chart list should populate
@@ -168,7 +168,7 @@ def lookup_chart(page: Page, query: ChartQuery, timeout: int = 30000) -> bool:
         )
     except PlaywrightTimeout:
         print(f"Warning: Timeout waiting for chart buttons to load for {query.airport}")
-        return False
+        return None
 
     # Determine the best filter text
     filter_text = _get_filter_text(query.chart_name, query.chart_type)
@@ -186,15 +186,21 @@ def lookup_chart(page: Page, query: ChartQuery, timeout: int = 30000) -> bool:
         chart_btn.click()
     else:
         print(f"Chart {query.chart_name} not found")
-        return False
+        return None
 
-    # Wait for PDF to load (embedded via <object> tag)
+    # Wait for PDF to load (embedded via <object> tag) and get URL
     try:
-        page.wait_for_selector("object[data*='.PDF']", timeout=5000)
-        return True
+        pdf_object = page.wait_for_selector("object[data*='.PDF']", timeout=5000)
+        if pdf_object:
+            return pdf_object.get_attribute("data")
+        return None
     except PlaywrightTimeout:
         # Chart might still be visible even without PDF confirmation
-        return True
+        # Try to get the URL anyway
+        pdf_object = page.locator("object[data*='.PDF']").first
+        if pdf_object.count() > 0:
+            return pdf_object.get_attribute("data")
+        return None
 
 
 def _get_filter_text(chart_name: str, chart_type: ChartType) -> str:
