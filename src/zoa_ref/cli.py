@@ -890,11 +890,12 @@ def interactive_mode():
 
             if lower_query.startswith("atis"):
                 # Handle "atis", "atis SFO", "atis all"
+                # Use headless session for ATIS lookups
                 parts = query[4:].strip().upper().split()
                 if not parts or (len(parts) == 1 and parts[0] == "ALL"):
                     # Fetch all ATIS
                     click.echo("Fetching ATIS for all airports...")
-                    page = session.new_page()
+                    page = icao_session.new_page()
                     result = fetch_all_atis(page)
                     page.close()
 
@@ -910,7 +911,7 @@ def interactive_mode():
                         click.echo(f"Available: {', '.join(ATIS_AIRPORTS)}")
                     else:
                         click.echo(f"Fetching ATIS for {airport}...")
-                        page = session.new_page()
+                        page = icao_session.new_page()
                         atis_info = fetch_atis(page, airport)
                         page.close()
 
