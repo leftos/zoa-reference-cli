@@ -67,7 +67,22 @@ def _wait_for_input_or_close(
         time.sleep(0.1)
 
 
-@click.group(invoke_without_command=True)
+class ImplicitChartGroup(click.Group):
+    """Custom group that treats unknown commands as implicit chart queries."""
+
+    def parse_args(self, ctx, args):
+        """Parse args, treating unknown commands as chart queries."""
+        # Check if we have args and the first arg isn't a known command or option
+        if args and not args[0].startswith('-'):
+            cmd_name = args[0]
+            if self.get_command(ctx, cmd_name) is None:
+                # Not a known command - treat all args as chart query
+                # Insert 'chart' command before the args
+                args = ['chart'] + list(args)
+        return super().parse_args(ctx, args)
+
+
+@click.group(cls=ImplicitChartGroup, invoke_without_command=True)
 @click.pass_context
 def main(ctx):
     """ZOA Reference CLI - Quick lookups to ZOA's Reference Tool.
@@ -76,7 +91,9 @@ def main(ctx):
 
     Examples:
 
-        zoa chart OAK CNDEL5     - Open the CNDEL FIVE PDF directly
+        zoa OAK CNDEL5           - Open the CNDEL FIVE PDF directly
+
+        zoa chart OAK CNDEL5     - Same as above (explicit command)
 
         zoa charts SFO ILS 28L   - Open ILS 28L, browse other SFO charts
 
@@ -769,6 +786,7 @@ def interactive_mode():
     click.echo("=" * 50)
     click.echo("Commands:")
     click.echo("  <airport> <chart>  - Look up a chart (e.g., OAK CNDEL5)")
+    click.echo("  chart <query>      - Same as above (e.g., chart OAK CNDEL5)")
     click.echo("  charts <query>     - Browse charts in browser (e.g., charts OAK CNDEL5)")
     click.echo("  list <airport>     - List charts for an airport")
     click.echo("  route <dep> <arr>  - Look up routes (e.g., route SFO LAX)")
@@ -812,6 +830,7 @@ def interactive_mode():
             if lower_query == "help":
                 click.echo("Commands:")
                 click.echo("  <airport> <chart>  - Look up a chart (e.g., OAK CNDEL5)")
+                click.echo("  chart <query>      - Same as above (e.g., chart OAK CNDEL5)")
                 click.echo("  charts <query>     - Browse charts in browser (e.g., charts OAK CNDEL5)")
                 click.echo("  list <airport>     - List charts for an airport")
                 click.echo("  route <dep> <arr>  - Look up routes (e.g., route SFO LAX)")
@@ -987,6 +1006,15 @@ def interactive_mode():
                     click.echo("Usage: aircraft <query>  (e.g., aircraft B738)")
                 click.echo()
                 continue
+
+            # Handle explicit "chart" command prefix (alias for implicit chart lookup)
+            if lower_query.startswith("chart "):
+                query = query[6:].strip()
+                if not query:
+                    click.echo("Usage: chart <airport> <chart>  (e.g., chart OAK CNDEL5)")
+                    click.echo()
+                    continue
+                # Fall through to chart lookup below
 
             # Treat as chart lookup
             try:
