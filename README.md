@@ -11,7 +11,7 @@ Requires Python 3.10+.
 Run the installation script which handles everything automatically:
 
 ```bash
-git clone https://github.com/yourusername/zoa-reference-cli.git
+git clone https://github.com/leftos/zoa-reference-cli.git
 cd zoa-reference-cli
 python install.py
 ```
@@ -26,7 +26,7 @@ This will:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/zoa-reference-cli.git
+git clone https://github.com/leftos/zoa-reference-cli.git
 cd zoa-reference-cli
 
 # Create virtual environment and install
