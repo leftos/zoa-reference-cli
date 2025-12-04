@@ -1,7 +1,7 @@
 """Browser automation module using Playwright."""
 
 import ctypes
-from playwright.sync_api import sync_playwright, Browser, Page, Playwright
+from playwright.sync_api import sync_playwright, Browser, BrowserContext, Page, Playwright
 from contextlib import contextmanager
 
 # Approximate taskbar height on Windows
@@ -46,6 +46,7 @@ class BrowserSession:
         self._playwright: Playwright | None = playwright
         self._owns_playwright = playwright is None  # Only stop playwright if we created it
         self._browser: Browser | None = None
+        self._context: BrowserContext | None = None
         self._disconnected = False
 
     def start(self) -> None:
@@ -61,6 +62,8 @@ class BrowserSession:
             args=args if args else None,
         )
         self._browser.on('disconnected', self._on_disconnected)
+        # Create a single context for all pages (tabs) in this session
+        self._context = self._browser.new_context(no_viewport=True)
 
     def create_child_session(self, headless: bool = True) -> "BrowserSession":
         """Create a new browser session sharing the same Playwright instance."""
@@ -83,6 +86,9 @@ class BrowserSession:
 
     def stop(self) -> None:
         """Stop the browser session."""
+        if self._context:
+            self._context.close()
+            self._context = None
         if self._browser:
             self._browser.close()
             self._browser = None
@@ -91,12 +97,43 @@ class BrowserSession:
             self._playwright = None
 
     def new_page(self) -> Page:
-        """Create a new browser page."""
-        if not self._browser:
+        """Create a new browser page (tab) in the existing window."""
+        if not self._context:
             raise RuntimeError("Browser not started. Call start() first.")
-        # Use no_viewport so content fills the window (viewport matches window size)
-        context = self._browser.new_context(no_viewport=True)
-        return context.new_page()
+        return self._context.new_page()
+
+    def find_page_by_url(self, url: str) -> Page | None:
+        """Find an existing page by URL (exact match or prefix match).
+
+        Args:
+            url: The URL to search for. Matches if page URL starts with this.
+
+        Returns:
+            The matching page, or None if not found.
+        """
+        if not self._context:
+            return None
+        for page in self._context.pages:
+            # Match by prefix to handle URL fragments (#view=FitV)
+            if page.url == url or page.url.startswith(url):
+                return page
+        return None
+
+    def get_or_create_page(self, url: str) -> tuple[Page, bool]:
+        """Get existing page with URL or create a new one.
+
+        Args:
+            url: The URL to navigate to.
+
+        Returns:
+            Tuple of (page, was_existing). If was_existing is True, the page
+            was found and brought to front. If False, a new page was created.
+        """
+        existing = self.find_page_by_url(url)
+        if existing:
+            existing.bring_to_front()
+            return existing, True
+        return self.new_page(), False
 
     def __enter__(self) -> "BrowserSession":
         self.start()

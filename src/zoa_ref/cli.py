@@ -83,8 +83,9 @@ class ImplicitChartGroup(click.Group):
 
 
 @click.group(cls=ImplicitChartGroup, invoke_without_command=True)
+@click.option("--playwright", is_flag=True, help="Use Playwright browser with tab management instead of system browser")
 @click.pass_context
-def main(ctx):
+def main(ctx, playwright: bool):
     """ZOA Reference CLI - Quick lookups to ZOA's Reference Tool.
 
     Run without arguments to enter interactive mode.
@@ -100,9 +101,15 @@ def main(ctx):
         zoa list OAK             - List all charts available for OAK
 
         zoa route SFO LAX        - Look up routes from SFO to LAX
+
+        zoa --playwright         - Interactive mode with managed browser
     """
+    # Store in context for subcommands that might need it
+    ctx.ensure_object(dict)
+    ctx.obj['playwright'] = playwright
+
     if ctx.invoked_subcommand is None:
-        interactive_mode()
+        interactive_mode(use_playwright=playwright)
 
 
 @main.command()
@@ -780,9 +787,18 @@ def _lookup_chart(
             session.stop()
 
 
-def interactive_mode():
-    """Run in interactive mode for continuous lookups."""
+def interactive_mode(use_playwright: bool = False):
+    """Run in interactive mode for continuous lookups.
+
+    Args:
+        use_playwright: If True, use Playwright browser with tab management.
+                       If False (default), use system browser via webbrowser.open().
+    """
+    import webbrowser
+
     click.echo("ZOA Reference CLI - Interactive Mode")
+    if use_playwright:
+        click.echo("(Using Playwright browser with tab management)")
     click.echo("=" * 50)
     click.echo("Commands:")
     click.echo("  <airport> <chart>  - Look up a chart (e.g., OAK CNDEL5)")
@@ -799,13 +815,17 @@ def interactive_mode():
     click.echo("=" * 50)
     click.echo()
 
-    session = BrowserSession(headless=False)
-    session.start()
-
-    # Headless browser for ICAO and ATIS lookups (shares Playwright instance)
-    headless_session = session.create_child_session(headless=True)
+    # Headless browser for scraping (ICAO, ATIS, routes) - started first
+    headless_session = BrowserSession(headless=True)
+    headless_session.start()
     codes_page = CodesPage(headless_session)
     codes_page.ensure_ready()  # Pre-navigate so first lookup is fast
+
+    # Visible browser session - only created if using playwright mode or for 'charts' command
+    # Shares Playwright instance with headless session to avoid conflicts
+    session: BrowserSession | None = None
+    if use_playwright:
+        session = headless_session.create_child_session(headless=False)
 
     # Create prompt session with history
     prompt_session = create_prompt_session()
@@ -866,10 +886,13 @@ def interactive_mode():
                         parsed = ChartQuery.parse(query_str)
                         click.echo(f"Opening charts browser: {parsed.airport} - {parsed.chart_name}")
 
-                        # Reconnect visible browser if it was closed
-                        if not session.is_connected:
+                        # Create or reconnect visible browser session for charts browsing
+                        # Share Playwright instance with headless session to avoid conflicts
+                        if session is None:
+                            session = headless_session.create_child_session(headless=False)
+                        elif not session.is_connected:
                             click.echo("Reopening browser...")
-                            session.start()
+                            session = headless_session.create_child_session(headless=False)
 
                         page = session.new_page()
                         pdf_url = lookup_chart(page, parsed)
@@ -898,7 +921,7 @@ def interactive_mode():
                 if len(parts) >= 2:
                     departure, arrival = parts[0], parts[1]
                     click.echo(f"Searching routes: {departure} -> {arrival}...")
-                    page = session.new_page()
+                    page = headless_session.new_page()
                     result = search_routes(page, departure, arrival)
                     page.close()
 
@@ -1030,33 +1053,64 @@ def interactive_mode():
                     chart_name = matched_chart.chart_name
                     num_pages = len(pdf_urls)
 
-                    # Reconnect visible browser if it was closed
-                    if not session.is_connected:
-                        click.echo("Reopening browser...")
-                        session.start()
+                    if use_playwright:
+                        # Playwright mode: use managed browser with tab reuse
+                        # Share Playwright instance with headless session to avoid conflicts
+                        if session is None:
+                            session = headless_session.create_child_session(headless=False)
+                        elif not session.is_connected:
+                            click.echo("Reopening browser...")
+                            session = headless_session.create_child_session(headless=False)
 
-                    if num_pages == 1:
-                        # Single page chart - open directly
-                        page = session.new_page()
-                        page.goto(f"{pdf_urls[0]}#view=FitV")
-                        click.echo(f"Chart found: {chart_name}")
-                    else:
-                        # Multi-page chart - merge and open
-                        import tempfile
-                        import os
-                        click.echo(f"Chart has {num_pages} pages, merging...")
-
-                        temp_fd, temp_path = tempfile.mkstemp(suffix=".pdf", prefix=f"zoa_{parsed.airport}_")
-                        os.close(temp_fd)
-
-                        if download_and_merge_pdfs(pdf_urls, temp_path):
-                            page = session.new_page()
-                            page.goto(f"file://{temp_path}#view=FitV")
-                            click.echo(f"Chart found: {chart_name} ({num_pages} pages)")
+                        if num_pages == 1:
+                            # Single page chart - check if already open
+                            pdf_url = pdf_urls[0]
+                            page, was_existing = session.get_or_create_page(pdf_url)
+                            if was_existing:
+                                click.echo(f"Chart already open: {chart_name}")
+                            else:
+                                page.goto(f"{pdf_url}#view=FitV")
+                                click.echo(f"Chart found: {chart_name}")
                         else:
-                            click.echo("Failed to merge PDF pages, opening first page only")
-                            page = session.new_page()
-                            page.goto(f"{pdf_urls[0]}#view=FitV")
+                            # Multi-page chart - merge and open
+                            import tempfile
+                            import os
+                            click.echo(f"Chart has {num_pages} pages, merging...")
+
+                            temp_fd, temp_path = tempfile.mkstemp(suffix=".pdf", prefix=f"zoa_{parsed.airport}_")
+                            os.close(temp_fd)
+
+                            if download_and_merge_pdfs(pdf_urls, temp_path):
+                                page = session.new_page()
+                                page.goto(f"file://{temp_path}#view=FitV")
+                                click.echo(f"Chart found: {chart_name} ({num_pages} pages)")
+                            else:
+                                click.echo("Failed to merge PDF pages, opening first page only")
+                                pdf_url = pdf_urls[0]
+                                page, was_existing = session.get_or_create_page(pdf_url)
+                                if not was_existing:
+                                    page.goto(f"{pdf_url}#view=FitV")
+                    else:
+                        # System browser mode: use webbrowser.open()
+                        if num_pages == 1:
+                            pdf_url = pdf_urls[0]
+                            webbrowser.open(f"{pdf_url}#view=FitV")
+                            click.echo(f"Chart found: {chart_name}")
+                        else:
+                            # Multi-page chart - merge and open
+                            import tempfile
+                            import os
+                            click.echo(f"Chart has {num_pages} pages, merging...")
+
+                            temp_fd, temp_path = tempfile.mkstemp(suffix=".pdf", prefix=f"zoa_{parsed.airport}_")
+                            os.close(temp_fd)
+
+                            if download_and_merge_pdfs(pdf_urls, temp_path):
+                                webbrowser.open(f"file://{temp_path}#view=FitV")
+                                click.echo(f"Chart found: {chart_name} ({num_pages} pages)")
+                            else:
+                                click.echo("Failed to merge PDF pages, opening first page only")
+                                webbrowser.open(f"{pdf_urls[0]}#view=FitV")
                 elif matches:
                     # Ambiguous match - show candidates
                     click.echo(f"Ambiguous match for '{parsed.chart_name}':")
@@ -1074,7 +1128,8 @@ def interactive_mode():
     finally:
         codes_page.close()
         headless_session.stop()
-        session.stop()
+        if session is not None:
+            session.stop()
 
 
 if __name__ == "__main__":
