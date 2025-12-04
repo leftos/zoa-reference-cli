@@ -1,0 +1,376 @@
+"""Chart lookup functionality for ZOA Reference Tool."""
+
+import re
+from dataclasses import dataclass
+from enum import Enum
+from playwright.sync_api import Page, TimeoutError as PlaywrightTimeout
+
+
+BASE_URL = "https://reference.oakartcc.org"
+CHARTS_URL = f"{BASE_URL}/charts"
+
+# Known airport codes in ZOA
+ZOA_AIRPORTS = [
+    "SFO", "OAK", "SJC", "SMF", "RNO", "FAT", "MRY", "BAB",
+    "APC", "CCR", "CIC", "HWD", "LVK", "MER", "MHR", "MOD",
+    "NUQ", "PAO", "RDD", "RHV", "SAC", "SCK", "SNS", "SQL",
+    "STS", "SUU", "TRK"
+]
+
+
+class ChartType(Enum):
+    """Types of aviation charts."""
+    SID = "sid"      # Standard Instrument Departure
+    STAR = "star"    # Standard Terminal Arrival Route
+    IAP = "iap"      # Instrument Approach Procedure
+    APD = "apd"      # Airport Diagram
+    UNKNOWN = "unknown"
+
+
+@dataclass
+class ChartQuery:
+    """Parsed chart query."""
+    airport: str
+    chart_name: str
+    chart_type: ChartType = ChartType.UNKNOWN
+
+    @classmethod
+    def parse(cls, query: str) -> "ChartQuery":
+        """Parse a query string like 'OAK CNDEL5' into a ChartQuery."""
+        parts = query.strip().upper().split()
+        if len(parts) < 2:
+            raise ValueError(
+                f"Invalid query format: '{query}'. Expected 'AIRPORT CHART_NAME'"
+            )
+
+        airport = parts[0]
+        chart_name = " ".join(parts[1:])
+
+        # Normalize chart name: "CNDEL5" -> "CNDEL FIVE"
+        chart_name = _normalize_chart_name(chart_name)
+
+        # Try to infer chart type from naming conventions
+        chart_type = cls._infer_chart_type(chart_name)
+
+        return cls(airport=airport, chart_name=chart_name, chart_type=chart_type)
+
+    @staticmethod
+    def _infer_chart_type(chart_name: str) -> ChartType:
+        """Infer the chart type from naming conventions."""
+        name = chart_name.upper()
+
+        # IAPs have specific indicators
+        if any(x in name for x in ["ILS", "LOC", "VOR", "RNAV", "RNP", "GPS", "NDB", "RWY"]):
+            return ChartType.IAP
+
+        if "DIAGRAM" in name:
+            return ChartType.APD
+
+        # STARs often have ARRIVAL in name
+        if "ARRIVAL" in name or "ARR" in name:
+            return ChartType.STAR
+
+        if "DEPARTURE" in name or "DEP" in name:
+            return ChartType.SID
+
+        return ChartType.UNKNOWN
+
+
+def _normalize_chart_name(name: str) -> str:
+    """
+    Normalize chart name for matching.
+
+    Examples:
+        CNDEL5 -> CNDEL FIVE
+        HUSSH2 -> HUSSH TWO
+        ILS28R -> ILS RWY 28R (left as-is, no number word conversion)
+    """
+    # Number word mapping
+    number_words = {
+        "1": "ONE", "2": "TWO", "3": "THREE", "4": "FOUR", "5": "FIVE",
+        "6": "SIX", "7": "SEVEN", "8": "EIGHT", "9": "NINE"
+    }
+
+    # Check if it ends with a single digit (SID/STAR pattern)
+    match = re.match(r"^([A-Z]+)(\d)$", name)
+    if match:
+        base = match.group(1)
+        digit = match.group(2)
+        return f"{base} {number_words.get(digit, digit)}"
+
+    return name
+
+
+def lookup_chart(page: Page, query: ChartQuery, timeout: int = 30000) -> bool:
+    """
+    Navigate to the charts page and look up the specified chart.
+
+    Returns True if the chart was found and displayed.
+    """
+    # Navigate to charts page
+    page.goto(CHARTS_URL, wait_until="networkidle", timeout=timeout)
+
+    # Wait for airport buttons to appear
+    try:
+        page.wait_for_selector("button:has-text('SFO')", timeout=10000)
+    except PlaywrightTimeout:
+        print("Warning: Page load timeout, airport buttons not found")
+        return False
+
+    # Check if the airport button exists
+    airport_btn = page.locator(f"button:has-text('{query.airport}')")
+    airport_exists = airport_btn.is_visible(timeout=2000)
+
+    if airport_exists:
+        # Airport already in list, just click it
+        airport_btn.click()
+    else:
+        # Airport not in list - add it via the + button
+        add_btn = page.locator("button:has(svg)").first
+        if not add_btn.is_visible(timeout=2000):
+            print(f"Airport {query.airport} not found and unable to add custom airport")
+            return False
+
+        add_btn.click()
+
+        # Wait for and fill the airport input
+        airport_input = page.locator("input[placeholder='FAA/ICAO']")
+        try:
+            airport_input.wait_for(timeout=5000)
+            airport_input.fill(query.airport)
+            airport_input.press("Enter")
+        except PlaywrightTimeout:
+            print(f"Airport {query.airport} not found and custom airport input not available")
+            return False
+
+    # Wait for chart buttons to load (not just a fixed timeout)
+    # After clicking/adding airport, chart list should populate
+    try:
+        # Wait for any chart button to appear (buttons with text longer than 3 chars, not airport codes)
+        page.wait_for_function(
+            """(airportCode) => {{
+                const buttons = document.querySelectorAll('button');
+                const defaultAirports = ['SFO', 'OAK', 'SJC', 'SMF', 'RNO', 'FAT', 'MRY', 'BAB',
+                    'APC', 'CCR', 'CIC', 'HWD', 'LVK', 'MER', 'MHR', 'MOD',
+                    'NUQ', 'PAO', 'RDD', 'RHV', 'SAC', 'SCK', 'SNS', 'SQL',
+                    'STS', 'SUU', 'TRK'];
+                for (const btn of buttons) {{
+                    const text = btn.innerText.trim();
+                    // Chart buttons have text > 3 chars and aren't airport codes
+                    if (text.length > 3 && !defaultAirports.includes(text) && text !== airportCode) {{
+                        return true;
+                    }}
+                }}
+                return false;
+            }}""",
+            arg=query.airport,
+            timeout=10000
+        )
+    except PlaywrightTimeout:
+        print(f"Warning: Timeout waiting for chart buttons to load for {query.airport}")
+        return False
+
+    # Determine the best filter text
+    filter_text = _get_filter_text(query.chart_name, query.chart_type)
+
+    # Use the filter to narrow down charts
+    filter_input = page.locator("input[placeholder='Filter']")
+    if filter_input.is_visible(timeout=2000) and filter_text:
+        filter_input.fill(filter_text)
+        # Small delay for filter to apply (UI debounce)
+        page.wait_for_timeout(200)
+
+    # Find and click the chart button using smart matching
+    chart_btn = _find_chart_button(page, query.chart_name, query.chart_type)
+    if chart_btn:
+        chart_btn.click()
+    else:
+        print(f"Chart {query.chart_name} not found")
+        return False
+
+    # Wait for PDF to load (embedded via <object> tag)
+    try:
+        page.wait_for_selector("object[data*='.PDF']", timeout=5000)
+        return True
+    except PlaywrightTimeout:
+        # Chart might still be visible even without PDF confirmation
+        return True
+
+
+def _get_filter_text(chart_name: str, chart_type: ChartType) -> str:
+    """Determine the best filter text for a chart search."""
+    # For IAPs, filter by runway number if present
+    runway_match = re.search(r"(\d{1,2}[LRC]?)\s*$", chart_name)
+    if chart_type == ChartType.IAP and runway_match:
+        return runway_match.group(1)
+
+    # For SIDs/STARs, use the procedure name
+    parts = chart_name.split()
+    if parts:
+        return parts[0]
+
+    return chart_name
+
+
+def _calculate_similarity(query: str, target: str) -> float:
+    """
+    Calculate similarity score between query and target strings.
+
+    Uses a combination of:
+    - Token overlap (Jaccard similarity)
+    - Substring matching bonus
+    - Prefix matching bonus
+
+    Returns a score between 0 and 1.
+    """
+    query = query.upper()
+    target = target.upper()
+
+    # Exact match
+    if query == target:
+        return 1.0
+
+    # Tokenize
+    query_tokens = set(re.findall(r"[A-Z0-9]+", query))
+    target_tokens = set(re.findall(r"[A-Z0-9]+", target))
+
+    if not query_tokens or not target_tokens:
+        return 0.0
+
+    # Jaccard similarity
+    intersection = len(query_tokens & target_tokens)
+    union = len(query_tokens | target_tokens)
+    jaccard = intersection / union if union > 0 else 0
+
+    # Substring bonus
+    substring_bonus = 0.0
+    if query in target:
+        substring_bonus = 0.3
+    elif any(qt in target for qt in query_tokens):
+        substring_bonus = 0.15
+
+    # Prefix bonus (first token match)
+    prefix_bonus = 0.0
+    if query_tokens and target_tokens:
+        query_first = sorted(query_tokens)[0] if query_tokens else ""
+        if any(tt.startswith(query_first) for tt in target_tokens):
+            prefix_bonus = 0.1
+
+    return min(1.0, jaccard + substring_bonus + prefix_bonus)
+
+
+def _find_chart_button(page: Page, chart_name: str, chart_type: ChartType, ambiguity_threshold: float = 0.15):
+    """
+    Find the best matching chart button.
+
+    Uses fuzzy matching with ambiguity detection. Returns None if multiple
+    charts have similar scores (ambiguous match).
+    """
+    # Get all visible chart buttons
+    buttons = page.locator("button").all()
+    visible_buttons = []
+
+    for btn in buttons:
+        try:
+            if btn.is_visible(timeout=100):
+                text = btn.inner_text().strip().upper()
+                if text and text not in ZOA_AIRPORTS and len(text) > 3:
+                    visible_buttons.append((btn, text))
+        except Exception:
+            continue
+
+    if not visible_buttons:
+        return None
+
+    chart_name_upper = chart_name.upper()
+
+    # Strategy 1: Exact match (highest priority)
+    for btn, text in visible_buttons:
+        if chart_name_upper == text:
+            return btn
+
+    # Strategy 2: For IAPs, match approach type + runway (high priority)
+    if chart_type == ChartType.IAP:
+        iap_match = re.match(r"(ILS|LOC|VOR|RNAV|RNP|GPS|NDB)\s*(.+)", chart_name_upper)
+        if iap_match:
+            approach_type = iap_match.group(1)
+            runway = iap_match.group(2).strip()
+
+            # Find charts matching both approach type and runway
+            matching = []
+            for btn, text in visible_buttons:
+                if approach_type in text and runway in text:
+                    matching.append((btn, text))
+
+            if len(matching) == 1:
+                return matching[0][0]
+            elif len(matching) > 1:
+                # Multiple matches for same approach type + runway
+                # Use fuzzy matching to pick the best one
+                scores = [(btn, text, _calculate_similarity(chart_name_upper, text))
+                          for btn, text in matching]
+                scores.sort(key=lambda x: x[2], reverse=True)
+                if scores[0][2] - scores[1][2] >= ambiguity_threshold:
+                    return scores[0][0]
+                # Ambiguous match - warn user and return None
+                print(f"Ambiguous match for '{chart_name}':")
+                for btn, text, score in scores:
+                    if score >= scores[0][2] - ambiguity_threshold:
+                        print(f"  - {text} (score: {score:.2f})")
+                return None
+
+    # Strategy 3: Fuzzy matching with ambiguity detection
+    scores = []
+    for btn, text in visible_buttons:
+        score = _calculate_similarity(chart_name_upper, text)
+        scores.append((btn, text, score))
+
+    # Sort by score descending
+    scores.sort(key=lambda x: x[2], reverse=True)
+
+    if not scores:
+        return None
+
+    best_score = scores[0][2]
+
+    # Require minimum score threshold
+    if best_score < 0.3:
+        return None
+
+    # Check for ambiguity
+    if len(scores) > 1:
+        second_score = scores[1][2]
+        if best_score - second_score < ambiguity_threshold:
+            # Ambiguous match - multiple charts with similar scores
+            print(f"Ambiguous match for '{chart_name}':")
+            for btn, text, score in scores[:3]:
+                if score >= best_score - ambiguity_threshold:
+                    print(f"  - {text} (score: {score:.2f})")
+            return None
+
+    return scores[0][0]
+
+
+def list_charts(page: Page, airport: str) -> list[str]:
+    """List all available charts for an airport."""
+    page.goto(CHARTS_URL, wait_until="networkidle")
+
+    # Wait and click airport
+    page.wait_for_selector(f"button:has-text('{airport}')", timeout=10000)
+    page.click(f"button:has-text('{airport}')")
+    page.wait_for_timeout(500)
+
+    # Get all chart buttons (excluding airport buttons)
+    charts = []
+    buttons = page.locator("button").all()
+
+    for btn in buttons:
+        try:
+            text = btn.inner_text().strip()
+            # Skip airport codes and empty buttons
+            if text and text not in ZOA_AIRPORTS and len(text) > 3:
+                charts.append(text)
+        except Exception:
+            continue
+
+    return charts

@@ -1,0 +1,20 @@
+[project]
+name = "zoa-reference-cli"
+version = "0.1.0"
+description = "CLI tool for quick lookups to ZOA's Reference Tool"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "playwright>=1.40.0",
+    "click>=8.1.0",
+]
+
+[project.scripts]
+zoa = "zoa_ref.cli:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
