@@ -20,6 +20,7 @@ from .atis import (
     fetch_atis, fetch_all_atis,
     AtisInfo, ATIS_AIRPORTS
 )
+from .input import create_prompt_session, prompt_with_history
 
 
 def _is_page_alive(page) -> bool:
@@ -788,14 +789,17 @@ def interactive_mode():
     codes_page = CodesPage(headless_session)
     codes_page.ensure_ready()  # Pre-navigate so first lookup is fast
 
+    # Create prompt session with history
+    prompt_session = create_prompt_session()
+
     try:
         while True:
-            try:
-                query = click.prompt("zoa", prompt_suffix="> ").strip()
-            except (EOFError, KeyboardInterrupt):
+            query = prompt_with_history(prompt_session)
+            if query is None:
                 click.echo("\nGoodbye!")
                 break
 
+            query = query.strip()
             if not query:
                 continue
 
