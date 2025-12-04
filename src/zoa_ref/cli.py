@@ -709,12 +709,12 @@ def interactive_mode():
     click.echo("=" * 50)
     click.echo("Commands:")
     click.echo("  <airport> <chart>  - Look up a chart (e.g., OAK CNDEL5)")
+    click.echo("  charts <query>     - Browse charts in browser (e.g., charts OAK CNDEL5)")
+    click.echo("  list <airport>     - List charts for an airport")
     click.echo("  route <dep> <arr>  - Look up routes (e.g., route SFO LAX)")
     click.echo("  airline <query>    - Look up airline codes (e.g., airline UAL)")
     click.echo("  airport <query>    - Look up airport codes (e.g., airport KSFO)")
     click.echo("  aircraft <query>   - Look up aircraft types (e.g., aircraft B738)")
-    click.echo("  list <airport>     - List charts for an airport")
-    click.echo("  airports           - List all supported airports")
     click.echo("  help               - Show this help")
     click.echo("  quit / exit / q    - Exit the program")
     click.echo("=" * 50)
@@ -748,35 +748,64 @@ def interactive_mode():
             if lower_query == "help":
                 click.echo("Commands:")
                 click.echo("  <airport> <chart>  - Look up a chart (e.g., OAK CNDEL5)")
+                click.echo("  charts <query>     - Browse charts in browser (e.g., charts OAK CNDEL5)")
+                click.echo("  list <airport>     - List charts for an airport")
                 click.echo("  route <dep> <arr>  - Look up routes (e.g., route SFO LAX)")
                 click.echo("  airline <query>    - Look up airline codes (e.g., airline UAL)")
                 click.echo("  airport <query>    - Look up airport codes (e.g., airport KSFO)")
                 click.echo("  aircraft <query>   - Look up aircraft types (e.g., aircraft B738)")
-                click.echo("  list <airport>     - List charts for an airport")
-                click.echo("  airports           - List all supported airports")
                 click.echo("  quit / exit / q    - Exit the program")
-                click.echo()
-                continue
-
-            if lower_query == "airports":
-                click.echo("Supported airports:")
-                click.echo(f"  {', '.join(ZOA_AIRPORTS)}")
                 click.echo()
                 continue
 
             if lower_query.startswith("list "):
                 airport = query[5:].strip().upper()
                 click.echo(f"Fetching charts for {airport}...")
-                page = session.new_page()
-                charts = list_charts(page, airport)
-                page.close()
+                charts = fetch_charts_from_api(airport)
 
                 if charts:
-                    click.echo(f"Charts for {airport}:")
+                    click.echo(f"\nAvailable charts for {airport}:")
+                    click.echo("-" * 40)
                     for chart in charts:
-                        click.echo(f"  {chart}")
+                        type_str = chart.chart_code if chart.chart_code else "?"
+                        click.echo(f"  [{type_str:<4}] {chart.chart_name}")
+                    click.echo(f"\nTotal: {len(charts)} charts")
                 else:
                     click.echo(f"No charts found for {airport}")
+                click.echo()
+                continue
+
+            if lower_query.startswith("charts "):
+                query_str = query[7:].strip()
+                if query_str:
+                    try:
+                        parsed = ChartQuery.parse(query_str)
+                        click.echo(f"Opening charts browser: {parsed.airport} - {parsed.chart_name}")
+
+                        # Reconnect visible browser if it was closed
+                        if not session.is_connected:
+                            click.echo("Reopening browser...")
+                            session.start()
+
+                        page = session.new_page()
+                        pdf_url = lookup_chart(page, parsed)
+
+                        if pdf_url:
+                            # Modify the embedded PDF to fit to height
+                            page.evaluate("""() => {
+                                const obj = document.querySelector('object[data*=".PDF"]');
+                                if (obj && obj.data && !obj.data.includes('#')) {
+                                    obj.data = obj.data + '#view=FitV';
+                                }
+                            }""")
+                            click.echo("Chart found! Browse other charts in the browser window.")
+                        else:
+                            click.echo("Could not find chart. Browse manually in the browser window.")
+                    except ValueError as e:
+                        click.echo(f"Error: {e}")
+                        click.echo("Format: charts <airport> <chart_name>  (e.g., charts OAK CNDEL5)")
+                else:
+                    click.echo("Usage: charts <airport> <chart>  (e.g., charts OAK CNDEL5)")
                 click.echo()
                 continue
 
@@ -862,32 +891,56 @@ def interactive_mode():
             try:
                 parsed = ChartQuery.parse(query)
                 click.echo(f"Looking up: {parsed.airport} - {parsed.chart_name}")
+                if parsed.chart_type.value != "unknown":
+                    click.echo(f"  Detected type: {parsed.chart_type.value.upper()}")
 
-                # Reconnect visible browser if it was closed
-                if not session.is_connected:
-                    click.echo("Reopening browser...")
-                    session.start()
+                # Use API to find chart
+                pdf_urls, matched_chart, matches = lookup_chart_with_pages(parsed)
 
-                page = session.new_page()
-                pdf_url = lookup_chart(page, parsed)
+                if pdf_urls and matched_chart:
+                    chart_name = matched_chart.chart_name
+                    num_pages = len(pdf_urls)
 
-                if pdf_url:
-                    click.echo("Chart found!")
+                    # Reconnect visible browser if it was closed
+                    if not session.is_connected:
+                        click.echo("Reopening browser...")
+                        session.start()
+
+                    if num_pages == 1:
+                        # Single page chart - open directly
+                        page = session.new_page()
+                        page.goto(f"{pdf_urls[0]}#view=FitV")
+                        click.echo(f"Chart found: {chart_name}")
+                    else:
+                        # Multi-page chart - merge and open
+                        import tempfile
+                        import os
+                        click.echo(f"Chart has {num_pages} pages, merging...")
+
+                        temp_fd, temp_path = tempfile.mkstemp(suffix=".pdf", prefix=f"zoa_{parsed.airport}_")
+                        os.close(temp_fd)
+
+                        if download_and_merge_pdfs(pdf_urls, temp_path):
+                            page = session.new_page()
+                            page.goto(f"file://{temp_path}#view=FitV")
+                            click.echo(f"Chart found: {chart_name} ({num_pages} pages)")
+                        else:
+                            click.echo("Failed to merge PDF pages, opening first page only")
+                            page = session.new_page()
+                            page.goto(f"{pdf_urls[0]}#view=FitV")
+                elif matches:
+                    # Ambiguous match - show candidates
+                    click.echo(f"Ambiguous match for '{parsed.chart_name}':")
+                    _display_chart_matches(matches)
+                    click.echo("\nTry a more specific query.")
                 else:
-                    click.echo("Could not find chart automatically. Check the browser.")
+                    click.echo(f"No charts found for {parsed.airport}")
                 click.echo()
 
             except ValueError as e:
                 click.echo(f"Error: {e}")
                 click.echo("Format: <airport> <chart_name>  (e.g., OAK CNDEL5)")
                 click.echo()
-            except Exception as e:
-                # Browser was closed during lookup - will reconnect on next lookup
-                if "closed" in str(e).lower():
-                    click.echo("Browser was closed.")
-                    click.echo()
-                    continue
-                raise
 
     finally:
         codes_page.close()
