@@ -1,14 +1,43 @@
 """Browser automation module using Playwright."""
 
+import ctypes
 from playwright.sync_api import sync_playwright, Browser, Page, Playwright
 from contextlib import contextmanager
+
+# Approximate taskbar height on Windows
+TASKBAR_HEIGHT = 48
+# Aspect ratio for chart viewing (width:height)
+CHART_ASPECT_RATIO = 0.75  # 3:4 ratio, good for PDF viewing
+
+
+def _get_screen_size() -> tuple[int, int]:
+    """Get the primary screen dimensions."""
+    try:
+        user32 = ctypes.windll.user32
+        width = user32.GetSystemMetrics(0)
+        height = user32.GetSystemMetrics(1)
+        return width, height
+    except Exception:
+        # Fallback to reasonable defaults
+        return 1920, 1080
+
+
+def _calculate_viewport_size() -> tuple[int, int]:
+    """Calculate viewport size based on screen dimensions."""
+    _, screen_height = _get_screen_size()
+    # Use screen height minus taskbar
+    viewport_height = screen_height - TASKBAR_HEIGHT
+    # Calculate width from aspect ratio
+    viewport_width = int(viewport_height * CHART_ASPECT_RATIO)
+    return viewport_width, viewport_height
 
 
 class BrowserSession:
     """Manages a Playwright browser session."""
 
-    def __init__(self, headless: bool = False):
+    def __init__(self, headless: bool = False, window_size: tuple[int, int] | None = None):
         self.headless = headless
+        self.window_size = window_size
         self._playwright: Playwright | None = None
         self._browser: Browser | None = None
         self._disconnected = False
@@ -16,7 +45,13 @@ class BrowserSession:
     def start(self) -> None:
         """Start the browser session."""
         self._playwright = sync_playwright().start()
-        self._browser = self._playwright.chromium.launch(headless=self.headless)
+        args = []
+        if self.window_size:
+            args.append(f"--window-size={self.window_size[0]},{self.window_size[1]}")
+        self._browser = self._playwright.chromium.launch(
+            headless=self.headless,
+            args=args if args else None,
+        )
         self._browser.on('disconnected', self._on_disconnected)
 
     def _on_disconnected(self, _browser: Browser) -> None:
@@ -43,7 +78,9 @@ class BrowserSession:
         """Create a new browser page."""
         if not self._browser:
             raise RuntimeError("Browser not started. Call start() first.")
-        return self._browser.new_page()
+        # Use no_viewport so content fills the window (viewport matches window size)
+        context = self._browser.new_context(no_viewport=True)
+        return context.new_page()
 
     def __enter__(self) -> "BrowserSession":
         self.start()

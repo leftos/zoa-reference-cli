@@ -4,7 +4,7 @@ import threading
 import time
 
 import click
-from .browser import BrowserSession
+from .browser import BrowserSession, _calculate_viewport_size
 from .charts import ChartQuery, lookup_chart, list_charts, ZOA_AIRPORTS
 from .routes import search_routes, open_routes_browser, RouteSearchResult
 
@@ -352,7 +352,9 @@ def _lookup_chart(
 
     own_session = session is None
     if own_session:
-        session = BrowserSession(headless=headless)
+        # Use larger window for browse mode (charts command)
+        window_size = _calculate_viewport_size() if browse and not headless else None
+        session = BrowserSession(headless=headless, window_size=window_size)
         session.start()
 
     try:
@@ -365,7 +367,15 @@ def _lookup_chart(
             else:
                 # Navigate directly to PDF unless in browse mode
                 if not browse:
-                    page.goto(pdf_url)
+                    page.goto(f"{pdf_url}#view=FitV")
+                else:
+                    # For browse mode, modify the embedded PDF to fit to height
+                    page.evaluate("""() => {
+                        const obj = document.querySelector('object[data*=".PDF"]');
+                        if (obj && obj.data && !obj.data.includes('#')) {
+                            obj.data = obj.data + '#view=FitV';
+                        }
+                    }""")
                 click.echo("Chart found! Browser will remain open.")
         else:
             if not headless:
