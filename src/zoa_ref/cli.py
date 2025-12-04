@@ -783,9 +783,9 @@ def interactive_mode():
     session = BrowserSession(headless=False)
     session.start()
 
-    # Headless browser for fast ICAO lookups (shares Playwright instance)
-    icao_session = session.create_child_session(headless=True)
-    codes_page = CodesPage(icao_session)
+    # Headless browser for ICAO and ATIS lookups (shares Playwright instance)
+    headless_session = session.create_child_session(headless=True)
+    codes_page = CodesPage(headless_session)
     codes_page.ensure_ready()  # Pre-navigate so first lookup is fast
 
     try:
@@ -895,7 +895,7 @@ def interactive_mode():
                 if not parts or (len(parts) == 1 and parts[0] == "ALL"):
                     # Fetch all ATIS
                     click.echo("Fetching ATIS for all airports...")
-                    page = icao_session.new_page()
+                    page = headless_session.new_page()
                     result = fetch_all_atis(page)
                     page.close()
 
@@ -911,7 +911,7 @@ def interactive_mode():
                         click.echo(f"Available: {', '.join(ATIS_AIRPORTS)}")
                     else:
                         click.echo(f"Fetching ATIS for {airport}...")
-                        page = icao_session.new_page()
+                        page = headless_session.new_page()
                         atis_info = fetch_atis(page, airport)
                         page.close()
 
@@ -1041,7 +1041,7 @@ def interactive_mode():
 
     finally:
         codes_page.close()
-        icao_session.stop()
+        headless_session.stop()
         session.stop()
 
 
