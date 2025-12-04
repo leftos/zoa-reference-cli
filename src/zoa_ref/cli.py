@@ -1,9 +1,56 @@
 """CLI interface for ZOA Reference Tool lookups."""
 
+import threading
+import time
+
 import click
 from .browser import BrowserSession
 from .charts import ChartQuery, lookup_chart, list_charts, ZOA_AIRPORTS
 from .routes import search_routes, open_routes_browser, RouteSearchResult
+
+
+def _is_page_alive(page) -> bool:
+    """Check if a page is still alive by attempting a simple operation."""
+    try:
+        page.evaluate("1")
+        return True
+    except Exception:
+        return False
+
+
+def _wait_for_input_or_close(
+    session: BrowserSession,
+    prompt: str = "Press Enter to close browser...",
+    page=None,
+) -> bool:
+    """Wait for user input or browser/page close.
+
+    Returns True if browser/page was closed by user, False if Enter was pressed.
+    """
+    input_received = threading.Event()
+
+    def wait_for_input():
+        try:
+            input()
+            input_received.set()
+        except EOFError:
+            input_received.set()
+
+    click.echo(prompt)
+    input_thread = threading.Thread(target=wait_for_input, daemon=True)
+    input_thread.start()
+
+    while True:
+        # Check if browser disconnected or page was closed
+        if not session.is_connected:
+            click.echo("\nBrowser closed.")
+            return True
+        if page is not None and not _is_page_alive(page):
+            click.echo("\nBrowser closed.")
+            return True
+        if input_received.is_set():
+            return False
+        time.sleep(0.1)
 
 
 @click.group(invoke_without_command=True)
@@ -123,10 +170,9 @@ def route(departure: str, arrival: str, browser: bool, all_routes: bool, flights
             page = session.new_page()
             success = open_routes_browser(page, departure, arrival)
             if success:
-                click.echo("Routes page open. Press Enter to close browser...")
+                _wait_for_input_or_close(session, "Routes page open. Press Enter to close browser...", page)
             else:
-                click.echo("Failed to load routes page. Press Enter to close browser...")
-            input()
+                _wait_for_input_or_close(session, "Failed to load routes page. Press Enter to close browser...", page)
     else:
         # CLI mode: scrape and display
         with BrowserSession(headless=True) as session:
@@ -283,8 +329,7 @@ def _lookup_chart(query_str: str, headless: bool = False, session: BrowserSessio
             click.echo("Could not find chart. Browser will remain open for manual navigation.")
 
         if own_session and not headless:
-            click.echo("\nPress Enter to close the browser...")
-            input()
+            _wait_for_input_or_close(session, page=page)
 
         return success
     finally:
@@ -311,6 +356,10 @@ def interactive_mode():
 
     try:
         while True:
+            if not session.is_connected:
+                click.echo("\nBrowser closed. Exiting.")
+                break
+
             try:
                 query = click.prompt("zoa", prompt_suffix="> ").strip()
             except (EOFError, KeyboardInterrupt):

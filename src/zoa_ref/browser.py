@@ -11,11 +11,24 @@ class BrowserSession:
         self.headless = headless
         self._playwright: Playwright | None = None
         self._browser: Browser | None = None
+        self._disconnected = False
 
     def start(self) -> None:
         """Start the browser session."""
         self._playwright = sync_playwright().start()
         self._browser = self._playwright.chromium.launch(headless=self.headless)
+        self._browser.on('disconnected', self._on_disconnected)
+
+    def _on_disconnected(self, _browser: Browser) -> None:
+        """Handle browser disconnection (e.g., user closed the window)."""
+        self._disconnected = True
+
+    @property
+    def is_connected(self) -> bool:
+        """Check if the browser is still connected."""
+        if self._browser is None:
+            return False
+        return self._browser.is_connected()
 
     def stop(self) -> None:
         """Stop the browser session."""
