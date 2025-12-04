@@ -1,6 +1,9 @@
 """Chart lookup functionality for ZOA Reference Tool."""
 
+import json
 import re
+import urllib.request
+import urllib.error
 from dataclasses import dataclass
 from enum import Enum
 from playwright.sync_api import Page, TimeoutError as PlaywrightTimeout
@@ -8,6 +11,7 @@ from playwright.sync_api import Page, TimeoutError as PlaywrightTimeout
 
 BASE_URL = "https://reference.oakartcc.org"
 CHARTS_URL = f"{BASE_URL}/charts"
+CHARTS_API_URL = "https://charts-api.oakartcc.org/v1/charts"
 
 # Known airport codes in ZOA
 ZOA_AIRPORTS = [
@@ -99,6 +103,143 @@ def _normalize_chart_name(name: str) -> str:
         return f"{base} {number_words.get(digit, digit)}"
 
     return name
+
+
+@dataclass
+class ChartInfo:
+    """Chart information from the API."""
+    chart_name: str
+    chart_code: str
+    pdf_path: str
+    faa_ident: str
+    icao_ident: str
+
+    @property
+    def chart_type(self) -> ChartType:
+        """Map chart_code to ChartType."""
+        code_map = {
+            "DP": ChartType.SID,
+            "STAR": ChartType.STAR,
+            "IAP": ChartType.IAP,
+            "APD": ChartType.APD,
+        }
+        return code_map.get(self.chart_code, ChartType.UNKNOWN)
+
+
+def fetch_charts_from_api(airport: str) -> list[ChartInfo]:
+    """
+    Fetch charts for an airport from the charts API.
+
+    Args:
+        airport: FAA or ICAO airport identifier (e.g., "OAK" or "KOAK")
+
+    Returns:
+        List of ChartInfo objects for the airport.
+    """
+    url = f"{CHARTS_API_URL}?apt={airport.upper()}"
+
+    try:
+        with urllib.request.urlopen(url, timeout=10) as response:
+            data = json.loads(response.read().decode())
+    except urllib.error.URLError as e:
+        print(f"Error fetching charts from API: {e}")
+        return []
+    except json.JSONDecodeError as e:
+        print(f"Error parsing API response: {e}")
+        return []
+
+    # API returns data keyed by airport code (could be FAA or ICAO)
+    charts = []
+    for airport_key, chart_list in data.items():
+        for chart_data in chart_list:
+            charts.append(ChartInfo(
+                chart_name=chart_data.get("chart_name", ""),
+                chart_code=chart_data.get("chart_code", ""),
+                pdf_path=chart_data.get("pdf_path", ""),
+                faa_ident=chart_data.get("faa_ident", ""),
+                icao_ident=chart_data.get("icao_ident", ""),
+            ))
+
+    return charts
+
+
+@dataclass
+class ChartMatch:
+    """A chart match with similarity score."""
+    chart: ChartInfo
+    score: float
+
+
+def find_chart_by_name(
+    charts: list[ChartInfo],
+    query: ChartQuery,
+    ambiguity_threshold: float = 0.15,
+) -> tuple[ChartInfo | None, list[ChartMatch]]:
+    """
+    Find a chart by name using fuzzy matching.
+
+    Args:
+        charts: List of charts to search
+        query: The parsed chart query
+        ambiguity_threshold: Score difference threshold for ambiguous matches
+
+    Returns:
+        Tuple of (best_match, all_matches_above_threshold).
+        If ambiguous, best_match will be None and all_matches contains the candidates.
+    """
+    if not charts:
+        return None, []
+
+    chart_name_upper = query.chart_name.upper()
+
+    # Score all charts
+    matches: list[ChartMatch] = []
+    for chart in charts:
+        score = _calculate_similarity(chart_name_upper, chart.chart_name.upper())
+        if score > 0.2:  # Minimum threshold
+            matches.append(ChartMatch(chart=chart, score=score))
+
+    if not matches:
+        return None, []
+
+    # Sort by score descending
+    matches.sort(key=lambda m: m.score, reverse=True)
+
+    best_match = matches[0]
+
+    # Check for exact match
+    if best_match.score == 1.0:
+        return best_match.chart, matches
+
+    # Check for ambiguity
+    if len(matches) > 1:
+        second_score = matches[1].score
+        if best_match.score - second_score < ambiguity_threshold:
+            # Ambiguous - return None with all close matches
+            close_matches = [m for m in matches if m.score >= best_match.score - ambiguity_threshold]
+            return None, close_matches
+
+    return best_match.chart, matches
+
+
+def lookup_chart_via_api(query: ChartQuery) -> tuple[str | None, list[ChartMatch]]:
+    """
+    Look up a chart using the API.
+
+    Args:
+        query: The parsed chart query
+
+    Returns:
+        Tuple of (pdf_url, matches). If ambiguous or not found, pdf_url is None.
+    """
+    charts = fetch_charts_from_api(query.airport)
+    if not charts:
+        return None, []
+
+    chart, matches = find_chart_by_name(charts, query)
+    if chart:
+        return chart.pdf_path, matches
+    return None, matches
 
 
 def lookup_chart(page: Page, query: ChartQuery, timeout: int = 30000) -> str | None:

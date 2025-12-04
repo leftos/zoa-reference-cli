@@ -5,7 +5,10 @@ import time
 
 import click
 from .browser import BrowserSession, _calculate_viewport_size
-from .charts import ChartQuery, lookup_chart, list_charts, ZOA_AIRPORTS
+from .charts import (
+    ChartQuery, lookup_chart, list_charts, ZOA_AIRPORTS,
+    lookup_chart_via_api, ChartMatch,
+)
 from .routes import search_routes, open_routes_browser, RouteSearchResult
 
 
@@ -92,7 +95,7 @@ def chart(query: tuple[str, ...], headless: bool):
         zoa chart SFO RNAV 28L   - RNAV approach to runway 28L
     """
     query_str = " ".join(query)
-    _lookup_chart(query_str, headless=headless, browse=False)
+    _lookup_chart_api(query_str, headless=headless)
 
 
 @main.command()
@@ -323,6 +326,60 @@ def _display_recent_flights_table(flights: list) -> None:
 
     click.echo(f"\nTotal: {len(flights)} flight(s)")
     click.echo()
+
+
+def _display_chart_matches(matches: list[ChartMatch], max_display: int = 10) -> None:
+    """Display a list of matching charts."""
+    click.echo("\nMatching charts:")
+    click.echo("-" * 60)
+    for i, match in enumerate(matches[:max_display]):
+        chart = match.chart
+        type_str = chart.chart_code if chart.chart_code else "?"
+        click.echo(f"  [{type_str:<4}] {chart.chart_name} (score: {match.score:.2f})")
+    if len(matches) > max_display:
+        click.echo(f"  ... and {len(matches) - max_display} more")
+
+
+def _lookup_chart_api(query_str: str, headless: bool = False) -> str | None:
+    """Look up a chart using the API.
+
+    Args:
+        query_str: The chart query string (e.g., "OAK CNDEL5")
+        headless: If True, just output the PDF URL; otherwise open in browser
+
+    Returns the PDF URL if found, None otherwise.
+    """
+    try:
+        parsed = ChartQuery.parse(query_str)
+        click.echo(f"Looking up: {parsed.airport} - {parsed.chart_name}")
+        if parsed.chart_type.value != "unknown":
+            click.echo(f"  Detected type: {parsed.chart_type.value.upper()}")
+    except ValueError as e:
+        click.echo(f"Error: {e}", err=True)
+        return None
+
+    pdf_url, matches = lookup_chart_via_api(parsed)
+
+    if pdf_url:
+        if headless:
+            click.echo(pdf_url)
+        else:
+            # Open in browser
+            import webbrowser
+            click.echo(f"Opening chart: {matches[0].chart.chart_name if matches else 'chart'}")
+            webbrowser.open(f"{pdf_url}#view=FitV")
+        return pdf_url
+
+    # No unambiguous match found
+    if matches:
+        # Ambiguous match - show candidates
+        click.echo(f"Ambiguous match for '{parsed.chart_name}':")
+        _display_chart_matches(matches)
+        click.echo("\nTry a more specific query.")
+    else:
+        click.echo(f"No charts found for {parsed.airport}", err=True)
+
+    return None
 
 
 def _lookup_chart(
