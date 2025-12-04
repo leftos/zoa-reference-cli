@@ -1127,9 +1127,11 @@ def interactive_mode(use_playwright: bool = False):
 
     finally:
         codes_page.close()
-        headless_session.stop()
+        # Stop child session first (visible browser), then parent (headless)
+        # Parent owns the Playwright instance, so it must be stopped last
         if session is not None:
             session.stop()
+        headless_session.stop()
 
 
 if __name__ == "__main__":

@@ -13,6 +13,21 @@ nest_asyncio.apply()
 HISTORY_FILE = Path.home() / ".zoa-ref" / "history"
 
 
+class NoDuplicatesFileHistory(FileHistory):
+    """File-backed history that removes duplicates, keeping most recent."""
+
+    def store_string(self, string: str) -> None:
+        """Store a string in history, removing any existing duplicate."""
+        # Remove existing duplicate if present
+        try:
+            self._loaded_strings.remove(string)
+        except ValueError:
+            pass  # Not in history, that's fine
+
+        # Add to end (most recent)
+        super().store_string(string)
+
+
 def create_key_bindings() -> KeyBindings:
     """Create custom key bindings for the prompt."""
     bindings = KeyBindings()
@@ -39,7 +54,7 @@ def create_prompt_session() -> PromptSession:
     # Ensure history directory exists
     HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
 
-    history = FileHistory(str(HISTORY_FILE))
+    history = NoDuplicatesFileHistory(str(HISTORY_FILE))
     bindings = create_key_bindings()
 
     return PromptSession(
