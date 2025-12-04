@@ -128,11 +128,3 @@ def fetch_all_atis(page: Page, timeout: int = 30000) -> AtisResult | None:
     return AtisResult(atis_list=atis_list)
 
 
-def open_atis_browser(page: Page, timeout: int = 30000) -> bool:
-    """
-    Navigate to ATIS page and leave browser open.
-
-    Used for --browser mode where user wants to view ATIS page.
-    Returns True if navigation was successful.
-    """
-    return _navigate_to_atis_page(page, timeout)

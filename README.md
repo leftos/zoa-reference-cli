@@ -102,7 +102,6 @@ Get current ATIS for ZOA airports:
 zoa atis SFO            # Show ATIS for SFO
 zoa atis OAK            # Show ATIS for Oakland
 zoa atis --all          # Show ATIS for all airports
-zoa atis SFO --browser  # Open ATIS page in browser
 ```
 
 Supported ATIS airports: SFO, SJC, RNO, OAK, SMF
@@ -195,7 +194,6 @@ Available interactive commands:
 
 ### ATIS Command
 - `-a, --all` - Show ATIS for all airports
-- `--browser` - Open browser instead of CLI display
 
 ### ICAO Commands (airline, airport, aircraft)
 - `--browser` - Open browser instead of CLI display

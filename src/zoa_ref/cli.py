@@ -17,7 +17,7 @@ from .icao import (
     AirlineSearchResult, AirportSearchResult, AircraftSearchResult
 )
 from .atis import (
-    fetch_atis, fetch_all_atis, open_atis_browser,
+    fetch_atis, fetch_all_atis,
     AtisInfo, ATIS_AIRPORTS
 )
 
@@ -361,8 +361,7 @@ def aircraft(query: tuple[str, ...], browser: bool, no_cache: bool):
 @main.command()
 @click.argument("airport", required=False)
 @click.option("--all", "-a", "show_all", is_flag=True, help="Show ATIS for all airports")
-@click.option("--browser", is_flag=True, help="Open browser instead of CLI display")
-def atis(airport: str | None, show_all: bool, browser: bool):
+def atis(airport: str | None, show_all: bool):
     """Look up current ATIS for an airport.
 
     Examples:
@@ -372,19 +371,7 @@ def atis(airport: str | None, show_all: bool, browser: bool):
         zoa atis OAK          - Show ATIS for OAK
 
         zoa atis --all        - Show ATIS for all airports
-
-        zoa atis SFO --browser - Open ATIS page in browser
     """
-    if browser:
-        with BrowserSession(headless=False) as session:
-            page = session.new_page()
-            success = open_atis_browser(page)
-            if success:
-                _wait_for_input_or_close(session, "ATIS page open. Press Enter to close browser...", page)
-            else:
-                _wait_for_input_or_close(session, "Failed to load ATIS page. Press Enter to close browser...", page)
-        return
-
     if not airport and not show_all:
         click.echo(f"Available airports: {', '.join(ATIS_AIRPORTS)}")
         click.echo("Error: Please specify an airport or use --all", err=True)
