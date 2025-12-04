@@ -150,7 +150,7 @@ def fetch_charts_from_api(airport: str) -> list[ChartInfo]:
 
     # API returns data keyed by airport code (could be FAA or ICAO)
     charts = []
-    for airport_key, chart_list in data.items():
+    for _, chart_list in data.items():
         for chart_data in chart_list:
             charts.append(ChartInfo(
                 chart_name=chart_data.get("chart_name", ""),

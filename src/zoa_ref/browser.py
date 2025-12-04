@@ -35,16 +35,24 @@ def _calculate_viewport_size() -> tuple[int, int]:
 class BrowserSession:
     """Manages a Playwright browser session."""
 
-    def __init__(self, headless: bool = False, window_size: tuple[int, int] | None = None):
+    def __init__(
+        self,
+        headless: bool = False,
+        window_size: tuple[int, int] | None = None,
+        playwright: Playwright | None = None,
+    ):
         self.headless = headless
         self.window_size = window_size
-        self._playwright: Playwright | None = None
+        self._playwright: Playwright | None = playwright
+        self._owns_playwright = playwright is None  # Only stop playwright if we created it
         self._browser: Browser | None = None
         self._disconnected = False
 
     def start(self) -> None:
         """Start the browser session."""
-        self._playwright = sync_playwright().start()
+        if self._playwright is None:
+            self._playwright = sync_playwright().start()
+            self._owns_playwright = True
         args = []
         if self.window_size:
             args.append(f"--window-size={self.window_size[0]},{self.window_size[1]}")
@@ -54,7 +62,15 @@ class BrowserSession:
         )
         self._browser.on('disconnected', self._on_disconnected)
 
-    def _on_disconnected(self, _browser: Browser) -> None:
+    def create_child_session(self, headless: bool = True) -> "BrowserSession":
+        """Create a new browser session sharing the same Playwright instance."""
+        if self._playwright is None:
+            raise RuntimeError("Parent session not started. Call start() first.")
+        child = BrowserSession(headless=headless, playwright=self._playwright)
+        child.start()
+        return child
+
+    def _on_disconnected(self, _: Browser) -> None:
         """Handle browser disconnection (e.g., user closed the window)."""
         self._disconnected = True
 
@@ -70,7 +86,7 @@ class BrowserSession:
         if self._browser:
             self._browser.close()
             self._browser = None
-        if self._playwright:
+        if self._playwright and self._owns_playwright:
             self._playwright.stop()
             self._playwright = None
 
@@ -86,7 +102,7 @@ class BrowserSession:
         self.start()
         return self
 
-    def __exit__(self, _exc_type, _exc_val, _exc_tb) -> None:
+    def __exit__(self, *_: object) -> None:
         self.stop()
 
 

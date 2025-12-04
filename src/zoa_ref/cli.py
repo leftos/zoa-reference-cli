@@ -7,10 +7,15 @@ import click
 from .browser import BrowserSession, _calculate_viewport_size
 from .charts import (
     ChartQuery, lookup_chart, list_charts, ZOA_AIRPORTS,
-    lookup_chart_via_api, ChartMatch, fetch_charts_from_api,
+    ChartMatch, fetch_charts_from_api,
     lookup_chart_with_pages, download_and_merge_pdfs,
 )
 from .routes import search_routes, open_routes_browser, RouteSearchResult
+from .icao import (
+    search_airline, search_airport_code, search_aircraft,
+    open_codes_browser, CodesPage,
+    AirlineSearchResult, AirportSearchResult, AircraftSearchResult
+)
 
 
 def _is_page_alive(page) -> bool:
@@ -209,6 +214,146 @@ def route(departure: str, arrival: str, browser: bool, all_routes: bool, flights
                 click.echo("Failed to retrieve routes.", err=True)
 
 
+@main.command()
+@click.argument("query", nargs=-1, required=True)
+@click.option("--browser", is_flag=True, help="Open browser instead of CLI display")
+@click.option("--no-cache", is_flag=True, help="Bypass cache and fetch fresh data")
+def airline(query: tuple[str, ...], browser: bool, no_cache: bool):
+    """Look up an airline by ICAO code, telephony, or name.
+
+    Examples:
+
+        zoa airline UAL            - Search by ICAO ID
+
+        zoa airline united         - Search by telephony/name
+
+        zoa airline "United Air"   - Multi-word search
+
+        zoa airline UAL --browser  - Open in browser
+
+        zoa airline UAL --no-cache - Bypass cache
+    """
+    query_str = " ".join(query)
+
+    # Try cache first (instant lookup)
+    if not no_cache and not browser:
+        result = search_airline(None, query_str, use_cache=True)
+        if result:
+            _display_airlines(result)
+            return
+
+    click.echo(f"Searching airlines: {query_str}...")
+
+    if browser:
+        with BrowserSession(headless=False) as session:
+            page = session.new_page()
+            success = open_codes_browser(page)
+            if success:
+                _wait_for_input_or_close(session, "Codes page open. Press Enter to close browser...", page)
+            else:
+                _wait_for_input_or_close(session, "Failed to load codes page. Press Enter to close browser...", page)
+    else:
+        with BrowserSession(headless=True) as session:
+            page = session.new_page()
+            result = search_airline(page, query_str, use_cache=not no_cache)
+            if result:
+                _display_airlines(result)
+            else:
+                click.echo("Failed to retrieve airline codes.", err=True)
+
+
+@main.command()
+@click.argument("query", nargs=-1, required=True)
+@click.option("--browser", is_flag=True, help="Open browser instead of CLI display")
+@click.option("--no-cache", is_flag=True, help="Bypass cache and fetch fresh data")
+def airport(query: tuple[str, ...], browser: bool, no_cache: bool):
+    """Look up an airport by ICAO code, local ID, or name.
+
+    Examples:
+
+        zoa airport KSFO           - Search by ICAO ID
+
+        zoa airport SFO            - Search by local (FAA) ID
+
+        zoa airport "San Francisco" - Search by name
+
+        zoa airport SFO --no-cache - Bypass cache
+    """
+    query_str = " ".join(query)
+
+    # Try cache first (instant lookup)
+    if not no_cache and not browser:
+        result = search_airport_code(None, query_str, use_cache=True)
+        if result:
+            _display_airport_codes(result)
+            return
+
+    click.echo(f"Searching airports: {query_str}...")
+
+    if browser:
+        with BrowserSession(headless=False) as session:
+            page = session.new_page()
+            success = open_codes_browser(page)
+            if success:
+                _wait_for_input_or_close(session, "Codes page open. Press Enter to close browser...", page)
+            else:
+                _wait_for_input_or_close(session, "Failed to load codes page. Press Enter to close browser...", page)
+    else:
+        with BrowserSession(headless=True) as session:
+            page = session.new_page()
+            result = search_airport_code(page, query_str, use_cache=not no_cache)
+            if result:
+                _display_airport_codes(result)
+            else:
+                click.echo("Failed to retrieve airport codes.", err=True)
+
+
+@main.command()
+@click.argument("query", nargs=-1, required=True)
+@click.option("--browser", is_flag=True, help="Open browser instead of CLI display")
+@click.option("--no-cache", is_flag=True, help="Bypass cache and fetch fresh data")
+def aircraft(query: tuple[str, ...], browser: bool, no_cache: bool):
+    """Look up an aircraft by type designator or manufacturer/model.
+
+    Examples:
+
+        zoa aircraft B738          - Search by type designator
+
+        zoa aircraft boeing        - Search by manufacturer
+
+        zoa aircraft "737-800"     - Search by model
+
+        zoa aircraft B738 --no-cache - Bypass cache
+    """
+    query_str = " ".join(query)
+
+    # Try cache first (instant lookup)
+    if not no_cache and not browser:
+        result = search_aircraft(None, query_str, use_cache=True)
+        if result:
+            _display_aircraft(result)
+            return
+
+    click.echo(f"Searching aircraft: {query_str}...")
+
+    if browser:
+        with BrowserSession(headless=False) as session:
+            page = session.new_page()
+            success = open_codes_browser(page)
+            if success:
+                _wait_for_input_or_close(session, "Codes page open. Press Enter to close browser...", page)
+            else:
+                _wait_for_input_or_close(session, "Failed to load codes page. Press Enter to close browser...", page)
+    else:
+        with BrowserSession(headless=True) as session:
+            page = session.new_page()
+            result = search_aircraft(page, query_str, use_cache=not no_cache)
+            if result:
+                _display_aircraft(result)
+            else:
+                click.echo("Failed to retrieve aircraft types.", err=True)
+
+
 def _display_routes(result: RouteSearchResult, max_real_world: int | None = 5, show_flights: bool = False) -> None:
     """Display route search results in formatted CLI output."""
     click.echo()
@@ -328,11 +473,86 @@ def _display_recent_flights_table(flights: list) -> None:
     click.echo()
 
 
+def _display_airlines(result: AirlineSearchResult) -> None:
+    """Display airline search results in formatted CLI output."""
+    click.echo()
+    click.echo("=" * 80)
+    click.echo("AIRLINE CODES")
+    click.echo("=" * 80)
+
+    if not result.results:
+        click.echo(f"  No airlines found for '{result.query}'.")
+        click.echo()
+        return
+
+    # Header
+    click.echo(f"{'ICAO':<8} {'Telephony':<15} {'Name':<35} Country")
+    click.echo("-" * 80)
+
+    for airline in result.results:
+        name_display = airline.name[:33] + ".." if len(airline.name) > 35 else airline.name
+        click.echo(f"{airline.icao_id:<8} {airline.telephony:<15} {name_display:<35} {airline.country}")
+
+    click.echo(f"\nTotal: {len(result.results)} airline(s)")
+    click.echo()
+
+
+def _display_airport_codes(result: AirportSearchResult) -> None:
+    """Display airport code search results in formatted CLI output."""
+    click.echo()
+    click.echo("=" * 80)
+    click.echo("AIRPORT CODES")
+    click.echo("=" * 80)
+
+    if not result.results:
+        click.echo(f"  No airports found for '{result.query}'.")
+        click.echo()
+        return
+
+    # Header
+    click.echo(f"{'ICAO':<8} {'Local':<8} Name")
+    click.echo("-" * 80)
+
+    for airport in result.results:
+        click.echo(f"{airport.icao_id:<8} {airport.local_id:<8} {airport.name}")
+
+    click.echo(f"\nTotal: {len(result.results)} airport(s)")
+    click.echo()
+
+
+def _display_aircraft(result: AircraftSearchResult) -> None:
+    """Display aircraft search results in formatted CLI output."""
+    click.echo()
+    click.echo("=" * 80)
+    click.echo("AIRCRAFT TYPES")
+    click.echo("=" * 80)
+
+    if not result.results:
+        click.echo(f"  No aircraft found for '{result.query}'.")
+        click.echo()
+        return
+
+    # Header
+    click.echo(f"{'Type':<8} {'Manufacturer/Model':<30} {'Eng':<5} {'Wt':<4} {'CWT':<5} {'SRS':<5} LAHSO")
+    click.echo("-" * 80)
+
+    for ac in result.results:
+        mfr_model = f"{ac.manufacturer} {ac.model}"
+        mfr_display = mfr_model[:28] + ".." if len(mfr_model) > 30 else mfr_model
+        click.echo(
+            f"{ac.type_designator:<8} {mfr_display:<30} {ac.engine:<5} "
+            f"{ac.faa_weight:<4} {ac.cwt:<5} {ac.srs:<5} {ac.lahso}"
+        )
+
+    click.echo(f"\nTotal: {len(result.results)} aircraft type(s)")
+    click.echo()
+
+
 def _display_chart_matches(matches: list[ChartMatch], max_display: int = 10) -> None:
     """Display a list of matching charts."""
     click.echo("\nMatching charts:")
     click.echo("-" * 60)
-    for i, match in enumerate(matches[:max_display]):
+    for match in matches[:max_display]:
         chart = match.chart
         type_str = chart.chart_code if chart.chart_code else "?"
         click.echo(f"  [{type_str:<4}] {chart.chart_name} (score: {match.score:.2f})")
@@ -490,6 +710,9 @@ def interactive_mode():
     click.echo("Commands:")
     click.echo("  <airport> <chart>  - Look up a chart (e.g., OAK CNDEL5)")
     click.echo("  route <dep> <arr>  - Look up routes (e.g., route SFO LAX)")
+    click.echo("  airline <query>    - Look up airline codes (e.g., airline UAL)")
+    click.echo("  airport <query>    - Look up airport codes (e.g., airport KSFO)")
+    click.echo("  aircraft <query>   - Look up aircraft types (e.g., aircraft B738)")
     click.echo("  list <airport>     - List charts for an airport")
     click.echo("  airports           - List all supported airports")
     click.echo("  help               - Show this help")
@@ -500,12 +723,13 @@ def interactive_mode():
     session = BrowserSession(headless=False)
     session.start()
 
+    # Headless browser for fast ICAO lookups (shares Playwright instance)
+    icao_session = session.create_child_session(headless=True)
+    codes_page = CodesPage(icao_session)
+    codes_page.ensure_ready()  # Pre-navigate so first lookup is fast
+
     try:
         while True:
-            if not session.is_connected:
-                click.echo("\nBrowser closed. Exiting.")
-                break
-
             try:
                 query = click.prompt("zoa", prompt_suffix="> ").strip()
             except (EOFError, KeyboardInterrupt):
@@ -525,6 +749,9 @@ def interactive_mode():
                 click.echo("Commands:")
                 click.echo("  <airport> <chart>  - Look up a chart (e.g., OAK CNDEL5)")
                 click.echo("  route <dep> <arr>  - Look up routes (e.g., route SFO LAX)")
+                click.echo("  airline <query>    - Look up airline codes (e.g., airline UAL)")
+                click.echo("  airport <query>    - Look up airport codes (e.g., airport KSFO)")
+                click.echo("  aircraft <query>   - Look up aircraft types (e.g., aircraft B738)")
                 click.echo("  list <airport>     - List charts for an airport")
                 click.echo("  airports           - List all supported airports")
                 click.echo("  quit / exit / q    - Exit the program")
@@ -571,10 +798,75 @@ def interactive_mode():
                 click.echo()
                 continue
 
+            if lower_query.startswith("airline "):
+                query_text = query[8:].strip()
+                if query_text:
+                    # Try cache first, then use persistent codes page
+                    result = codes_page.search_airline(query_text, use_cache=True)
+                    if not result:
+                        # Page not ready, initialize it
+                        click.echo(f"Searching airlines: {query_text}...")
+                        if codes_page.ensure_ready():
+                            result = codes_page.search_airline(query_text)
+
+                    if result:
+                        _display_airlines(result)
+                    else:
+                        click.echo("Failed to retrieve airline codes.")
+                else:
+                    click.echo("Usage: airline <query>  (e.g., airline UAL)")
+                click.echo()
+                continue
+
+            if lower_query.startswith("airport "):
+                query_text = query[8:].strip()
+                if query_text:
+                    # Try cache first, then use persistent codes page
+                    result = codes_page.search_airport(query_text, use_cache=True)
+                    if not result:
+                        # Page not ready, initialize it
+                        click.echo(f"Searching airport codes: {query_text}...")
+                        if codes_page.ensure_ready():
+                            result = codes_page.search_airport(query_text)
+
+                    if result:
+                        _display_airport_codes(result)
+                    else:
+                        click.echo("Failed to retrieve airport codes.")
+                else:
+                    click.echo("Usage: airport <query>  (e.g., airport KSFO)")
+                click.echo()
+                continue
+
+            if lower_query.startswith("aircraft "):
+                query_text = query[9:].strip()
+                if query_text:
+                    # Try cache first, then use persistent codes page
+                    result = codes_page.search_aircraft(query_text, use_cache=True)
+                    if not result:
+                        # Page not ready, initialize it
+                        click.echo(f"Searching aircraft: {query_text}...")
+                        if codes_page.ensure_ready():
+                            result = codes_page.search_aircraft(query_text)
+
+                    if result:
+                        _display_aircraft(result)
+                    else:
+                        click.echo("Failed to retrieve aircraft types.")
+                else:
+                    click.echo("Usage: aircraft <query>  (e.g., aircraft B738)")
+                click.echo()
+                continue
+
             # Treat as chart lookup
             try:
                 parsed = ChartQuery.parse(query)
                 click.echo(f"Looking up: {parsed.airport} - {parsed.chart_name}")
+
+                # Reconnect visible browser if it was closed
+                if not session.is_connected:
+                    click.echo("Reopening browser...")
+                    session.start()
 
                 page = session.new_page()
                 pdf_url = lookup_chart(page, parsed)
@@ -589,8 +881,17 @@ def interactive_mode():
                 click.echo(f"Error: {e}")
                 click.echo("Format: <airport> <chart_name>  (e.g., OAK CNDEL5)")
                 click.echo()
+            except Exception as e:
+                # Browser was closed during lookup - will reconnect on next lookup
+                if "closed" in str(e).lower():
+                    click.echo("Browser was closed.")
+                    click.echo()
+                    continue
+                raise
 
     finally:
+        codes_page.close()
+        icao_session.stop()
         session.stop()
 
 
