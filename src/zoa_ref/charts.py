@@ -242,6 +242,132 @@ def lookup_chart_via_api(query: ChartQuery) -> tuple[str | None, list[ChartMatch
     return None, matches
 
 
+def find_all_chart_pages(
+    charts: list[ChartInfo],
+    base_chart: ChartInfo,
+) -> list[ChartInfo]:
+    """
+    Find all pages of a chart (main page + continuation pages).
+
+    Args:
+        charts: List of all charts for the airport
+        base_chart: The main chart to find pages for
+
+    Returns:
+        List of ChartInfo objects for all pages, sorted by page order.
+        The base chart is first, followed by CONT.1, CONT.2, etc.
+    """
+    base_name = base_chart.chart_name
+
+    # If this is already a continuation page, find the real base
+    if ", CONT." in base_name:
+        base_name = base_name.split(", CONT.")[0]
+
+    # Find all pages: base + continuations
+    pages = []
+    for chart in charts:
+        if chart.chart_name == base_name:
+            pages.append((0, chart))  # Main page
+        elif chart.chart_name.startswith(f"{base_name}, CONT."):
+            # Extract continuation number
+            try:
+                cont_part = chart.chart_name.split(", CONT.")[1]
+                cont_num = int(cont_part)
+                pages.append((cont_num, chart))
+            except (IndexError, ValueError):
+                # If we can't parse it, add at the end
+                pages.append((999, chart))
+
+    # Sort by page number and return just the charts
+    pages.sort(key=lambda x: x[0])
+    return [chart for _, chart in pages]
+
+
+def download_and_merge_pdfs(pdf_urls: list[str], output_path: str) -> bool:
+    """
+    Download multiple PDFs and merge them into one file.
+
+    Args:
+        pdf_urls: List of PDF URLs to download and merge
+        output_path: Path to save the merged PDF
+
+    Returns:
+        True if successful, False otherwise.
+    """
+    from pypdf import PdfWriter
+    import tempfile
+    import os
+
+    if not pdf_urls:
+        return False
+
+    writer = PdfWriter()
+    temp_files = []
+
+    try:
+        for url in pdf_urls:
+            # Download PDF to temp file
+            try:
+                with urllib.request.urlopen(url, timeout=30) as response:
+                    pdf_data = response.read()
+            except urllib.error.URLError as e:
+                print(f"Error downloading {url}: {e}")
+                return False
+
+            # Write to temp file (pypdf needs a file, not bytes)
+            temp_fd, temp_path = tempfile.mkstemp(suffix=".pdf")
+            temp_files.append(temp_path)
+            with os.fdopen(temp_fd, "wb") as f:
+                f.write(pdf_data)
+
+            # Append to writer
+            writer.append(temp_path)
+
+        # Write merged PDF
+        with open(output_path, "wb") as f:
+            writer.write(f)
+
+        return True
+
+    finally:
+        # Clean up temp files
+        for temp_path in temp_files:
+            try:
+                os.unlink(temp_path)
+            except OSError:
+                pass
+
+
+def lookup_chart_with_pages(
+    query: ChartQuery,
+) -> tuple[list[str] | None, ChartInfo | None, list[ChartMatch]]:
+    """
+    Look up a chart and find all its pages using the API.
+
+    Args:
+        query: The parsed chart query
+
+    Returns:
+        Tuple of (pdf_urls, matched_chart, all_matches).
+        - pdf_urls: List of PDF URLs for all pages (None if not found/ambiguous)
+        - matched_chart: The matched chart info (None if not found/ambiguous)
+        - all_matches: All matches above threshold for display
+    """
+    charts = fetch_charts_from_api(query.airport)
+    if not charts:
+        return None, None, []
+
+    chart, matches = find_chart_by_name(charts, query)
+    if not chart:
+        return None, None, matches
+
+    # Find all pages for this chart
+    all_pages = find_all_chart_pages(charts, chart)
+    pdf_urls = [page.pdf_path for page in all_pages]
+
+    return pdf_urls, chart, matches
+
+
 def lookup_chart(page: Page, query: ChartQuery, timeout: int = 30000) -> str | None:
     """
     Navigate to the charts page and look up the specified chart.

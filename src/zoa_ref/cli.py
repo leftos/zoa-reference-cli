@@ -8,6 +8,7 @@ from .browser import BrowserSession, _calculate_viewport_size
 from .charts import (
     ChartQuery, lookup_chart, list_charts, ZOA_AIRPORTS,
     lookup_chart_via_api, ChartMatch, fetch_charts_from_api,
+    lookup_chart_with_pages, download_and_merge_pdfs,
 )
 from .routes import search_routes, open_routes_browser, RouteSearchResult
 
@@ -348,6 +349,9 @@ def _lookup_chart_api(query_str: str, headless: bool = False) -> str | None:
 
     Returns the PDF URL if found, None otherwise.
     """
+    import tempfile
+    import os
+
     try:
         parsed = ChartQuery.parse(query_str)
         click.echo(f"Looking up: {parsed.airport} - {parsed.chart_name}")
@@ -357,17 +361,48 @@ def _lookup_chart_api(query_str: str, headless: bool = False) -> str | None:
         click.echo(f"Error: {e}", err=True)
         return None
 
-    pdf_url, matches = lookup_chart_via_api(parsed)
+    pdf_urls, matched_chart, matches = lookup_chart_with_pages(parsed)
 
-    if pdf_url:
-        if headless:
-            click.echo(pdf_url)
+    if pdf_urls and matched_chart:
+        chart_name = matched_chart.chart_name
+        num_pages = len(pdf_urls)
+
+        if num_pages == 1:
+            # Single page chart
+            pdf_url = pdf_urls[0]
+            if headless:
+                click.echo(pdf_url)
+            else:
+                import webbrowser
+                click.echo(f"Opening chart: {chart_name}")
+                webbrowser.open(f"{pdf_url}#view=FitV")
+            return pdf_url
         else:
-            # Open in browser
-            import webbrowser
-            click.echo(f"Opening chart: {matches[0].chart.chart_name if matches else 'chart'}")
-            webbrowser.open(f"{pdf_url}#view=FitV")
-        return pdf_url
+            # Multi-page chart - need to merge
+            click.echo(f"Chart has {num_pages} pages, merging...")
+
+            if headless:
+                # In headless mode, just output all URLs
+                for url in pdf_urls:
+                    click.echo(url)
+                return pdf_urls[0]
+
+            # Create temp file for merged PDF
+            temp_fd, temp_path = tempfile.mkstemp(suffix=".pdf", prefix=f"zoa_{parsed.airport}_")
+            os.close(temp_fd)
+
+            if download_and_merge_pdfs(pdf_urls, temp_path):
+                import webbrowser
+                click.echo(f"Opening merged chart: {chart_name} ({num_pages} pages)")
+                webbrowser.open(f"file://{temp_path}#view=FitV")
+                return temp_path
+            else:
+                click.echo("Failed to merge PDF pages", err=True)
+                # Fall back to opening just the first page
+                import webbrowser
+                click.echo(f"Opening first page only: {chart_name}")
+                webbrowser.open(f"{pdf_urls[0]}#view=FitV")
+                return pdf_urls[0]
 
     # No unambiguous match found
     if matches:
