@@ -7,7 +7,7 @@ import click
 from .browser import BrowserSession, _calculate_viewport_size
 from .charts import (
     ChartQuery, lookup_chart, list_charts, ZOA_AIRPORTS,
-    lookup_chart_via_api, ChartMatch,
+    lookup_chart_via_api, ChartMatch, fetch_charts_from_api,
 )
 from .routes import search_routes, open_routes_browser, RouteSearchResult
 
@@ -130,18 +130,17 @@ def list_cmd(airport: str):
 
     click.echo(f"Fetching charts for {airport}...")
 
-    with BrowserSession(headless=True) as session:
-        page = session.new_page()
-        charts = list_charts(page, airport)
+    charts = fetch_charts_from_api(airport)
 
-        if charts:
-            click.echo(f"\nAvailable charts for {airport}:")
-            click.echo("-" * 40)
-            for chart in charts:
-                click.echo(f"  {chart}")
-            click.echo(f"\nTotal: {len(charts)} charts")
-        else:
-            click.echo(f"No charts found for {airport}")
+    if charts:
+        click.echo(f"\nAvailable charts for {airport}:")
+        click.echo("-" * 40)
+        for chart in charts:
+            type_str = chart.chart_code if chart.chart_code else "?"
+            click.echo(f"  [{type_str:<4}] {chart.chart_name}")
+        click.echo(f"\nTotal: {len(charts)} charts")
+    else:
+        click.echo(f"No charts found for {airport}")
 
 
 @main.command()
