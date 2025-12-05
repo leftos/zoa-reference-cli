@@ -51,7 +51,7 @@ INTERACTIVE_HELP_COMMANDS = [
     "  chart <query>      - Same as above (e.g., chart OAK CNDEL5)",
     "  charts <query>     - Browse charts in browser (e.g., charts OAK CNDEL5)",
     "  list <airport>     - List charts for an airport",
-    "  route <dep> <arr>  - Look up routes (e.g., route SFO LAX)",
+    "  route <dep> <arr>  - Look up routes (e.g., route SFO LAX -a -f)",
     "  atis <airport>     - Look up ATIS (e.g., atis SFO or atis all)",
     "  sop <query>        - Look up SOP/procedure (e.g., sop OAK 2-2)",
     "  proc <query>       - Same as above (e.g., proc OAK 2-2)",
@@ -59,6 +59,201 @@ INTERACTIVE_HELP_COMMANDS = [
     "  airport <query>    - Look up airport codes (e.g., airport KSFO)",
     "  aircraft <query>   - Look up aircraft types (e.g., aircraft B738)",
 ]
+
+# Detailed help for individual commands (used by "help <command>")
+COMMAND_HELP = {
+    "chart": """
+chart - Look up a chart and open the PDF directly
+
+Usage:
+  chart <airport> <chart_name>
+  <airport> <chart_name>        (implicit, without 'chart' prefix)
+
+Arguments:
+  airport     Airport code (e.g., OAK, SFO, SJC)
+  chart_name  Chart name or partial match (e.g., CNDEL5, ILS 28R)
+
+Description:
+  Opens the chart PDF in your browser. Chart names are fuzzy-matched,
+  so "CNDEL5" will find "CNDEL FIVE". Multi-page charts (with CONT.1,
+  CONT.2 pages) are automatically merged.
+
+Examples:
+  chart OAK CNDEL5       - CNDEL FIVE departure
+  OAK ILS 28R            - ILS 28R approach (implicit)
+  chart SFO SERFR2       - SERFR TWO arrival
+""",
+    "charts": """
+charts - Browse charts in the Reference Tool browser
+
+Usage:
+  charts <airport> <chart_name>
+
+Arguments:
+  airport     Airport code (e.g., OAK, SFO, SJC)
+  chart_name  Chart name or partial match
+
+Description:
+  Opens the chart in the Reference Tool interface, allowing you to
+  browse other charts for the same airport. Use 'chart' instead if
+  you just want to view a single PDF.
+
+Examples:
+  charts OAK CNDEL5      - Open CNDEL FIVE, browse other OAK charts
+  charts SFO ILS 28L     - Open ILS 28L, browse other SFO charts
+""",
+    "list": """
+list - List all charts for an airport
+
+Usage:
+  list <airport>
+
+Arguments:
+  airport     Airport code (e.g., OAK, SFO, SJC)
+
+Description:
+  Shows all available charts for the specified airport, including
+  chart type codes (DP, STAR, IAP, etc.).
+
+Examples:
+  list OAK               - List all OAK charts
+  list SFO               - List all SFO charts
+""",
+    "route": """
+route - Look up routes between two airports
+
+Usage:
+  route <departure> <arrival> [-a] [-f] [-n N]
+
+Arguments:
+  departure   Departure airport code
+  arrival     Arrival airport code
+
+Options:
+  -a          Show all real world routes (default: top 5)
+  -f          Include recent flights (hidden by default)
+  -n N        Show top N real world routes
+
+Description:
+  Shows TEC/AAR/ADR routes, LOA rules, and real-world routes between
+  the specified airports. By default shows top 5 real-world routes.
+
+Examples:
+  route SFO LAX          - Routes from SFO to LAX (top 5)
+  route SFO LAX -a       - Show all real world routes
+  route SFO LAX -f       - Include recent flights
+  route SFO LAX -a -f    - Show everything
+  route OAK SAN -n 10    - Show top 10 real world routes
+""",
+    "atis": """
+atis - Look up current ATIS for an airport
+
+Usage:
+  atis <airport>
+  atis all
+
+Arguments:
+  airport     Airport code (SFO, OAK, SJC, SMF, or RNO)
+
+Description:
+  Fetches the current ATIS (Automatic Terminal Information Service)
+  for the specified airport. Use "atis all" to show ATIS for all
+  supported airports.
+
+Supported airports: SFO, OAK, SJC, SMF, RNO
+
+Examples:
+  atis SFO               - ATIS for San Francisco
+  atis all               - ATIS for all airports
+""",
+    "sop": """
+sop - Look up Standard Operating Procedures (SOPs)
+
+Usage:
+  sop <procedure>
+  sop <procedure> <section>
+  sop <procedure> <section> <search_text>
+
+Arguments:
+  procedure    Procedure name or airport code (e.g., OAK, "NORCAL TRACON")
+  section      Section number or heading (e.g., 2-2, "IFR Departures")
+  search_text  Text to find within the section
+
+Description:
+  Opens procedure PDFs, optionally jumping to a specific section or
+  searching for text within a section. Multi-step lookups let you
+  find specific content within large documents.
+
+Examples:
+  sop OAK                        - Open Oakland ATCT SOP
+  sop OAK 2-2                    - Open OAK SOP at section 2-2
+  sop "NORCAL TRACON"            - Open NORCAL TRACON SOP
+  sop SJC "IFR Departures" SJCE  - Find SJCE in IFR Departures section
+
+Alias: 'proc' is an alias for 'sop'
+""",
+    "proc": """
+proc - Alias for 'sop' command
+
+See 'help sop' for full documentation.
+""",
+    "airline": """
+airline - Look up airline codes
+
+Usage:
+  airline <query>
+
+Arguments:
+  query       ICAO code, telephony, or airline name
+
+Description:
+  Searches for airlines by ICAO identifier (e.g., UAL), telephony
+  callsign (e.g., UNITED), or airline name. Results are cached for
+  faster subsequent lookups.
+
+Examples:
+  airline UAL            - Search by ICAO code
+  airline united         - Search by telephony/name
+  airline "Delta Air"    - Multi-word search
+""",
+    "airport": """
+airport - Look up airport codes
+
+Usage:
+  airport <query>
+
+Arguments:
+  query       ICAO code, FAA identifier, or airport name
+
+Description:
+  Searches for airports by ICAO code (e.g., KSFO), FAA/local
+  identifier (e.g., SFO), or airport name. Results are cached.
+
+Examples:
+  airport KSFO           - Search by ICAO code
+  airport SFO            - Search by FAA identifier
+  airport "San Fran"     - Search by name
+""",
+    "aircraft": """
+aircraft - Look up aircraft type codes
+
+Usage:
+  aircraft <query>
+
+Arguments:
+  query       Type designator, manufacturer, or model
+
+Description:
+  Searches for aircraft by ICAO type designator (e.g., B738),
+  manufacturer (e.g., Boeing), or model name. Shows engine type,
+  weight class, and other operational data. Results are cached.
+
+Examples:
+  aircraft B738          - Search by type designator
+  aircraft boeing        - Search by manufacturer
+  aircraft "737-800"     - Search by model
+""",
+}
 
 
 def _print_interactive_help(include_help_line: bool = False) -> None:
@@ -71,8 +266,24 @@ def _print_interactive_help(include_help_line: bool = False) -> None:
     for line in INTERACTIVE_HELP_COMMANDS:
         click.echo(line)
     if include_help_line:
-        click.echo("  help               - Show this help")
+        click.echo("  help [command]     - Show help (e.g., help sop)")
     click.echo("  quit / exit / q    - Exit the program")
+
+
+def _print_command_help(command: str) -> bool:
+    """Print detailed help for a specific command.
+
+    Args:
+        command: The command name to show help for.
+
+    Returns:
+        True if help was found and printed, False otherwise.
+    """
+    cmd_lower = command.lower().strip()
+    if cmd_lower in COMMAND_HELP:
+        click.echo(COMMAND_HELP[cmd_lower].strip())
+        return True
+    return False
 
 
 def _get_running_browser() -> str | None:
@@ -1281,20 +1492,51 @@ def _handle_charts_interactive(args: str, ctx: InteractiveContext) -> None:
 
 
 def _handle_route_interactive(args: str, ctx: InteractiveContext) -> None:
-    """Handle 'route <departure> <arrival>' command in interactive mode."""
-    parts = args.strip().upper().split()
-    if len(parts) < 2:
-        click.echo("Usage: route <departure> <arrival>  (e.g., route SFO LAX)")
+    """Handle 'route <departure> <arrival> [options]' command in interactive mode."""
+    # Parse flags and arguments
+    parts = args.strip().split()
+    show_all = False
+    show_flights = False
+    top_n = 5
+    airports = []
+
+    i = 0
+    while i < len(parts):
+        part = parts[i]
+        if part in ("-a", "--all"):
+            show_all = True
+        elif part in ("-f", "--flights"):
+            show_flights = True
+        elif part in ("-n", "--top"):
+            if i + 1 < len(parts):
+                try:
+                    top_n = int(parts[i + 1])
+                    i += 1
+                except ValueError:
+                    click.echo(f"Invalid number for -n: {parts[i + 1]}")
+                    return
+            else:
+                click.echo("Missing number after -n")
+                return
+        elif not part.startswith("-"):
+            airports.append(part.upper())
+        i += 1
+
+    if len(airports) < 2:
+        click.echo("Usage: route <departure> <arrival> [-a] [-f] [-n N]")
+        click.echo("  -a        Show all real world routes (default: top 5)")
+        click.echo("  -f        Include recent flights")
+        click.echo("  -n N      Show top N real world routes")
         return
 
-    departure, arrival = parts[0], parts[1]
+    departure, arrival = airports[0], airports[1]
     click.echo(f"Searching routes: {departure} -> {arrival}...")
     page = ctx.headless_session.new_page()
     result = search_routes(page, departure, arrival)
     page.close()
 
     if result:
-        _display_routes(result)
+        _display_routes(result, max_real_world=None if show_all else top_n, show_flights=show_flights)
     else:
         click.echo("Failed to retrieve routes.")
 
@@ -1578,6 +1820,17 @@ def interactive_mode(use_playwright: bool = False):
 
             if lower_query == "help":
                 _print_interactive_help()
+                click.echo()
+                continue
+
+            if lower_query.startswith("help "):
+                cmd_name = query[5:].strip()
+                if cmd_name:
+                    if not _print_command_help(cmd_name):
+                        click.echo(f"Unknown command: {cmd_name}")
+                        click.echo("Available commands: chart, charts, list, route, atis, sop, proc, airline, airport, aircraft")
+                else:
+                    _print_interactive_help()
                 click.echo()
                 continue
 
