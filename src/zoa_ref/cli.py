@@ -11,6 +11,30 @@ from pathlib import Path
 
 import click
 
+from .atis import (
+    fetch_atis, fetch_all_atis,
+    AtisInfo, ATIS_AIRPORTS
+)
+from .browser import BrowserSession, _calculate_viewport_size
+from .charts import (
+    ChartQuery, lookup_chart, ZOA_AIRPORTS,
+    ChartMatch, fetch_charts_from_api,
+    lookup_chart_with_pages, download_and_merge_pdfs, download_and_rotate_pdf,
+    detect_pdf_view_mode,
+)
+from .icao import (
+    search_airline, search_airport_code, search_aircraft,
+    open_codes_browser, CodesPage,
+    AirlineSearchResult, AirportSearchResult, AircraftSearchResult
+)
+from .input import create_prompt_session, prompt_with_history
+from .procedures import (
+    ProcedureQuery, ProcedureInfo, ProcedureMatch,
+    fetch_procedures_list, find_procedure_by_name, find_heading_page,
+    find_text_in_section, list_all_procedures,
+)
+from .routes import search_routes, open_routes_browser, RouteSearchResult
+
 
 # Browser process names mapped to their command names
 BROWSERS = {
@@ -97,31 +121,6 @@ def _open_in_browser(file_path: str, view: str = "FitV") -> bool:
     # Fall back to default handler
     webbrowser.open(file_uri)
     return True
-
-
-from .browser import BrowserSession, _calculate_viewport_size
-from .charts import (
-    ChartQuery, lookup_chart, list_charts, ZOA_AIRPORTS,
-    ChartMatch, fetch_charts_from_api,
-    lookup_chart_with_pages, download_and_merge_pdfs, download_and_rotate_pdf,
-    detect_pdf_view_mode,
-)
-from .routes import search_routes, open_routes_browser, RouteSearchResult
-from .icao import (
-    search_airline, search_airport_code, search_aircraft,
-    open_codes_browser, CodesPage,
-    AirlineSearchResult, AirportSearchResult, AircraftSearchResult
-)
-from .atis import (
-    fetch_atis, fetch_all_atis,
-    AtisInfo, ATIS_AIRPORTS
-)
-from .procedures import (
-    ProcedureQuery, ProcedureInfo, ProcedureMatch,
-    fetch_procedures_list, find_procedure_by_name, find_heading_page,
-    find_text_in_section, list_all_procedures,
-)
-from .input import create_prompt_session, prompt_with_history
 
 
 @dataclass
