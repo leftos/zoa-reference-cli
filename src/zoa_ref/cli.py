@@ -1,6 +1,8 @@
 """CLI interface for ZOA Reference Tool lookups."""
 
+import os
 import subprocess
+import tempfile
 import threading
 import time
 import webbrowser
@@ -723,9 +725,6 @@ def _lookup_chart_api(query_str: str, headless: bool = False, rotation: int = 0)
 
     Returns the PDF URL if found, None otherwise.
     """
-    import tempfile
-    import os
-
     try:
         parsed = ChartQuery.parse(query_str)
         click.echo(f"Looking up: {parsed.airport} - {parsed.chart_name}")
@@ -872,8 +871,6 @@ def interactive_mode(use_playwright: bool = False):
         use_playwright: If True, use Playwright browser with tab management.
                        If False (default), use system browser via webbrowser.open().
     """
-    import webbrowser
-
     click.echo("ZOA Reference CLI - Interactive Mode")
     if use_playwright:
         click.echo("(Using Playwright browser with tab management)")
@@ -1151,8 +1148,6 @@ def interactive_mode(use_playwright: bool = False):
                                 click.echo(f"Chart found: {chart_name}")
                         else:
                             # Multi-page chart - merge and open
-                            import tempfile
-                            import os
                             click.echo(f"Chart has {num_pages} pages, merging...")
 
                             temp_fd, temp_path = tempfile.mkstemp(suffix=".pdf", prefix=f"zoa_{parsed.airport}_")
@@ -1176,8 +1171,6 @@ def interactive_mode(use_playwright: bool = False):
                             click.echo(f"Chart found: {chart_name}")
                         else:
                             # Multi-page chart - merge and open
-                            import tempfile
-                            import os
                             click.echo(f"Chart has {num_pages} pages, merging...")
 
                             temp_fd, temp_path = tempfile.mkstemp(suffix=".pdf", prefix=f"zoa_{parsed.airport}_")
