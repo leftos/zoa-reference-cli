@@ -11,21 +11,22 @@ from pathlib import Path
 
 import click
 
-from .atis import (
-    fetch_atis, fetch_all_atis,
-    AtisInfo, ATIS_AIRPORTS
-)
+from .atis import fetch_atis, fetch_all_atis, ATIS_AIRPORTS
 from .browser import BrowserSession, _calculate_viewport_size
 from .charts import (
     ChartQuery, lookup_chart, ZOA_AIRPORTS,
-    ChartMatch, fetch_charts_from_api,
+    fetch_charts_from_api,
     lookup_chart_with_pages, download_and_merge_pdfs, download_and_rotate_pdf,
     detect_pdf_view_mode,
+)
+from .display import (
+    display_routes, display_airlines, display_airport_codes,
+    display_aircraft, display_atis, display_chart_matches,
+    display_procedure_matches,
 )
 from .icao import (
     search_airline, search_airport_code, search_aircraft,
     open_codes_browser, CodesPage,
-    AirlineSearchResult, AirportSearchResult, AircraftSearchResult
 )
 from .input import create_prompt_session, prompt_with_history
 from .procedures import (
@@ -33,7 +34,7 @@ from .procedures import (
     fetch_procedures_list, find_procedure_by_name, find_heading_page,
     find_text_in_section, list_all_procedures,
 )
-from .routes import search_routes, open_routes_browser, RouteSearchResult
+from .routes import search_routes, open_routes_browser
 
 
 # Browser process names mapped to their command names
@@ -574,17 +575,6 @@ def aircraft(query: tuple[str, ...], browser: bool, no_cache: bool):
 
 # --- Procedure/SOP Commands ---
 
-def _display_procedure_matches(matches: list[ProcedureMatch], max_display: int = 10) -> None:
-    """Display numbered list of matching procedures."""
-    click.echo("\nMultiple procedures found:")
-    click.echo("-" * 60)
-    for i, match in enumerate(matches[:max_display], start=1):
-        click.echo(f"  [{i}] {match.procedure.name} (score: {match.score:.2f})")
-    if len(matches) > max_display:
-        click.echo(f"  ... and {len(matches) - max_display} more")
-    click.echo()
-
-
 def _prompt_procedure_choice(matches: list[ProcedureMatch]) -> ProcedureInfo | None:
     """Prompt user to select from numbered matches."""
     while True:
@@ -748,7 +738,7 @@ def _handle_sop_command(
     if not procedure:
         if matches:
             # Ambiguous - show numbered disambiguation prompt
-            _display_procedure_matches(matches)
+            display_procedure_matches(matches)
             choice = _prompt_procedure_choice(matches)
             if choice:
                 procedure = choice
@@ -816,208 +806,6 @@ def atis(airport: str | None, show_all: bool):
     _do_atis_lookup(airport, show_all=show_all)
 
 
-def _print_table_header(title: str, header: str) -> None:
-    """Print standard table header with title and column headers."""
-    click.echo()
-    click.echo("=" * 80)
-    click.echo(title)
-    click.echo("=" * 80)
-    click.echo(header)
-    click.echo("-" * 80)
-
-
-def _print_table_empty(title: str, message: str) -> None:
-    """Print empty table with title and message."""
-    click.echo()
-    click.echo("=" * 80)
-    click.echo(title)
-    click.echo("=" * 80)
-    click.echo(f"  {message}")
-    click.echo()
-
-
-def _print_table_footer(count: int, item_name: str) -> None:
-    """Print standard table footer with count."""
-    click.echo(f"\nTotal: {count} {item_name}")
-    click.echo()
-
-
-def _display_routes(result: RouteSearchResult, max_real_world: int | None = 5, show_flights: bool = False) -> None:
-    """Display route search results in formatted CLI output."""
-    click.echo()
-
-    # TEC/AAR/ADR Routes
-    _display_tec_aar_adr_table(result.tec_aar_adr)
-
-    # LOA Rules
-    _display_loa_rules_table(result.loa_rules)
-
-    # Real World Routes
-    _display_real_world_table(result.real_world, max_routes=max_real_world)
-
-    # Recent Flights (only if requested)
-    if show_flights:
-        _display_recent_flights_table(result.recent_flights)
-
-
-def _display_tec_aar_adr_table(routes: list) -> None:
-    """Display TEC/AAR/ADR table with formatting."""
-    click.echo("=" * 80)
-    click.echo("TEC/AAR/ADR ROUTES")
-    click.echo("=" * 80)
-
-    if not routes:
-        click.echo("  No TEC/AAR/ADR routes found.")
-        click.echo()
-        return
-
-    # Header
-    click.echo(f"{'Dep Rwy':<10} {'Arr Rwy':<10} {'Types':<10} Route")
-    click.echo("-" * 80)
-
-    for r in routes:
-        click.echo(f"{r.dep_runway:<10} {r.arr_runway:<10} {r.types:<10} {r.route}")
-
-    click.echo(f"\nTotal: {len(routes)} route(s)")
-    click.echo()
-
-
-def _display_loa_rules_table(rules: list) -> None:
-    """Display LOA Rules table with formatting."""
-    click.echo("=" * 80)
-    click.echo("LOA RULES")
-    click.echo("=" * 80)
-
-    if not rules:
-        click.echo("  No LOA rules found.")
-        click.echo()
-        return
-
-    # Header
-    click.echo(f"{'Route':<35} {'RNAV?':<8} Notes")
-    click.echo("-" * 80)
-
-    for r in rules:
-        # Truncate route if too long
-        route_display = r.route[:33] + ".." if len(r.route) > 35 else r.route
-        click.echo(f"{route_display:<35} {r.rnav:<8} {r.notes}")
-
-    click.echo(f"\nTotal: {len(rules)} rule(s)")
-    click.echo()
-
-
-def _display_real_world_table(routes: list, max_routes: int | None = None) -> None:
-    """Display Real World Routes table with formatting."""
-    click.echo("=" * 80)
-    click.echo("REAL WORLD ROUTES")
-    click.echo("=" * 80)
-
-    if not routes:
-        click.echo("  No real world routes found.")
-        click.echo()
-        return
-
-    # Limit routes if max_routes is set
-    display_routes = routes if max_routes is None else routes[:max_routes]
-    truncated = max_routes is not None and len(routes) > max_routes
-
-    # Header
-    click.echo(f"{'Freq':<10} {'Route':<45} Altitude")
-    click.echo("-" * 80)
-
-    for r in display_routes:
-        # Truncate route if too long
-        route_display = r.route[:43] + ".." if len(r.route) > 45 else r.route
-        click.echo(f"{r.frequency:<10} {route_display:<45} {r.altitude}")
-
-    if truncated:
-        click.echo(f"\nShowing top {max_routes} of {len(routes)} routes (use -a for all)")
-    else:
-        click.echo(f"\nTotal: {len(routes)} route(s)")
-    click.echo()
-
-
-def _display_recent_flights_table(flights: list) -> None:
-    """Display Recent Flights table with formatting."""
-    click.echo("=" * 80)
-    click.echo("RECENT FLIGHTS")
-    click.echo("=" * 80)
-
-    if not flights:
-        click.echo("  No recent flights found.")
-        click.echo()
-        return
-
-    # Header
-    click.echo(f"{'Callsign':<12} {'Type':<8} {'Route':<40} Altitude")
-    click.echo("-" * 80)
-
-    for f in flights:
-        # Truncate route if too long
-        route_display = f.route[:38] + ".." if len(f.route) > 40 else f.route
-        click.echo(f"{f.callsign:<12} {f.aircraft_type:<8} {route_display:<40} {f.altitude}")
-
-    click.echo(f"\nTotal: {len(flights)} flight(s)")
-    click.echo()
-
-
-def _display_airlines(result: AirlineSearchResult) -> None:
-    """Display airline search results in formatted CLI output."""
-    if not result.results:
-        _print_table_empty("AIRLINE CODES", f"No airlines found for '{result.query}'.")
-        return
-
-    _print_table_header(
-        "AIRLINE CODES",
-        f"{'ICAO':<8} {'Telephony':<15} {'Name':<35} Country",
-    )
-
-    for airline in result.results:
-        name_display = airline.name[:33] + ".." if len(airline.name) > 35 else airline.name
-        click.echo(f"{airline.icao_id:<8} {airline.telephony:<15} {name_display:<35} {airline.country}")
-
-    _print_table_footer(len(result.results), "airline(s)")
-
-
-def _display_airport_codes(result: AirportSearchResult) -> None:
-    """Display airport code search results in formatted CLI output."""
-    if not result.results:
-        _print_table_empty("AIRPORT CODES", f"No airports found for '{result.query}'.")
-        return
-
-    _print_table_header(
-        "AIRPORT CODES",
-        f"{'ICAO':<8} {'Local':<8} Name",
-    )
-
-    for airport in result.results:
-        click.echo(f"{airport.icao_id:<8} {airport.local_id:<8} {airport.name}")
-
-    _print_table_footer(len(result.results), "airport(s)")
-
-
-def _display_aircraft(result: AircraftSearchResult) -> None:
-    """Display aircraft search results in formatted CLI output."""
-    if not result.results:
-        _print_table_empty("AIRCRAFT TYPES", f"No aircraft found for '{result.query}'.")
-        return
-
-    _print_table_header(
-        "AIRCRAFT TYPES",
-        f"{'Type':<8} {'Manufacturer/Model':<30} {'Eng':<5} {'Wt':<4} {'CWT':<5} {'SRS':<5} LAHSO",
-    )
-
-    for ac in result.results:
-        mfr_model = f"{ac.manufacturer} {ac.model}"
-        mfr_display = mfr_model[:28] + ".." if len(mfr_model) > 30 else mfr_model
-        click.echo(
-            f"{ac.type_designator:<8} {mfr_display:<30} {ac.engine:<5} "
-            f"{ac.faa_weight:<4} {ac.cwt:<5} {ac.srs:<5} {ac.lahso}"
-        )
-
-    _print_table_footer(len(result.results), "aircraft type(s)")
-
-
 # =============================================================================
 # Unified command implementations (shared between CLI and interactive modes)
 # =============================================================================
@@ -1043,9 +831,9 @@ def _do_icao_lookup(
     """
     # Map search type to functions and display
     search_funcs = {
-        "airline": (search_airline, _display_airlines, "airlines"),
-        "airport": (search_airport_code, _display_airport_codes, "airports"),
-        "aircraft": (search_aircraft, _display_aircraft, "aircraft"),
+        "airline": (search_airline, display_airlines, "airlines"),
+        "airport": (search_airport_code, display_airport_codes, "airports"),
+        "aircraft": (search_aircraft, display_aircraft, "aircraft"),
     }
     search_func, display_func, search_label = search_funcs[search_type]
 
@@ -1079,6 +867,7 @@ def _do_icao_lookup(
             session.start()
         else:
             # Create visible child session from headless
+            assert headless_session is not None
             session = headless_session.create_child_session(headless=False)
 
         try:
@@ -1157,6 +946,7 @@ def _do_route_lookup(
             session.start()
         else:
             # Create visible child session from headless
+            assert headless_session is not None
             session = headless_session.create_child_session(headless=False)
 
         try:
@@ -1177,15 +967,16 @@ def _do_route_lookup(
                 page = session.new_page()
                 result = search_routes(page, departure, arrival)
                 if result:
-                    _display_routes(result, max_real_world=None if show_all else top_n, show_flights=show_flights)
+                    display_routes(result, max_real_world=None if show_all else top_n, show_flights=show_flights)
                 else:
                     click.echo("Failed to retrieve routes.", err=True)
         else:
+            assert headless_session is not None
             page = headless_session.new_page()
             result = search_routes(page, departure, arrival)
             page.close()
             if result:
-                _display_routes(result, max_real_world=None if show_all else top_n, show_flights=show_flights)
+                display_routes(result, max_real_world=None if show_all else top_n, show_flights=show_flights)
             else:
                 click.echo("Failed to retrieve routes.", err=True)
 
@@ -1222,7 +1013,7 @@ def _do_atis_lookup(
         if show_all:
             result = fetch_all_atis(page)
             if result and result.atis_list:
-                _display_atis(result.atis_list)
+                display_atis(result.atis_list)
             else:
                 click.echo("Failed to retrieve ATIS.", err=True)
         elif airport:
@@ -1234,7 +1025,7 @@ def _do_atis_lookup(
 
             atis_info = fetch_atis(page, airport)
             if atis_info:
-                _display_atis([atis_info])
+                display_atis([atis_info])
             else:
                 click.echo(f"Failed to retrieve ATIS for {airport}.", err=True)
 
@@ -1295,7 +1086,7 @@ def _do_chart_lookup(
     if matches:
         # Ambiguous match - show candidates
         click.echo(f"Ambiguous match for '{parsed.chart_name}':")
-        _display_chart_matches(matches)
+        display_chart_matches(matches)
         click.echo("\nTry a more specific query.")
     else:
         click.echo(f"No charts found for {parsed.airport}", err=True)
@@ -1353,29 +1144,6 @@ def _do_charts_browse(
     finally:
         if own_session:
             session.stop()
-
-
-def _display_atis(atis_list: list[AtisInfo]) -> None:
-    """Display ATIS information in formatted CLI output."""
-    for atis in atis_list:
-        click.echo()
-        click.echo("=" * 80)
-        click.echo(f"ATIS - {atis.airport}")
-        click.echo("=" * 80)
-        click.echo(atis.raw_text)
-    click.echo()
-
-
-def _display_chart_matches(matches: list[ChartMatch], max_display: int = 10) -> None:
-    """Display a list of matching charts."""
-    click.echo("\nMatching charts:")
-    click.echo("-" * 60)
-    for match in matches[:max_display]:
-        chart = match.chart
-        type_str = chart.chart_code if chart.chart_code else "?"
-        click.echo(f"  [{type_str:<4}] {chart.chart_name} (score: {match.score:.2f})")
-    if len(matches) > max_display:
-        click.echo(f"  ... and {len(matches) - max_display} more")
 
 
 def _open_chart_pdf(
