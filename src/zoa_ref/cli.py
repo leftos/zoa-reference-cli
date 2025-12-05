@@ -233,27 +233,40 @@ def main(ctx, playwright: bool):
 @click.option("-r", "rotate_flag", is_flag=True, help="Rotate chart 90°")
 @click.option("--rotate", type=click.Choice(["90", "180", "270"]), default=None,
               help="Rotate chart by specific degrees")
-def chart(query: tuple[str, ...], headless: bool, rotate_flag: bool, rotate: str | None):
+@click.option("--no-rotate", is_flag=True, help="Disable auto-rotation")
+def chart(
+    query: tuple[str, ...],
+    headless: bool,
+    rotate_flag: bool,
+    rotate: str | None,
+    no_rotate: bool,
+):
     """Look up a chart and open the PDF directly.
 
     Opens the PDF in the browser for viewing. Use 'charts' command instead
     if you want to stay on the Reference Tool page to browse other charts.
 
+    Charts are auto-rotated based on text orientation. Use --no-rotate to disable.
+
     Examples:
 
-        zoa chart OAK CNDEL5            - CNDEL FIVE departure (no rotation)
+        zoa chart OAK CNDEL5            - CNDEL FIVE departure (auto-rotate)
 
-        zoa chart OAK CNDEL5 -r         - Rotated 90°
+        zoa chart OAK CNDEL5 -r         - Force 90° rotation
 
-        zoa chart OAK ILS 28R --rotate 180  - Rotated 180°
+        zoa chart OAK ILS 28R --rotate 180  - Force 180° rotation
+
+        zoa chart OAK DYAMD5 --no-rotate    - Disable auto-rotation
     """
     query_str = " ".join(query)
     if rotate:
-        rotation = int(rotate)
+        rotation: int | None = int(rotate)
     elif rotate_flag:
         rotation = 90
-    else:
+    elif no_rotate:
         rotation = 0
+    else:
+        rotation = None  # Auto-detect
     _lookup_chart_api(query_str, headless=headless, rotation=rotation)
 
 
@@ -780,7 +793,7 @@ def _open_chart_pdf(
     pdf_urls: list[str],
     airport: str,
     chart_name: str,
-    rotation: int = 0,
+    rotation: int | None = None,
     session: "BrowserSession | None" = None,
 ) -> str | None:
     """Open chart PDF(s) in browser.
@@ -792,7 +805,8 @@ def _open_chart_pdf(
         pdf_urls: List of PDF URLs (1 for single-page, multiple for continuation pages)
         airport: Airport code for temp file naming
         chart_name: Chart name for display
-        rotation: Rotation angle in degrees (0, 90, 180, 270)
+        rotation: Rotation angle in degrees (0, 90, 180, 270).
+                  If None, auto-detects from text orientation.
         session: If provided, use Playwright browser session; otherwise use system browser
 
     Returns:
@@ -855,13 +869,16 @@ def _open_chart_pdf(
             return pdf_url
 
 
-def _lookup_chart_api(query_str: str, headless: bool = False, rotation: int = 0) -> str | None:
+def _lookup_chart_api(
+    query_str: str, headless: bool = False, rotation: int | None = None
+) -> str | None:
     """Look up a chart using the API.
 
     Args:
         query_str: The chart query string (e.g., "OAK CNDEL5")
         headless: If True, just output the PDF URL; otherwise open in browser
-        rotation: Rotation angle in degrees (0, 90, 180, 270)
+        rotation: Rotation angle in degrees (0, 90, 180, 270).
+                  If None, auto-detects from text orientation.
 
     Returns the PDF URL if found, None otherwise.
     """
@@ -1166,7 +1183,7 @@ def _handle_chart_interactive(query: str, ctx: InteractiveContext) -> None:
                 pdf_urls=pdf_urls,
                 airport=parsed.airport,
                 chart_name=matched_chart.chart_name,
-                rotation=0,  # No rotation in interactive mode
+                rotation=None,  # Auto-detect rotation
                 session=session,
             )
         elif matches:

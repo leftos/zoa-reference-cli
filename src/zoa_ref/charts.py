@@ -287,10 +287,66 @@ def find_all_chart_pages(
     return [chart for _, chart in pages]
 
 
+def detect_rotation_needed(pdf_data: bytes) -> int:
+    """
+    Detect if a PDF needs rotation based on text orientation.
+
+    Analyzes text transformation matrices to determine if the majority
+    of text is rotated 90 degrees, indicating the chart should be
+    auto-rotated for proper viewing.
+
+    Args:
+        pdf_data: Raw PDF bytes
+
+    Returns:
+        Rotation angle needed: 0, 90, or -90
+    """
+    from pypdf import PdfReader
+    import math
+    from collections import Counter
+    import io
+
+    try:
+        reader = PdfReader(io.BytesIO(pdf_data))
+    except Exception:
+        return 0
+
+    angles: Counter[int] = Counter()
+
+    def visitor(text, cm, tm, fontDict, fontSize):
+        if text and text.strip() and tm:
+            a, b = tm[0], tm[1]
+            # Calculate rotation angle and round to nearest 10 degrees
+            angle = round(math.atan2(b, a) * 180 / math.pi / 10) * 10
+            angles[angle] += 1
+
+    for page in reader.pages:
+        try:
+            page.extract_text(visitor_text=visitor)
+        except Exception:
+            continue
+
+    total = sum(angles.values())
+    if total == 0:
+        return 0
+
+    # Check for 90° rotation need (text is rotated CCW, needs CW page rotation)
+    rotated_90 = sum(angles.get(a, 0) for a in [80, 90, 100])
+    if rotated_90 / total > 0.50:
+        return 90  # Rotate page clockwise
+
+    # Check for -90° rotation need (text is rotated CW, needs CCW page rotation)
+    rotated_neg90 = sum(angles.get(a, 0) for a in [-80, -90, -100])
+    if rotated_neg90 / total > 0.50:
+        return -90  # Rotate page counter-clockwise
+
+    return 0
+
+
 def download_and_merge_pdfs(
     pdf_urls: list[str],
     output_path: str,
-    rotation: int = 0,
+    rotation: int | None = None,
 ) -> bool:
     """
     Download multiple PDFs and merge them into one file.
@@ -298,7 +354,8 @@ def download_and_merge_pdfs(
     Args:
         pdf_urls: List of PDF URLs to download and merge
         output_path: Path to save the merged PDF
-        rotation: Rotation angle in degrees (0, 90, 180, 270)
+        rotation: Rotation angle in degrees (0, 90, 180, 270).
+                  If None, auto-detects from text orientation.
 
     Returns:
         True if successful, False otherwise.
@@ -312,17 +369,25 @@ def download_and_merge_pdfs(
 
     writer = PdfWriter()
     temp_files = []
+    pdf_data_list = []
 
     try:
+        # Download all PDFs first
         for url in pdf_urls:
-            # Download PDF to temp file
             try:
                 with urllib.request.urlopen(url, timeout=30) as response:
                     pdf_data = response.read()
+                    pdf_data_list.append(pdf_data)
             except urllib.error.URLError as e:
                 print(f"Error downloading {url}: {e}")
                 return False
 
+        # Auto-detect rotation from first PDF if not specified
+        if rotation is None and pdf_data_list:
+            rotation = detect_rotation_needed(pdf_data_list[0])
+
+        # Process each PDF
+        for pdf_data in pdf_data_list:
             # Write to temp file (pypdf needs a file, not bytes)
             temp_fd, temp_path = tempfile.mkstemp(suffix=".pdf")
             temp_files.append(temp_path)
@@ -351,14 +416,17 @@ def download_and_merge_pdfs(
                 pass
 
 
-def download_and_rotate_pdf(pdf_url: str, output_path: str, rotation: int = 0) -> bool:
+def download_and_rotate_pdf(
+    pdf_url: str, output_path: str, rotation: int | None = None
+) -> bool:
     """
     Download a single PDF and optionally rotate it.
 
     Args:
         pdf_url: URL of the PDF to download
         output_path: Path to save the PDF
-        rotation: Rotation angle in degrees (0, 90, 180, 270)
+        rotation: Rotation angle in degrees (0, 90, 180, 270).
+                  If None, auto-detects from text orientation.
 
     Returns:
         True if successful, False otherwise.
@@ -373,6 +441,10 @@ def download_and_rotate_pdf(pdf_url: str, output_path: str, rotation: int = 0) -
     except urllib.error.URLError as e:
         print(f"Error downloading {pdf_url}: {e}")
         return False
+
+    # Auto-detect rotation if not specified
+    if rotation is None:
+        rotation = detect_rotation_needed(pdf_data)
 
     if not rotation:
         # No rotation needed, just save directly
