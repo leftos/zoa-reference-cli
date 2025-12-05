@@ -49,15 +49,15 @@ BROWSERS = {
 
 # Interactive mode command help lines
 INTERACTIVE_HELP_COMMANDS = [
-    "  <airport> <chart>  - Look up a chart (e.g., OAK CNDEL5 -r)",
+    "  <airport> <chart>  - Look up a chart (e.g., OAK CNDEL5)",
     "  chart <query>      - Same as above (e.g., chart OAK CNDEL5)",
     "  charts <query>     - Browse charts in browser (e.g., charts OAK CNDEL5)",
     "  list <airport>     - List charts for an airport",
-    "  route <dep> <arr>  - Look up routes (e.g., route SFO LAX -a -f --browser)",
-    "  atis <airport>     - Look up ATIS (e.g., atis SFO or atis -a)",
-    "  sop <query>        - Look up SOP/procedure (e.g., sop OAK 2-2 or sop --list)",
-    "  proc <query>       - Same as above (e.g., proc OAK 2-2)",
-    "  airline <query>    - Look up airline codes (e.g., airline UAL --browser)",
+    "  route <dep> <arr>  - Look up routes (e.g., route SFO LAX)",
+    "  atis <airport>     - Look up ATIS (e.g., atis SFO)",
+    "  sop <query>        - Look up SOP/procedure (e.g., sop OAK IFR)",
+    "  proc <query>       - Same as above (e.g., proc OAK IFR)",
+    "  airline <query>    - Look up airline codes (e.g., airline UAL)",
     "  airport <query>    - Look up airport codes (e.g., airport KSFO)",
     "  aircraft <query>   - Look up aircraft types (e.g., aircraft B738)",
 ]
