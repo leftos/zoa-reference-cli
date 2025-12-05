@@ -29,6 +29,8 @@ INTERACTIVE_HELP_COMMANDS = [
     "  list <airport>     - List charts for an airport",
     "  route <dep> <arr>  - Look up routes (e.g., route SFO LAX)",
     "  atis <airport>     - Look up ATIS (e.g., atis SFO or atis all)",
+    "  sop <query>        - Look up SOP/procedure (e.g., sop OAK 2-2)",
+    "  proc <query>       - Same as above (e.g., proc OAK 2-2)",
     "  airline <query>    - Look up airline codes (e.g., airline UAL)",
     "  airport <query>    - Look up airport codes (e.g., airport KSFO)",
     "  aircraft <query>   - Look up aircraft types (e.g., aircraft B738)",
@@ -113,6 +115,11 @@ from .icao import (
 from .atis import (
     fetch_atis, fetch_all_atis,
     AtisInfo, ATIS_AIRPORTS
+)
+from .procedures import (
+    ProcedureQuery, ProcedureInfo, ProcedureMatch,
+    fetch_procedures_list, find_procedure_by_name, find_heading_page,
+    find_text_in_section, list_all_procedures,
 )
 from .input import create_prompt_session, prompt_with_history
 
@@ -522,6 +529,227 @@ def aircraft(query: tuple[str, ...], browser: bool, no_cache: bool):
                 _display_aircraft(result)
             else:
                 click.echo("Failed to retrieve aircraft types.", err=True)
+
+
+# --- Procedure/SOP Commands ---
+
+def _display_procedure_matches(matches: list[ProcedureMatch], max_display: int = 10) -> None:
+    """Display numbered list of matching procedures."""
+    click.echo("\nMultiple procedures found:")
+    click.echo("-" * 60)
+    for i, match in enumerate(matches[:max_display], start=1):
+        click.echo(f"  [{i}] {match.procedure.name} (score: {match.score:.2f})")
+    if len(matches) > max_display:
+        click.echo(f"  ... and {len(matches) - max_display} more")
+    click.echo()
+
+
+def _prompt_procedure_choice(matches: list[ProcedureMatch]) -> ProcedureInfo | None:
+    """Prompt user to select from numbered matches."""
+    while True:
+        try:
+            choice = input("Enter number to select (or 'q' to cancel): ").strip()
+            if choice.lower() in ('q', 'quit', ''):
+                return None
+            idx = int(choice)
+            if 1 <= idx <= len(matches):
+                return matches[idx - 1].procedure
+            click.echo(f"Please enter a number between 1 and {len(matches)}")
+        except ValueError:
+            click.echo("Please enter a valid number")
+        except (EOFError, KeyboardInterrupt):
+            return None
+
+
+def _open_procedure_pdf(procedure: ProcedureInfo, page_num: int = 1) -> None:
+    """Open a procedure PDF at a specific page."""
+    # Build URL with page fragment
+    pdf_url = procedure.full_url
+
+    # PDF.js supports #page=N&view=FitV
+    if page_num > 1:
+        url_with_page = f"{pdf_url}#page={page_num}&view=FitV"
+    else:
+        url_with_page = f"{pdf_url}#view=FitV"
+
+    click.echo(f"Opening: {procedure.name}")
+    if page_num > 1:
+        click.echo(f"  Page: {page_num}")
+
+    webbrowser.open(url_with_page)
+
+
+def _list_procedures(no_cache: bool = False) -> None:
+    """List all available procedures grouped by category."""
+    click.echo("Fetching procedures list...")
+
+    with BrowserSession(headless=True) as session:
+        page = session.new_page()
+        by_category = list_all_procedures(page, use_cache=not no_cache)
+
+    if not by_category:
+        click.echo("Failed to fetch procedures list.", err=True)
+        return
+
+    # Category display names
+    category_names = {
+        "policy": "Central Policy Statements",
+        "enroute": "Enroute (Oakland Center)",
+        "tracon": "TRACON",
+        "atct": "Airport Traffic Control Tower",
+        "loa_internal": "Internal Letters of Agreement",
+        "loa_external": "External Letters of Agreement",
+        "loa_military": "Military Letters of Agreement",
+        "zak": "ZAK Documents",
+        "quick_ref": "Quick Reference",
+        "other": "Other",
+    }
+
+    # Display order
+    display_order = [
+        "policy", "enroute", "tracon", "atct",
+        "loa_internal", "loa_external", "loa_military",
+        "zak", "quick_ref", "other"
+    ]
+
+    for cat in display_order:
+        if cat in by_category:
+            procs = by_category[cat]
+            display_name = category_names.get(cat, cat.title())
+            click.echo(f"\n{display_name}:")
+            click.echo("-" * 40)
+            for proc in procs:
+                click.echo(f"  {proc.name}")
+
+
+def _handle_sop_command(
+    query: tuple[str, ...],
+    list_procs: bool,
+    no_cache: bool
+) -> None:
+    """Handle sop/proc command logic."""
+    # List mode
+    if list_procs:
+        _list_procedures(no_cache)
+        return
+
+    # Parse query - pass tuple directly to preserve quoted strings
+    if not query:
+        click.echo("Usage: sop <query>  (e.g., sop OAK 2-2)")
+        click.echo("       sop SJC \"IFR Departures\" SJCE  (multi-step lookup)")
+        click.echo("       sop --list   (list all procedures)")
+        return
+
+    try:
+        parsed = ProcedureQuery.parse(query)
+    except ValueError as e:
+        click.echo(f"Error: {e}", err=True)
+        return
+
+    click.echo(f"Looking up: {parsed.procedure_term}")
+    if parsed.section_term:
+        click.echo(f"  Section: {parsed.section_term}")
+    if parsed.search_term:
+        click.echo(f"  Search for: {parsed.search_term}")
+
+    # Fetch procedures (cached)
+    with BrowserSession(headless=True) as session:
+        page = session.new_page()
+        procedures = fetch_procedures_list(page, use_cache=not no_cache)
+
+    if not procedures:
+        click.echo("Failed to fetch procedures list.", err=True)
+        return
+
+    # Find matching procedure
+    procedure, matches = find_procedure_by_name(procedures, parsed)
+
+    if not procedure:
+        if matches:
+            # Ambiguous - show numbered disambiguation prompt
+            _display_procedure_matches(matches)
+            choice = _prompt_procedure_choice(matches)
+            if choice:
+                procedure = choice
+            else:
+                return
+        else:
+            click.echo(f"No procedure found matching '{parsed.procedure_term}'")
+            return
+
+    # Determine page number
+    page_num = 1
+    if parsed.section_term and parsed.search_term:
+        # Multi-step lookup: find text within section
+        click.echo(f"Searching for '{parsed.search_term}' in section '{parsed.section_term}'...")
+        found_page = find_text_in_section(
+            procedure, parsed.section_term, parsed.search_term,
+            use_cache=not no_cache
+        )
+        if found_page:
+            page_num = found_page
+            click.echo(f"Found '{parsed.search_term}' at page {page_num}")
+        else:
+            # Fall back to just the section
+            click.echo(f"'{parsed.search_term}' not found in section, trying section only...")
+            found_page = find_heading_page(procedure, parsed.section_term, use_cache=not no_cache)
+            if found_page:
+                page_num = found_page
+                click.echo(f"Found section at page {page_num}")
+            else:
+                click.echo(f"Section '{parsed.section_term}' not found, opening first page")
+    elif parsed.section_term:
+        # Single section lookup
+        click.echo(f"Searching for section '{parsed.section_term}'...")
+        found_page = find_heading_page(procedure, parsed.section_term, use_cache=not no_cache)
+        if found_page:
+            page_num = found_page
+            click.echo(f"Found section at page {page_num}")
+        else:
+            click.echo(f"Section '{parsed.section_term}' not found, opening first page")
+
+    # Open PDF at page
+    _open_procedure_pdf(procedure, page_num)
+
+
+@main.command()
+@click.argument("query", nargs=-1, required=False)
+@click.option("--list", "list_procs", is_flag=True, help="List available procedures")
+@click.option("--no-cache", is_flag=True, help="Bypass cache and fetch fresh data")
+def sop(query: tuple[str, ...], list_procs: bool, no_cache: bool):
+    """Look up a Standard Operating Procedure (SOP) or policy document.
+
+    Opens the procedure PDF, optionally at a specific section or text match.
+
+    Examples:
+
+        zoa sop OAK                - Open Oakland ATCT SOP
+
+        zoa sop OAK 2-2            - Open OAK SOP at section 2-2
+
+        zoa sop "NORCAL TRACON"    - Open NORCAL TRACON SOP
+
+        zoa sop SJC "IFR Departures" SJCE  - Multi-step: find SJCE in IFR Departures
+
+        zoa sop --list             - List all available procedures
+    """
+    _handle_sop_command(query or (), list_procs, no_cache)
+
+
+@main.command("proc")
+@click.argument("query", nargs=-1, required=False)
+@click.option("--list", "list_procs", is_flag=True, help="List available procedures")
+@click.option("--no-cache", is_flag=True, help="Bypass cache and fetch fresh data")
+def proc(query: tuple[str, ...], list_procs: bool, no_cache: bool):
+    """Alias for 'sop' command. Look up procedure documents.
+
+    Examples:
+
+        zoa proc OAK               - Open Oakland ATCT SOP
+
+        zoa proc SFO 3-1           - Open SFO SOP at section 3-1
+    """
+    _handle_sop_command(query or (), list_procs, no_cache)
 
 
 @main.command()
@@ -1205,6 +1433,82 @@ def _handle_chart_interactive(query: str, ctx: InteractiveContext) -> None:
         click.echo("Format: <airport> <chart_name>  (e.g., OAK CNDEL5)")
 
 
+def _handle_sop_interactive(args: str, ctx: InteractiveContext) -> None:
+    """Handle 'sop <query>' command in interactive mode."""
+    query_text = args.strip()
+    if not query_text:
+        click.echo("Usage: sop <query>  (e.g., sop OAK 2-2)")
+        click.echo("       sop SJC \"IFR Dep\" SJCE  (multi-step lookup)")
+        return
+
+    try:
+        parsed = ProcedureQuery.parse(query_text)
+    except ValueError as e:
+        click.echo(f"Error: {e}")
+        return
+
+    click.echo(f"Looking up: {parsed.procedure_term}")
+    if parsed.section_term:
+        click.echo(f"  Section: {parsed.section_term}")
+    if parsed.search_term:
+        click.echo(f"  Search for: {parsed.search_term}")
+
+    # Fetch procedures (use headless session, cached)
+    page = ctx.headless_session.new_page()
+    procedures = fetch_procedures_list(page, use_cache=True)
+    page.close()
+
+    if not procedures:
+        click.echo("Failed to fetch procedures list.")
+        return
+
+    procedure, matches = find_procedure_by_name(procedures, parsed)
+
+    if not procedure:
+        if matches:
+            # Ambiguous - show numbered disambiguation prompt
+            _display_procedure_matches(matches)
+            choice = _prompt_procedure_choice(matches)
+            if choice:
+                procedure = choice
+            else:
+                return
+        else:
+            click.echo(f"No procedure found matching '{parsed.procedure_term}'")
+            return
+
+    # Determine page number
+    page_num = 1
+    if parsed.section_term and parsed.search_term:
+        # Multi-step lookup: find text within section
+        click.echo(f"Searching for '{parsed.search_term}' in section '{parsed.section_term}'...")
+        found_page = find_text_in_section(procedure, parsed.section_term, parsed.search_term)
+        if found_page:
+            page_num = found_page
+            click.echo(f"Found '{parsed.search_term}' at page {page_num}")
+        else:
+            # Fall back to just the section
+            click.echo(f"'{parsed.search_term}' not found in section, trying section only...")
+            found_page = find_heading_page(procedure, parsed.section_term)
+            if found_page:
+                page_num = found_page
+                click.echo(f"Found section at page {page_num}")
+            else:
+                click.echo(f"Section '{parsed.section_term}' not found, opening first page")
+    elif parsed.section_term:
+        # Single section lookup
+        click.echo(f"Searching for section '{parsed.section_term}'...")
+        found_page = find_heading_page(procedure, parsed.section_term)
+        if found_page:
+            page_num = found_page
+            click.echo(f"Found section at page {page_num}")
+        else:
+            click.echo(f"Section '{parsed.section_term}' not found, opening first page")
+
+    # Open PDF
+    _open_procedure_pdf(procedure, page_num)
+
+
 # Command registry: maps command prefix to (handler, prefix_length, needs_context)
 # needs_context indicates whether the handler requires InteractiveContext
 INTERACTIVE_COMMANDS: dict[str, tuple] = {
@@ -1212,6 +1516,8 @@ INTERACTIVE_COMMANDS: dict[str, tuple] = {
     "charts ": (_handle_charts_interactive, 7, True),
     "route ": (_handle_route_interactive, 6, True),
     "atis": (_handle_atis_interactive, 4, True),
+    "sop ": (_handle_sop_interactive, 4, True),
+    "proc ": (_handle_sop_interactive, 5, True),
     "airline ": (_handle_airline_interactive, 8, True),
     "airport ": (_handle_airport_interactive, 8, True),
     "aircraft ": (_handle_aircraft_interactive, 9, True),
