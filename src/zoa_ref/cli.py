@@ -6,6 +6,7 @@ import tempfile
 import threading
 import time
 import webbrowser
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import click
@@ -110,6 +111,31 @@ from .atis import (
     AtisInfo, ATIS_AIRPORTS
 )
 from .input import create_prompt_session, prompt_with_history
+
+
+@dataclass
+class InteractiveContext:
+    """Context object for interactive mode state.
+
+    Holds browser sessions and settings needed by interactive command handlers.
+    """
+
+    headless_session: BrowserSession
+    codes_page: CodesPage
+    use_playwright: bool
+    visible_session: BrowserSession | None = field(default=None)
+
+    def get_or_create_visible_session(self) -> BrowserSession:
+        """Get or create the visible browser session.
+
+        Creates a child session from headless_session if needed.
+        """
+        if self.visible_session is None:
+            self.visible_session = self.headless_session.create_child_session(headless=False)
+        elif not self.visible_session.is_connected:
+            click.echo("Reopening browser...")
+            self.visible_session = self.headless_session.create_child_session(headless=False)
+        return self.visible_session
 
 
 def _is_page_alive(page) -> bool:
@@ -906,17 +932,23 @@ def interactive_mode(use_playwright: bool = False):
     click.echo("=" * 50)
     click.echo()
 
-    # Headless browser for scraping (ICAO, ATIS, routes) - started first
+    # Initialize browser sessions and context
     headless_session = BrowserSession(headless=True)
     headless_session.start()
     codes_page = CodesPage(headless_session)
     codes_page.ensure_ready()  # Pre-navigate so first lookup is fast
 
-    # Visible browser session - only created if using playwright mode or for 'charts' command
-    # Shares Playwright instance with headless session to avoid conflicts
-    session: BrowserSession | None = None
-    if use_playwright:
-        session = headless_session.create_child_session(headless=False)
+    # Create context with optional visible session for playwright mode
+    ctx = InteractiveContext(
+        headless_session=headless_session,
+        codes_page=codes_page,
+        use_playwright=use_playwright,
+        visible_session=(
+            headless_session.create_child_session(headless=False)
+            if use_playwright
+            else None
+        ),
+    )
 
     # Create prompt session with history
     prompt_session = create_prompt_session()
@@ -967,14 +999,8 @@ def interactive_mode(use_playwright: bool = False):
                         parsed = ChartQuery.parse(query_str)
                         click.echo(f"Opening charts browser: {parsed.airport} - {parsed.chart_name}")
 
-                        # Create or reconnect visible browser session for charts browsing
-                        # Share Playwright instance with headless session to avoid conflicts
-                        if session is None:
-                            session = headless_session.create_child_session(headless=False)
-                        elif not session.is_connected:
-                            click.echo("Reopening browser...")
-                            session = headless_session.create_child_session(headless=False)
-
+                        # Get or create visible browser session for charts browsing
+                        session = ctx.get_or_create_visible_session()
                         page = session.new_page()
                         pdf_url = lookup_chart(page, parsed)
 
@@ -1002,7 +1028,7 @@ def interactive_mode(use_playwright: bool = False):
                 if len(parts) >= 2:
                     departure, arrival = parts[0], parts[1]
                     click.echo(f"Searching routes: {departure} -> {arrival}...")
-                    page = headless_session.new_page()
+                    page = ctx.headless_session.new_page()
                     result = search_routes(page, departure, arrival)
                     page.close()
 
@@ -1022,7 +1048,7 @@ def interactive_mode(use_playwright: bool = False):
                 if not parts or (len(parts) == 1 and parts[0] == "ALL"):
                     # Fetch all ATIS
                     click.echo("Fetching ATIS for all airports...")
-                    page = headless_session.new_page()
+                    page = ctx.headless_session.new_page()
                     result = fetch_all_atis(page)
                     page.close()
 
@@ -1038,7 +1064,7 @@ def interactive_mode(use_playwright: bool = False):
                         click.echo(f"Available: {', '.join(ATIS_AIRPORTS)}")
                     else:
                         click.echo(f"Fetching ATIS for {airport}...")
-                        page = headless_session.new_page()
+                        page = ctx.headless_session.new_page()
                         atis_info = fetch_atis(page, airport)
                         page.close()
 
@@ -1055,12 +1081,12 @@ def interactive_mode(use_playwright: bool = False):
                 query_text = query[8:].strip()
                 if query_text:
                     # Try cache first, then use persistent codes page
-                    result = codes_page.search_airline(query_text, use_cache=True)
+                    result = ctx.codes_page.search_airline(query_text, use_cache=True)
                     if not result:
                         # Page not ready, initialize it
                         click.echo(f"Searching airlines: {query_text}...")
-                        if codes_page.ensure_ready():
-                            result = codes_page.search_airline(query_text)
+                        if ctx.codes_page.ensure_ready():
+                            result = ctx.codes_page.search_airline(query_text)
 
                     if result:
                         _display_airlines(result)
@@ -1075,12 +1101,12 @@ def interactive_mode(use_playwright: bool = False):
                 query_text = query[8:].strip()
                 if query_text:
                     # Try cache first, then use persistent codes page
-                    result = codes_page.search_airport(query_text, use_cache=True)
+                    result = ctx.codes_page.search_airport(query_text, use_cache=True)
                     if not result:
                         # Page not ready, initialize it
                         click.echo(f"Searching airport codes: {query_text}...")
-                        if codes_page.ensure_ready():
-                            result = codes_page.search_airport(query_text)
+                        if ctx.codes_page.ensure_ready():
+                            result = ctx.codes_page.search_airport(query_text)
 
                     if result:
                         _display_airport_codes(result)
@@ -1095,12 +1121,12 @@ def interactive_mode(use_playwright: bool = False):
                 query_text = query[9:].strip()
                 if query_text:
                     # Try cache first, then use persistent codes page
-                    result = codes_page.search_aircraft(query_text, use_cache=True)
+                    result = ctx.codes_page.search_aircraft(query_text, use_cache=True)
                     if not result:
                         # Page not ready, initialize it
                         click.echo(f"Searching aircraft: {query_text}...")
-                        if codes_page.ensure_ready():
-                            result = codes_page.search_aircraft(query_text)
+                        if ctx.codes_page.ensure_ready():
+                            result = ctx.codes_page.search_aircraft(query_text)
 
                     if result:
                         _display_aircraft(result)
@@ -1134,14 +1160,9 @@ def interactive_mode(use_playwright: bool = False):
                     chart_name = matched_chart.chart_name
                     num_pages = len(pdf_urls)
 
-                    if use_playwright:
+                    if ctx.use_playwright:
                         # Playwright mode: use managed browser with tab reuse
-                        # Share Playwright instance with headless session to avoid conflicts
-                        if session is None:
-                            session = headless_session.create_child_session(headless=False)
-                        elif not session.is_connected:
-                            click.echo("Reopening browser...")
-                            session = headless_session.create_child_session(headless=False)
+                        session = ctx.get_or_create_visible_session()
 
                         if num_pages == 1:
                             # Single page chart - check if already open
@@ -1203,12 +1224,12 @@ def interactive_mode(use_playwright: bool = False):
                 click.echo()
 
     finally:
-        codes_page.close()
+        ctx.codes_page.close()
         # Stop child session first (visible browser), then parent (headless)
         # Parent owns the Playwright instance, so it must be stopped last
-        if session is not None:
-            session.stop()
-        headless_session.stop()
+        if ctx.visible_session is not None:
+            ctx.visible_session.stop()
+        ctx.headless_session.stop()
 
 
 if __name__ == "__main__":
