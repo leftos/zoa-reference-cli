@@ -1,9 +1,69 @@
 """CLI interface for ZOA Reference Tool lookups."""
 
+import subprocess
 import threading
 import time
+import webbrowser
+from pathlib import Path
 
 import click
+
+
+# Browser process names mapped to their command names
+BROWSERS = {
+    "chrome.exe": "chrome",
+    "msedge.exe": "msedge",
+    "firefox.exe": "firefox",
+    "brave.exe": "brave",
+    "opera.exe": "opera",
+}
+
+
+def _get_running_browser() -> str | None:
+    """Check if any known browser is running and return its command name."""
+    try:
+        result = subprocess.run(
+            ["tasklist", "/FO", "CSV", "/NH"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        processes = result.stdout.lower()
+        for process_name, cmd in BROWSERS.items():
+            if process_name in processes:
+                return cmd
+    except Exception:
+        pass
+    return None
+
+
+def _open_in_browser(file_path: str) -> bool:
+    """Open a local file in a running browser, or fall back to default handler.
+
+    Args:
+        file_path: Path to the local file to open.
+
+    Returns:
+        True if opened successfully.
+    """
+    # Convert to proper file:// URI
+    file_uri = Path(file_path).as_uri()
+
+    # Check for a running browser
+    browser_cmd = _get_running_browser()
+    if browser_cmd:
+        try:
+            # Use 'start' command on Windows to launch browser by name
+            subprocess.Popen(f'start "" "{browser_cmd}" "{file_uri}"', shell=True)
+            return True
+        except Exception:
+            pass  # Fall back to default
+
+    # Fall back to default handler
+    webbrowser.open(file_uri)
+    return True
+
+
 from .browser import BrowserSession, _calculate_viewport_size
 from .charts import (
     ChartQuery, lookup_chart, list_charts, ZOA_AIRPORTS,
@@ -677,7 +737,6 @@ def _lookup_chart_api(query_str: str, headless: bool = False) -> str | None:
             if headless:
                 click.echo(pdf_url)
             else:
-                import webbrowser
                 click.echo(f"Opening chart: {chart_name}")
                 webbrowser.open(f"{pdf_url}#view=FitV")
             return pdf_url
@@ -696,14 +755,12 @@ def _lookup_chart_api(query_str: str, headless: bool = False) -> str | None:
             os.close(temp_fd)
 
             if download_and_merge_pdfs(pdf_urls, temp_path):
-                import webbrowser
                 click.echo(f"Opening merged chart: {chart_name} ({num_pages} pages)")
-                webbrowser.open(f"file://{temp_path}#view=FitV")
+                _open_in_browser(temp_path)
                 return temp_path
             else:
                 click.echo("Failed to merge PDF pages", err=True)
                 # Fall back to opening just the first page
-                import webbrowser
                 click.echo(f"Opening first page only: {chart_name}")
                 webbrowser.open(f"{pdf_urls[0]}#view=FitV")
                 return pdf_urls[0]
@@ -1106,7 +1163,7 @@ def interactive_mode(use_playwright: bool = False):
                             os.close(temp_fd)
 
                             if download_and_merge_pdfs(pdf_urls, temp_path):
-                                webbrowser.open(f"file://{temp_path}#view=FitV")
+                                _open_in_browser(temp_path)
                                 click.echo(f"Chart found: {chart_name} ({num_pages} pages)")
                             else:
                                 click.echo("Failed to merge PDF pages, opening first page only")
