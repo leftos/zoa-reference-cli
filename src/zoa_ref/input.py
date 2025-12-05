@@ -21,17 +21,24 @@ class NoDuplicatesFileHistory(FileHistory):
 
     def store_string(self, string: str) -> None:
         """Store a string in history, removing any existing duplicate."""
+        # Note: append_string() already inserted the string at position 0
+        # before calling this method. We need to remove duplicates at other
+        # positions, not at position 0.
+
         # Never store quit aliases in history
         if string.lower() in QUIT_ALIASES:
+            # Remove from memory since append_string already added it
+            if self._loaded_strings and self._loaded_strings[0] == string:
+                self._loaded_strings.pop(0)
             return
 
-        # Remove existing duplicate if present
-        try:
-            self._loaded_strings.remove(string)
-        except ValueError:
-            pass  # Not in history, that's fine
+        # Remove duplicate if present at position > 0 (not the one just added)
+        for i in range(1, len(self._loaded_strings)):
+            if self._loaded_strings[i] == string:
+                self._loaded_strings.pop(i)
+                break
 
-        # Add to end (most recent)
+        # Write to file
         super().store_string(string)
 
 
