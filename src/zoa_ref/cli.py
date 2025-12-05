@@ -67,17 +67,20 @@ def _get_running_browser() -> str | None:
     return None
 
 
-def _open_in_browser(file_path: str) -> bool:
+def _open_in_browser(file_path: str, view: str = "FitV") -> bool:
     """Open a local file in a running browser, or fall back to default handler.
 
     Args:
         file_path: Path to the local file to open.
+        view: PDF view parameter (e.g., "FitV" for fit to height).
 
     Returns:
         True if opened successfully.
     """
-    # Convert to proper file:// URI
+    # Convert to proper file:// URI with view fragment
     file_uri = Path(file_path).as_uri()
+    if view:
+        file_uri = f"{file_uri}#view={view}"
 
     # Check for a running browser
     browser_cmd = _get_running_browser()
@@ -99,6 +102,7 @@ from .charts import (
     ChartQuery, lookup_chart, list_charts, ZOA_AIRPORTS,
     ChartMatch, fetch_charts_from_api,
     lookup_chart_with_pages, download_and_merge_pdfs, download_and_rotate_pdf,
+    detect_pdf_view_mode,
 )
 from .routes import search_routes, open_routes_browser, RouteSearchResult
 from .icao import (
@@ -832,8 +836,9 @@ def _open_chart_pdf(
         os.close(temp_fd)
 
         if download_and_rotate_pdf(pdf_url, temp_path, rotation):
+            view_mode = detect_pdf_view_mode(temp_path)
             click.echo(f"Opening chart: {chart_name}")
-            _open_in_browser(temp_path)
+            _open_in_browser(temp_path, view=view_mode)
             return temp_path
         else:
             click.echo("Failed to download chart", err=True)
@@ -848,13 +853,14 @@ def _open_chart_pdf(
         os.close(temp_fd)
 
         if download_and_merge_pdfs(pdf_urls, temp_path, rotation):
+            view_mode = detect_pdf_view_mode(temp_path)
             if session is not None:
                 # Playwright mode
                 page = session.new_page()
-                page.goto(f"{Path(temp_path).as_uri()}#view=FitV")
+                page.goto(f"{Path(temp_path).as_uri()}#view={view_mode}")
             else:
                 # System browser mode
-                _open_in_browser(temp_path)
+                _open_in_browser(temp_path, view=view_mode)
             click.echo(f"Chart found: {chart_name} ({num_pages} pages)")
             return temp_path
         else:

@@ -287,6 +287,39 @@ def find_all_chart_pages(
     return [chart for _, chart in pages]
 
 
+def detect_pdf_view_mode(pdf_path: str) -> str:
+    """
+    Detect the appropriate PDF view mode based on page orientation.
+
+    Args:
+        pdf_path: Path to the PDF file
+
+    Returns:
+        "FitV" for portrait PDFs (fit to height),
+        "FitH" for landscape PDFs (fit to width)
+    """
+    from pypdf import PdfReader
+
+    try:
+        reader = PdfReader(pdf_path)
+        if not reader.pages:
+            return "FitV"
+
+        page = reader.pages[0]
+        # Get effective dimensions accounting for rotation
+        rotation = page.get("/Rotate", 0) or 0
+        width = float(page.mediabox.width)
+        height = float(page.mediabox.height)
+
+        # 90° or 270° rotation swaps effective width/height
+        if rotation in (90, -90, 270, -270):
+            width, height = height, width
+
+        return "FitH" if width > height else "FitV"
+    except Exception:
+        return "FitV"
+
+
 def detect_rotation_needed(pdf_data: bytes) -> int:
     """
     Detect if a PDF needs rotation based on text orientation.
