@@ -15,8 +15,8 @@ import click
 from .atis import fetch_atis, fetch_all_atis, ATIS_AIRPORTS
 from .browser import BrowserSession, _calculate_viewport_size
 from .charts import (
-    ChartQuery, lookup_chart, ZOA_AIRPORTS,
-    fetch_charts_from_api,
+    ChartInfo, ChartMatch, ChartQuery, lookup_chart, ZOA_AIRPORTS,
+    fetch_charts_from_api, find_all_chart_pages,
     lookup_chart_with_pages, download_and_merge_pdfs, download_and_rotate_pdf,
     detect_pdf_view_mode,
 )
@@ -29,7 +29,7 @@ from .icao import (
     search_airline, search_airport_code, search_aircraft,
     open_codes_browser, CodesPage,
 )
-from .input import create_prompt_session, prompt_with_history
+from .input import create_prompt_session, prompt_with_history, prompt_single_choice
 from .procedures import (
     ProcedureQuery, ProcedureInfo, ProcedureMatch,
     fetch_procedures_list, find_procedure_by_name, find_heading_page,
@@ -582,19 +582,18 @@ def aircraft(query: tuple[str, ...], browser: bool, no_cache: bool):
 
 def _prompt_procedure_choice(matches: list[ProcedureMatch]) -> ProcedureInfo | None:
     """Prompt user to select from numbered matches."""
-    while True:
-        try:
-            choice = input("Enter number to select (or 'q' to cancel): ").strip()
-            if choice.lower() in ('q', 'quit', ''):
-                return None
-            idx = int(choice)
-            if 1 <= idx <= len(matches):
-                return matches[idx - 1].procedure
-            click.echo(f"Please enter a number between 1 and {len(matches)}")
-        except ValueError:
-            click.echo("Please enter a valid number")
-        except (EOFError, KeyboardInterrupt):
-            return None
+    idx = prompt_single_choice(len(matches))
+    if idx is not None:
+        return matches[idx - 1].procedure
+    return None
+
+
+def _prompt_chart_choice(matches: list[ChartMatch]) -> ChartInfo | None:
+    """Prompt user to select from numbered chart matches."""
+    idx = prompt_single_choice(len(matches))
+    if idx is not None:
+        return matches[idx - 1].chart
+    return None
 
 
 def _open_procedure_pdf(procedure: ProcedureInfo, page_num: int = 1) -> None:
@@ -1089,10 +1088,27 @@ def _do_chart_lookup(
 
     # No unambiguous match found
     if matches:
-        # Ambiguous match - show candidates
-        click.echo(f"Ambiguous match for '{parsed.chart_name}':")
+        # Ambiguous match - show numbered disambiguation prompt
         display_chart_matches(matches)
-        click.echo("\nTry a more specific query.")
+        choice = _prompt_chart_choice(matches)
+        if choice:
+            # Get all pages for the selected chart
+            charts = fetch_charts_from_api(parsed.airport)
+            all_pages = find_all_chart_pages(charts, choice)
+            pdf_urls = [page.pdf_path for page in all_pages]
+
+            if headless:
+                for url in pdf_urls:
+                    click.echo(url)
+                return pdf_urls[0]
+
+            return _open_chart_pdf(
+                pdf_urls=pdf_urls,
+                airport=parsed.airport,
+                chart_name=choice.chart_name,
+                rotation=rotation,
+                session=visible_session,
+            )
     else:
         click.echo(f"No charts found for {parsed.airport}", err=True)
 

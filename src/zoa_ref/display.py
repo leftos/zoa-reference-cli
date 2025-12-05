@@ -228,24 +228,21 @@ def display_atis(atis_list: list[AtisInfo]) -> None:
     click.echo()
 
 
-def display_chart_matches(matches: list[ChartMatch], max_display: int = 10) -> None:
-    """Display a list of matching charts."""
-    click.echo("\nMatching charts:")
+def display_chart_matches(matches: list[ChartMatch]) -> None:
+    """Display numbered list of matching charts."""
+    click.echo("\nMultiple charts found:")
     click.echo("-" * 60)
-    for match in matches[:max_display]:
+    for i, match in enumerate(matches, start=1):
         chart = match.chart
         type_str = chart.chart_code if chart.chart_code else "?"
-        click.echo(f"  [{type_str:<4}] {chart.chart_name} (score: {match.score:.2f})")
-    if len(matches) > max_display:
-        click.echo(f"  ... and {len(matches) - max_display} more")
+        click.echo(f"  [{i}] [{type_str:<4}] {chart.chart_name} (score: {match.score:.2f})")
+    click.echo()
 
 
-def display_procedure_matches(matches: list[ProcedureMatch], max_display: int = 10) -> None:
+def display_procedure_matches(matches: list[ProcedureMatch]) -> None:
     """Display numbered list of matching procedures."""
     click.echo("\nMultiple procedures found:")
     click.echo("-" * 60)
-    for i, match in enumerate(matches[:max_display], start=1):
+    for i, match in enumerate(matches, start=1):
         click.echo(f"  [{i}] {match.procedure.name} (score: {match.score:.2f})")
-    if len(matches) > max_display:
-        click.echo(f"  ... and {len(matches) - max_display} more")
     click.echo()
