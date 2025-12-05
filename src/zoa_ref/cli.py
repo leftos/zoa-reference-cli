@@ -917,6 +917,258 @@ def _lookup_chart(
             session.stop()
 
 
+# =============================================================================
+# Interactive mode command handlers
+# =============================================================================
+
+
+def _handle_list_interactive(args: str) -> None:
+    """Handle 'list <airport>' command in interactive mode."""
+    airport = args.strip().upper()
+    if not airport:
+        click.echo("Usage: list <airport>  (e.g., list OAK)")
+        return
+
+    click.echo(f"Fetching charts for {airport}...")
+    charts = fetch_charts_from_api(airport)
+
+    if charts:
+        click.echo(f"\nAvailable charts for {airport}:")
+        click.echo("-" * 40)
+        for chart in charts:
+            type_str = chart.chart_code if chart.chart_code else "?"
+            click.echo(f"  [{type_str:<4}] {chart.chart_name}")
+        click.echo(f"\nTotal: {len(charts)} charts")
+    else:
+        click.echo(f"No charts found for {airport}")
+
+
+def _handle_charts_interactive(args: str, ctx: InteractiveContext) -> None:
+    """Handle 'charts <query>' command in interactive mode."""
+    query_str = args.strip()
+    if not query_str:
+        click.echo("Usage: charts <airport> <chart>  (e.g., charts OAK CNDEL5)")
+        return
+
+    try:
+        parsed = ChartQuery.parse(query_str)
+        click.echo(f"Opening charts browser: {parsed.airport} - {parsed.chart_name}")
+
+        # Get or create visible browser session for charts browsing
+        session = ctx.get_or_create_visible_session()
+        page = session.new_page()
+        pdf_url = lookup_chart(page, parsed)
+
+        if pdf_url:
+            # Modify the embedded PDF to fit to height
+            page.evaluate("""() => {
+                const obj = document.querySelector('object[data*=".PDF"]');
+                if (obj && obj.data && !obj.data.includes('#')) {
+                    obj.data = obj.data + '#view=FitV';
+                }
+            }""")
+            click.echo("Chart found! Browse other charts in the browser window.")
+        else:
+            click.echo("Could not find chart. Browse manually in the browser window.")
+    except ValueError as e:
+        click.echo(f"Error: {e}")
+        click.echo("Format: charts <airport> <chart_name>  (e.g., charts OAK CNDEL5)")
+
+
+def _handle_route_interactive(args: str, ctx: InteractiveContext) -> None:
+    """Handle 'route <departure> <arrival>' command in interactive mode."""
+    parts = args.strip().upper().split()
+    if len(parts) < 2:
+        click.echo("Usage: route <departure> <arrival>  (e.g., route SFO LAX)")
+        return
+
+    departure, arrival = parts[0], parts[1]
+    click.echo(f"Searching routes: {departure} -> {arrival}...")
+    page = ctx.headless_session.new_page()
+    result = search_routes(page, departure, arrival)
+    page.close()
+
+    if result:
+        _display_routes(result)
+    else:
+        click.echo("Failed to retrieve routes.")
+
+
+def _handle_atis_interactive(args: str, ctx: InteractiveContext) -> None:
+    """Handle 'atis [airport|all]' command in interactive mode."""
+    parts = args.strip().upper().split()
+
+    if not parts or (len(parts) == 1 and parts[0] == "ALL"):
+        # Fetch all ATIS
+        click.echo("Fetching ATIS for all airports...")
+        page = ctx.headless_session.new_page()
+        result = fetch_all_atis(page)
+        page.close()
+
+        if result and result.atis_list:
+            _display_atis(result.atis_list)
+        else:
+            click.echo("Failed to retrieve ATIS.")
+    elif len(parts) == 1:
+        # Fetch single airport ATIS
+        airport = parts[0]
+        if airport not in ATIS_AIRPORTS:
+            click.echo(f"Unknown airport: {airport}")
+            click.echo(f"Available: {', '.join(ATIS_AIRPORTS)}")
+        else:
+            click.echo(f"Fetching ATIS for {airport}...")
+            page = ctx.headless_session.new_page()
+            atis_info = fetch_atis(page, airport)
+            page.close()
+
+            if atis_info:
+                _display_atis([atis_info])
+            else:
+                click.echo(f"Failed to retrieve ATIS for {airport}.")
+    else:
+        click.echo("Usage: atis <airport>  (e.g., atis SFO or atis all)")
+
+
+def _handle_airline_interactive(args: str, ctx: InteractiveContext) -> None:
+    """Handle 'airline <query>' command in interactive mode."""
+    query_text = args.strip()
+    if not query_text:
+        click.echo("Usage: airline <query>  (e.g., airline UAL)")
+        return
+
+    # Try cache first, then use persistent codes page
+    result = ctx.codes_page.search_airline(query_text, use_cache=True)
+    if not result:
+        # Page not ready, initialize it
+        click.echo(f"Searching airlines: {query_text}...")
+        if ctx.codes_page.ensure_ready():
+            result = ctx.codes_page.search_airline(query_text)
+
+    if result:
+        _display_airlines(result)
+    else:
+        click.echo("Failed to retrieve airline codes.")
+
+
+def _handle_airport_interactive(args: str, ctx: InteractiveContext) -> None:
+    """Handle 'airport <query>' command in interactive mode."""
+    query_text = args.strip()
+    if not query_text:
+        click.echo("Usage: airport <query>  (e.g., airport KSFO)")
+        return
+
+    # Try cache first, then use persistent codes page
+    result = ctx.codes_page.search_airport(query_text, use_cache=True)
+    if not result:
+        # Page not ready, initialize it
+        click.echo(f"Searching airport codes: {query_text}...")
+        if ctx.codes_page.ensure_ready():
+            result = ctx.codes_page.search_airport(query_text)
+
+    if result:
+        _display_airport_codes(result)
+    else:
+        click.echo("Failed to retrieve airport codes.")
+
+
+def _handle_aircraft_interactive(args: str, ctx: InteractiveContext) -> None:
+    """Handle 'aircraft <query>' command in interactive mode."""
+    query_text = args.strip()
+    if not query_text:
+        click.echo("Usage: aircraft <query>  (e.g., aircraft B738)")
+        return
+
+    # Try cache first, then use persistent codes page
+    result = ctx.codes_page.search_aircraft(query_text, use_cache=True)
+    if not result:
+        # Page not ready, initialize it
+        click.echo(f"Searching aircraft: {query_text}...")
+        if ctx.codes_page.ensure_ready():
+            result = ctx.codes_page.search_aircraft(query_text)
+
+    if result:
+        _display_aircraft(result)
+    else:
+        click.echo("Failed to retrieve aircraft types.")
+
+
+def _handle_chart_interactive(query: str, ctx: InteractiveContext) -> None:
+    """Handle implicit chart lookup in interactive mode."""
+    try:
+        parsed = ChartQuery.parse(query)
+        click.echo(f"Looking up: {parsed.airport} - {parsed.chart_name}")
+        if parsed.chart_type.value != "unknown":
+            click.echo(f"  Detected type: {parsed.chart_type.value.upper()}")
+
+        # Use API to find chart
+        pdf_urls, matched_chart, matches = lookup_chart_with_pages(parsed)
+
+        if pdf_urls and matched_chart:
+            chart_name = matched_chart.chart_name
+            num_pages = len(pdf_urls)
+
+            if ctx.use_playwright:
+                # Playwright mode: use managed browser with tab reuse
+                session = ctx.get_or_create_visible_session()
+
+                if num_pages == 1:
+                    # Single page chart - check if already open
+                    pdf_url = pdf_urls[0]
+                    page, was_existing = session.get_or_create_page(pdf_url)
+                    if was_existing:
+                        click.echo(f"Chart already open: {chart_name}")
+                    else:
+                        page.goto(f"{pdf_url}#view=FitV")
+                        click.echo(f"Chart found: {chart_name}")
+                else:
+                    # Multi-page chart - merge and open
+                    click.echo(f"Chart has {num_pages} pages, merging...")
+
+                    temp_fd, temp_path = tempfile.mkstemp(suffix=".pdf", prefix=f"zoa_{parsed.airport}_")
+                    os.close(temp_fd)
+
+                    if download_and_merge_pdfs(pdf_urls, temp_path):
+                        page = session.new_page()
+                        page.goto(f"{Path(temp_path).as_uri()}#view=FitV")
+                        click.echo(f"Chart found: {chart_name} ({num_pages} pages)")
+                    else:
+                        click.echo("Failed to merge PDF pages, opening first page only")
+                        pdf_url = pdf_urls[0]
+                        page, was_existing = session.get_or_create_page(pdf_url)
+                        if not was_existing:
+                            page.goto(f"{pdf_url}#view=FitV")
+            else:
+                # System browser mode: open directly (no rotation in interactive mode)
+                if num_pages == 1:
+                    pdf_url = pdf_urls[0]
+                    webbrowser.open(f"{pdf_url}#view=FitV")
+                    click.echo(f"Chart found: {chart_name}")
+                else:
+                    # Multi-page chart - merge and open
+                    click.echo(f"Chart has {num_pages} pages, merging...")
+
+                    temp_fd, temp_path = tempfile.mkstemp(suffix=".pdf", prefix=f"zoa_{parsed.airport}_")
+                    os.close(temp_fd)
+
+                    if download_and_merge_pdfs(pdf_urls, temp_path):
+                        _open_in_browser(temp_path)
+                        click.echo(f"Chart found: {chart_name} ({num_pages} pages)")
+                    else:
+                        click.echo("Failed to merge PDF pages, opening first page only")
+                        webbrowser.open(f"{pdf_urls[0]}#view=FitV")
+        elif matches:
+            # Ambiguous match - show candidates
+            click.echo(f"Ambiguous match for '{parsed.chart_name}':")
+            _display_chart_matches(matches)
+            click.echo("\nTry a more specific query.")
+        else:
+            click.echo(f"No charts found for {parsed.airport}")
+
+    except ValueError as e:
+        click.echo(f"Error: {e}")
+        click.echo("Format: <airport> <chart_name>  (e.g., OAK CNDEL5)")
+
+
 def interactive_mode(use_playwright: bool = False):
     """Run in interactive mode for continuous lookups.
 
@@ -976,164 +1228,37 @@ def interactive_mode(use_playwright: bool = False):
                 continue
 
             if lower_query.startswith("list "):
-                airport = query[5:].strip().upper()
-                click.echo(f"Fetching charts for {airport}...")
-                charts = fetch_charts_from_api(airport)
-
-                if charts:
-                    click.echo(f"\nAvailable charts for {airport}:")
-                    click.echo("-" * 40)
-                    for chart in charts:
-                        type_str = chart.chart_code if chart.chart_code else "?"
-                        click.echo(f"  [{type_str:<4}] {chart.chart_name}")
-                    click.echo(f"\nTotal: {len(charts)} charts")
-                else:
-                    click.echo(f"No charts found for {airport}")
+                _handle_list_interactive(query[5:])
                 click.echo()
                 continue
 
             if lower_query.startswith("charts "):
-                query_str = query[7:].strip()
-                if query_str:
-                    try:
-                        parsed = ChartQuery.parse(query_str)
-                        click.echo(f"Opening charts browser: {parsed.airport} - {parsed.chart_name}")
-
-                        # Get or create visible browser session for charts browsing
-                        session = ctx.get_or_create_visible_session()
-                        page = session.new_page()
-                        pdf_url = lookup_chart(page, parsed)
-
-                        if pdf_url:
-                            # Modify the embedded PDF to fit to height
-                            page.evaluate("""() => {
-                                const obj = document.querySelector('object[data*=".PDF"]');
-                                if (obj && obj.data && !obj.data.includes('#')) {
-                                    obj.data = obj.data + '#view=FitV';
-                                }
-                            }""")
-                            click.echo("Chart found! Browse other charts in the browser window.")
-                        else:
-                            click.echo("Could not find chart. Browse manually in the browser window.")
-                    except ValueError as e:
-                        click.echo(f"Error: {e}")
-                        click.echo("Format: charts <airport> <chart_name>  (e.g., charts OAK CNDEL5)")
-                else:
-                    click.echo("Usage: charts <airport> <chart>  (e.g., charts OAK CNDEL5)")
+                _handle_charts_interactive(query[7:], ctx)
                 click.echo()
                 continue
 
             if lower_query.startswith("route "):
-                parts = query[6:].strip().upper().split()
-                if len(parts) >= 2:
-                    departure, arrival = parts[0], parts[1]
-                    click.echo(f"Searching routes: {departure} -> {arrival}...")
-                    page = ctx.headless_session.new_page()
-                    result = search_routes(page, departure, arrival)
-                    page.close()
-
-                    if result:
-                        _display_routes(result)
-                    else:
-                        click.echo("Failed to retrieve routes.")
-                else:
-                    click.echo("Usage: route <departure> <arrival>  (e.g., route SFO LAX)")
+                _handle_route_interactive(query[6:], ctx)
                 click.echo()
                 continue
 
             if lower_query.startswith("atis"):
-                # Handle "atis", "atis SFO", "atis all"
-                # Use headless session for ATIS lookups
-                parts = query[4:].strip().upper().split()
-                if not parts or (len(parts) == 1 and parts[0] == "ALL"):
-                    # Fetch all ATIS
-                    click.echo("Fetching ATIS for all airports...")
-                    page = ctx.headless_session.new_page()
-                    result = fetch_all_atis(page)
-                    page.close()
-
-                    if result and result.atis_list:
-                        _display_atis(result.atis_list)
-                    else:
-                        click.echo("Failed to retrieve ATIS.")
-                elif len(parts) == 1:
-                    # Fetch single airport ATIS
-                    airport = parts[0]
-                    if airport not in ATIS_AIRPORTS:
-                        click.echo(f"Unknown airport: {airport}")
-                        click.echo(f"Available: {', '.join(ATIS_AIRPORTS)}")
-                    else:
-                        click.echo(f"Fetching ATIS for {airport}...")
-                        page = ctx.headless_session.new_page()
-                        atis_info = fetch_atis(page, airport)
-                        page.close()
-
-                        if atis_info:
-                            _display_atis([atis_info])
-                        else:
-                            click.echo(f"Failed to retrieve ATIS for {airport}.")
-                else:
-                    click.echo("Usage: atis <airport>  (e.g., atis SFO or atis all)")
+                _handle_atis_interactive(query[4:], ctx)
                 click.echo()
                 continue
 
             if lower_query.startswith("airline "):
-                query_text = query[8:].strip()
-                if query_text:
-                    # Try cache first, then use persistent codes page
-                    result = ctx.codes_page.search_airline(query_text, use_cache=True)
-                    if not result:
-                        # Page not ready, initialize it
-                        click.echo(f"Searching airlines: {query_text}...")
-                        if ctx.codes_page.ensure_ready():
-                            result = ctx.codes_page.search_airline(query_text)
-
-                    if result:
-                        _display_airlines(result)
-                    else:
-                        click.echo("Failed to retrieve airline codes.")
-                else:
-                    click.echo("Usage: airline <query>  (e.g., airline UAL)")
+                _handle_airline_interactive(query[8:], ctx)
                 click.echo()
                 continue
 
             if lower_query.startswith("airport "):
-                query_text = query[8:].strip()
-                if query_text:
-                    # Try cache first, then use persistent codes page
-                    result = ctx.codes_page.search_airport(query_text, use_cache=True)
-                    if not result:
-                        # Page not ready, initialize it
-                        click.echo(f"Searching airport codes: {query_text}...")
-                        if ctx.codes_page.ensure_ready():
-                            result = ctx.codes_page.search_airport(query_text)
-
-                    if result:
-                        _display_airport_codes(result)
-                    else:
-                        click.echo("Failed to retrieve airport codes.")
-                else:
-                    click.echo("Usage: airport <query>  (e.g., airport KSFO)")
+                _handle_airport_interactive(query[8:], ctx)
                 click.echo()
                 continue
 
             if lower_query.startswith("aircraft "):
-                query_text = query[9:].strip()
-                if query_text:
-                    # Try cache first, then use persistent codes page
-                    result = ctx.codes_page.search_aircraft(query_text, use_cache=True)
-                    if not result:
-                        # Page not ready, initialize it
-                        click.echo(f"Searching aircraft: {query_text}...")
-                        if ctx.codes_page.ensure_ready():
-                            result = ctx.codes_page.search_aircraft(query_text)
-
-                    if result:
-                        _display_aircraft(result)
-                    else:
-                        click.echo("Failed to retrieve aircraft types.")
-                else:
-                    click.echo("Usage: aircraft <query>  (e.g., aircraft B738)")
+                _handle_aircraft_interactive(query[9:], ctx)
                 click.echo()
                 continue
 
@@ -1147,81 +1272,8 @@ def interactive_mode(use_playwright: bool = False):
                 # Fall through to chart lookup below
 
             # Treat as chart lookup
-            try:
-                parsed = ChartQuery.parse(query)
-                click.echo(f"Looking up: {parsed.airport} - {parsed.chart_name}")
-                if parsed.chart_type.value != "unknown":
-                    click.echo(f"  Detected type: {parsed.chart_type.value.upper()}")
-
-                # Use API to find chart
-                pdf_urls, matched_chart, matches = lookup_chart_with_pages(parsed)
-
-                if pdf_urls and matched_chart:
-                    chart_name = matched_chart.chart_name
-                    num_pages = len(pdf_urls)
-
-                    if ctx.use_playwright:
-                        # Playwright mode: use managed browser with tab reuse
-                        session = ctx.get_or_create_visible_session()
-
-                        if num_pages == 1:
-                            # Single page chart - check if already open
-                            pdf_url = pdf_urls[0]
-                            page, was_existing = session.get_or_create_page(pdf_url)
-                            if was_existing:
-                                click.echo(f"Chart already open: {chart_name}")
-                            else:
-                                page.goto(f"{pdf_url}#view=FitV")
-                                click.echo(f"Chart found: {chart_name}")
-                        else:
-                            # Multi-page chart - merge and open
-                            click.echo(f"Chart has {num_pages} pages, merging...")
-
-                            temp_fd, temp_path = tempfile.mkstemp(suffix=".pdf", prefix=f"zoa_{parsed.airport}_")
-                            os.close(temp_fd)
-
-                            if download_and_merge_pdfs(pdf_urls, temp_path):
-                                page = session.new_page()
-                                page.goto(f"{Path(temp_path).as_uri()}#view=FitV")
-                                click.echo(f"Chart found: {chart_name} ({num_pages} pages)")
-                            else:
-                                click.echo("Failed to merge PDF pages, opening first page only")
-                                pdf_url = pdf_urls[0]
-                                page, was_existing = session.get_or_create_page(pdf_url)
-                                if not was_existing:
-                                    page.goto(f"{pdf_url}#view=FitV")
-                    else:
-                        # System browser mode: open directly (no rotation in interactive mode)
-                        if num_pages == 1:
-                            pdf_url = pdf_urls[0]
-                            webbrowser.open(f"{pdf_url}#view=FitV")
-                            click.echo(f"Chart found: {chart_name}")
-                        else:
-                            # Multi-page chart - merge and open
-                            click.echo(f"Chart has {num_pages} pages, merging...")
-
-                            temp_fd, temp_path = tempfile.mkstemp(suffix=".pdf", prefix=f"zoa_{parsed.airport}_")
-                            os.close(temp_fd)
-
-                            if download_and_merge_pdfs(pdf_urls, temp_path):
-                                _open_in_browser(temp_path)
-                                click.echo(f"Chart found: {chart_name} ({num_pages} pages)")
-                            else:
-                                click.echo("Failed to merge PDF pages, opening first page only")
-                                webbrowser.open(f"{pdf_urls[0]}#view=FitV")
-                elif matches:
-                    # Ambiguous match - show candidates
-                    click.echo(f"Ambiguous match for '{parsed.chart_name}':")
-                    _display_chart_matches(matches)
-                    click.echo("\nTry a more specific query.")
-                else:
-                    click.echo(f"No charts found for {parsed.airport}")
-                click.echo()
-
-            except ValueError as e:
-                click.echo(f"Error: {e}")
-                click.echo("Format: <airport> <chart_name>  (e.g., OAK CNDEL5)")
-                click.echo()
+            _handle_chart_interactive(query, ctx)
+            click.echo()
 
     finally:
         ctx.codes_page.close()
