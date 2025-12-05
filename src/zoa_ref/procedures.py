@@ -124,10 +124,10 @@ class ProcedureQuery:
                  len(part) > 1)  # Multi-char non-keyword after first part
             )
 
-            # If first part is an airport code and second part looks like section, stop
+            # If first part is an airport code or proc keyword, second part could be section
             if i == 1 and procedure_parts:
                 first_upper = procedure_parts[0].upper()
-                if first_upper in airport_codes and is_section_start:
+                if (first_upper in airport_codes or first_upper in proc_keywords) and is_section_start:
                     break
 
             # If we have airport + keyword, next part is section
