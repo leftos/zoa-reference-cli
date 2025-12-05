@@ -44,6 +44,7 @@ uv pip install -e .
 Look up instrument procedures and charts:
 
 ```bash
+zoa OAK CNDEL5            # Implicit chart lookup (no 'chart' needed)
 zoa chart OAK CNDEL5      # CNDEL FIVE departure - opens PDF directly
 zoa chart SFO ILS 28L     # ILS RWY 28L approach at SFO
 zoa chart SJC RNAV 30L    # RNAV approach to runway 30L
@@ -54,6 +55,15 @@ The tool automatically:
 - Normalizes chart names (e.g., "CNDEL5" becomes "CNDEL FIVE")
 - Uses fuzzy matching to find the correct chart
 - Merges multi-page charts (continuation pages) into a single PDF
+- Auto-rotates PDFs based on text orientation
+- Shows numbered disambiguation when multiple charts match
+
+Rotation options:
+```bash
+zoa chart OAK CNDEL5 -r          # Rotate 90°
+zoa chart OAK CNDEL5 --rotate 180  # Rotate specific degrees
+zoa chart OAK CNDEL5 --no-rotate   # Disable auto-rotation
+```
 
 ### Browse Charts
 
@@ -108,6 +118,21 @@ Supported ATIS airports: SFO, SJC, RNO, OAK, SMF
 
 ATIS data is fetched live (not cached) since it changes frequently.
 
+### SOP/Procedure Lookup
+
+Look up Standard Operating Procedures and jump to specific sections:
+
+```bash
+zoa sop OAK                        # Open Oakland ATCT SOP
+zoa sop OAK 2-2                    # Open OAK SOP at section 2-2
+zoa sop "NORCAL TRACON"            # Open NORCAL TRACON SOP
+zoa sop SJC "IFR Departures" SJCE  # Find SJCE in IFR Departures section
+zoa sop --list                     # List all available procedures
+zoa proc OAK                       # 'proc' is an alias for 'sop'
+```
+
+The tool extracts PDF text and matches section headings to open documents at the correct page. Multi-step lookups let you search for text within a specific section.
+
 ### Airline Lookup
 
 Search for airlines by ICAO code, telephony, or name:
@@ -153,30 +178,38 @@ Results include type designator, manufacturer, model, engine type, FAA weight cl
 Run without arguments to enter interactive mode:
 
 ```bash
-zoa
+zoa                      # Use system browser (default)
+zoa --playwright         # Use managed Playwright browser with tab reuse
 ```
 
 In interactive mode:
 - The browser stays open between queries for faster lookups
 - ICAO code lookups use a persistent background page for instant results
 - All commands work without the `zoa` prefix
+- `--playwright` mode reuses browser tabs for charts (avoids tab accumulation)
 
 Available interactive commands:
 - `<airport> <chart>` - Look up a chart (e.g., `OAK CNDEL5`)
+- `chart <query>` - Same as above (e.g., `chart OAK CNDEL5`)
 - `charts <query>` - Browse charts in browser (e.g., `charts OAK CNDEL5`)
 - `list <airport>` - List charts for an airport
 - `route <dep> <arr>` - Look up routes
 - `atis <airport>` - Look up ATIS (e.g., `atis SFO` or `atis all`)
+- `sop <query>` - Look up SOP/procedure (e.g., `sop OAK IFR`)
+- `proc <query>` - Same as above (e.g., `proc OAK IFR`)
 - `airline <query>` - Look up airline codes
 - `airport <query>` - Look up airport codes
 - `aircraft <query>` - Look up aircraft types
-- `help` - Show help
+- `help [command]` - Show help (e.g., `help sop`)
 - `quit` / `exit` / `q` - Exit
 
 ## Options
 
 ### Chart Commands
 - `--headless` - Run browser in headless mode (outputs PDF URL)
+- `-r` - Rotate chart 90°
+- `--rotate 90|180|270` - Rotate chart by specific degrees
+- `--no-rotate` - Disable auto-rotation
 
 ### Route Command
 - `--browser` - Open browser instead of CLI display
@@ -186,6 +219,10 @@ Available interactive commands:
 
 ### ATIS Command
 - `-a, --all` - Show ATIS for all airports
+
+### SOP/Procedure Commands
+- `--list` - List all available procedures
+- `--no-cache` - Bypass cache and fetch fresh data
 
 ### ICAO Commands (airline, airport, aircraft)
 - `--browser` - Open browser instead of CLI display

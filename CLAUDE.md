@@ -1,60 +1,68 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## Project Overview
 
-ZOA Reference CLI is a command-line tool for quick lookups to ZOA's (Oakland ARTCC) Reference Tool at reference.oakartcc.org. It provides lookups for aviation charts, routes, and ICAO codes (airlines, airports, aircraft). Uses Playwright for browser automation and a REST API for chart data.
+ZOA Reference CLI - command-line lookups for ZOA's (Oakland ARTCC) Reference Tool. Provides charts, routes, ATIS, ICAO codes, and SOPs. Uses Playwright for browser automation and REST API for chart data.
 
-## Common Commands
+## Commands
 
 ```bash
-# Install dependencies
+# Setup
 uv venv && uv pip install -e .
-
-# Install Playwright browsers (required first time)
 .venv/Scripts/playwright install
 
-# Run the CLI
-.venv/Scripts/zoa chart OAK CNDEL5      # Look up a chart (opens PDF)
-.venv/Scripts/zoa charts OAK CNDEL5     # Browse charts (stays on Reference Tool)
-.venv/Scripts/zoa list OAK              # List charts for an airport
-.venv/Scripts/zoa route SFO LAX         # Look up routes
-.venv/Scripts/zoa atis SFO              # Look up ATIS for an airport
-.venv/Scripts/zoa atis --all            # Look up ATIS for all airports
-.venv/Scripts/zoa airline UAL           # Look up airline codes
-.venv/Scripts/zoa airport KSFO          # Look up airport codes
-.venv/Scripts/zoa aircraft B738         # Look up aircraft types
-.venv/Scripts/zoa                       # Interactive mode
+# Charts (implicit or explicit)
+.venv/Scripts/zoa OAK CNDEL5            # Implicit chart lookup (opens PDF)
+.venv/Scripts/zoa chart OAK ILS 28R     # Explicit chart lookup
+.venv/Scripts/zoa chart OAK ILS 28R -r  # Rotate 90°
+.venv/Scripts/zoa charts OAK CNDEL5     # Browse on Reference Tool
+.venv/Scripts/zoa list OAK              # List airport charts
+
+# Routes, ATIS, ICAO
+.venv/Scripts/zoa route SFO LAX         # Route lookup
+.venv/Scripts/zoa atis SFO              # Single airport ATIS
+.venv/Scripts/zoa atis --all            # All airports ATIS
+.venv/Scripts/zoa airline UAL           # Airline code lookup
+.venv/Scripts/zoa airport KSFO          # Airport code lookup
+.venv/Scripts/zoa aircraft B738         # Aircraft type lookup
+
+# SOPs/Procedures
+.venv/Scripts/zoa sop OAK               # Open OAK SOP
+.venv/Scripts/zoa sop OAK 2-2           # Jump to section 2-2
+.venv/Scripts/zoa sop --list            # List all procedures
+
+# Interactive mode
+.venv/Scripts/zoa                       # Default: system browser
+.venv/Scripts/zoa --playwright          # Managed browser with tab reuse
 ```
 
 ## Architecture
 
-The codebase consists of six modules in `src/zoa_ref/`:
+Modules in `src/zoa_ref/`:
 
-- **cli.py**: Click-based CLI with commands (`chart`, `charts`, `list`, `airports`, `route`, `atis`, `airline`, `airport`, `aircraft`) and interactive mode. Entry point is `main()`.
-- **browser.py**: `BrowserSession` class wrapping Playwright's sync API for Chromium automation. Supports context manager pattern and child sessions (for headless ICAO lookups alongside visible browser).
-- **charts.py**: Chart lookup logic using the charts API (`charts-api.oakartcc.org`). `ChartQuery.parse()` normalizes queries. Uses fuzzy matching via `_calculate_similarity()`. Supports multi-page PDF merging via pypdf.
-- **routes.py**: Route search logic. Scrapes TEC/AAR/ADR routes, LOA rules, real-world routes, and recent flights from tables.
-- **atis.py**: ATIS lookup for 5 airports (SFO, SJC, RNO, OAK, SMF). Scrapes live ATIS data from the reference tool (no caching - data is time-sensitive).
-- **icao.py**: ICAO code lookups for airlines, airports, and aircraft. Includes caching system (`~/.zoa-ref/cache/`, 7-day TTL) and `CodesPage` class for persistent page reuse in interactive mode.
+- **cli.py**: Click CLI with `ImplicitChartGroup` for `zoa <airport> <chart>` syntax. Entry point: `main()`
+- **browser.py**: `BrowserSession` wrapping Playwright sync API. Supports child sessions (headless + visible)
+- **charts.py**: API-based chart lookup. `ChartQuery.parse()` normalizes names. Fuzzy matching, multi-page PDF merging, auto-rotation via pypdf
+- **procedures.py**: SOP/procedure lookup. `ProcedureQuery.parse()` handles section/search args. PDF section navigation via text extraction
+- **routes.py**: TEC/AAR/ADR routes, LOA rules, real-world routes scraping
+- **atis.py**: ATIS for SFO/SJC/RNO/OAK/SMF (no caching - time-sensitive)
+- **icao.py**: Airline/airport/aircraft lookups with cache (`~/.zoa-ref/cache/`, 7-day TTL). `CodesPage` for persistent page reuse
+- **display.py**: Output formatting for all result types
+- **input.py**: Prompt session with history, disambiguation prompts
 
 ## Key Patterns
 
-- All browser automation uses Playwright's sync API (`sync_playwright`)
-- Chart names ending in digits are normalized to words (e.g., "5" → "FIVE") for matching
-- Chart type inference from naming patterns (ILS/LOC/VOR → IAP, etc.)
-- Route scraping identifies tables by preceding H1 text, not table classes
-- `chart` command uses API for fast lookups; `charts` command uses browser for browsing
-- Multi-page charts (with CONT.1, CONT.2 pages) are automatically detected and merged
-- ICAO lookups check cache first, then scrape if needed
-- Interactive mode uses child browser sessions: visible browser for charts, headless for ICAO lookups
-- `CodesPage` class pre-navigates to codes page for instant repeated lookups
+- Chart names normalized: digits → words ("5" → "FIVE"), fuzzy matching
+- Chart type inference: ILS/LOC/VOR → IAP, etc.
+- Multi-page charts (CONT.1, CONT.2) auto-merged
+- PDF auto-rotation based on text orientation (disable with `--no-rotate`)
+- Ambiguous matches show numbered disambiguation prompt
+- `chart` uses API (fast); `charts` uses browser (browsing)
+- Interactive mode: headless session for ICAO, visible for charts
+- SOP section lookup: extracts PDF text, matches headings, opens at page
 
 ## Data Sources
 
-- **Charts API**: `https://charts-api.oakartcc.org/v1/charts?apt=<airport>`
-- **Reference Tool**: `https://reference.oakartcc.org/charts` (browser-based)
-- **Routes**: `https://reference.oakartcc.org/routes` (browser scraping)
-- **ATIS**: `https://reference.oakartcc.org/atis` (browser scraping, no caching)
-- **ICAO Codes**: `https://reference.oakartcc.org/codes` (browser scraping with caching)
+- Charts API: `charts-api.oakartcc.org/v1/charts?apt=<airport>`
+- Reference Tool: `reference.oakartcc.org/{charts,routes,atis,codes}`
+- SOP PDFs: Linked from Reference Tool procedures page
