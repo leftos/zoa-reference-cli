@@ -628,6 +628,7 @@ def _search_pdf_text_for_heading(pdf_data: bytes, heading_query: str) -> int | N
     Search PDF text for a heading pattern when bookmarks unavailable.
 
     Looks for patterns like "2-2", "2.2", "Section 2-2", heading text, etc.
+    For multi-word queries, finds pages containing ALL words.
     Returns 1-based page number if found, None otherwise.
     """
     try:
@@ -649,6 +650,9 @@ def _search_pdf_text_for_heading(pdf_data: bytes, heading_query: str) -> int | N
                 re.IGNORECASE
             )
 
+        # Split query into words for multi-word AND matching
+        query_words = query_upper.split()
+
         for page_num, page in enumerate(reader.pages, start=1):
             text = page.extract_text() or ""
             text_upper = text.upper()
@@ -657,8 +661,12 @@ def _search_pdf_text_for_heading(pdf_data: bytes, heading_query: str) -> int | N
             if section_pattern and section_pattern.search(text):
                 return page_num
 
-            # Try direct text match
+            # Try direct text match (exact phrase)
             if query_upper in text_upper:
+                return page_num
+
+            # For multi-word queries, check if ALL words are present
+            if len(query_words) > 1 and all(word in text_upper for word in query_words):
                 return page_num
 
     except Exception:
@@ -686,6 +694,14 @@ def _find_matching_heading(headings: list[HeadingInfo], query: str) -> HeadingIn
     for heading in headings:
         if query_upper in heading.title.upper():
             return heading
+
+    # For multi-word queries, check if ALL words are in heading
+    query_words = query_upper.split()
+    if len(query_words) > 1:
+        for heading in headings:
+            title_upper = heading.title.upper()
+            if all(word in title_upper for word in query_words):
+                return heading
 
     # Try fuzzy match
     best_match = None

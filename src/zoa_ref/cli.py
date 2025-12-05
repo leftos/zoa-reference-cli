@@ -1,6 +1,7 @@
 """CLI interface for ZOA Reference Tool lookups."""
 
 import os
+import shlex
 import subprocess
 import tempfile
 import threading
@@ -351,7 +352,11 @@ def _parse_interactive_args(
     options: dict[str, str] = {}
     show_help = False
 
-    parts = args.strip().split()
+    try:
+        parts = shlex.split(args)
+    except ValueError:
+        # Handle unclosed quotes gracefully
+        parts = args.strip().split()
     i = 0
     while i < len(parts):
         part = parts[i]
