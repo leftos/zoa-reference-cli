@@ -129,6 +129,10 @@ class ProcedureQuery:
                 first_upper = procedure_parts[0].upper()
                 if (first_upper in airport_codes or first_upper in proc_keywords) and is_section_start:
                     break
+                # If first part is NOT an airport code or proc keyword (e.g., "Class D"),
+                # then this part is likely a section term (even if it's an airport code)
+                if first_upper not in airport_codes and first_upper not in proc_keywords:
+                    break
 
             # If we have airport + keyword, next part is section
             if len(procedure_parts) >= 2:
