@@ -1169,6 +1169,19 @@ def _handle_chart_interactive(query: str, ctx: InteractiveContext) -> None:
         click.echo("Format: <airport> <chart_name>  (e.g., OAK CNDEL5)")
 
 
+# Command registry: maps command prefix to (handler, prefix_length, needs_context)
+# needs_context indicates whether the handler requires InteractiveContext
+INTERACTIVE_COMMANDS: dict[str, tuple] = {
+    "list ": (_handle_list_interactive, 5, False),
+    "charts ": (_handle_charts_interactive, 7, True),
+    "route ": (_handle_route_interactive, 6, True),
+    "atis": (_handle_atis_interactive, 4, True),
+    "airline ": (_handle_airline_interactive, 8, True),
+    "airport ": (_handle_airport_interactive, 8, True),
+    "aircraft ": (_handle_aircraft_interactive, 9, True),
+}
+
+
 def interactive_mode(use_playwright: bool = False):
     """Run in interactive mode for continuous lookups.
 
@@ -1227,39 +1240,20 @@ def interactive_mode(use_playwright: bool = False):
                 click.echo()
                 continue
 
-            if lower_query.startswith("list "):
-                _handle_list_interactive(query[5:])
-                click.echo()
-                continue
+            # Check command registry
+            handled = False
+            for prefix, (handler, prefix_len, needs_ctx) in INTERACTIVE_COMMANDS.items():
+                if lower_query.startswith(prefix):
+                    args = query[prefix_len:]
+                    if needs_ctx:
+                        handler(args, ctx)
+                    else:
+                        handler(args)
+                    click.echo()
+                    handled = True
+                    break
 
-            if lower_query.startswith("charts "):
-                _handle_charts_interactive(query[7:], ctx)
-                click.echo()
-                continue
-
-            if lower_query.startswith("route "):
-                _handle_route_interactive(query[6:], ctx)
-                click.echo()
-                continue
-
-            if lower_query.startswith("atis"):
-                _handle_atis_interactive(query[4:], ctx)
-                click.echo()
-                continue
-
-            if lower_query.startswith("airline "):
-                _handle_airline_interactive(query[8:], ctx)
-                click.echo()
-                continue
-
-            if lower_query.startswith("airport "):
-                _handle_airport_interactive(query[8:], ctx)
-                click.echo()
-                continue
-
-            if lower_query.startswith("aircraft "):
-                _handle_aircraft_interactive(query[9:], ctx)
-                click.echo()
+            if handled:
                 continue
 
             # Handle explicit "chart" command prefix (alias for implicit chart lookup)
@@ -1271,7 +1265,7 @@ def interactive_mode(use_playwright: bool = False):
                     continue
                 # Fall through to chart lookup below
 
-            # Treat as chart lookup
+            # Treat as chart lookup (default command)
             _handle_chart_interactive(query, ctx)
             click.echo()
 
