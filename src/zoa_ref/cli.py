@@ -768,6 +768,85 @@ def _display_chart_matches(matches: list[ChartMatch], max_display: int = 10) -> 
         click.echo(f"  ... and {len(matches) - max_display} more")
 
 
+def _open_chart_pdf(
+    pdf_urls: list[str],
+    airport: str,
+    chart_name: str,
+    rotation: int = 0,
+    session: "BrowserSession | None" = None,
+) -> str | None:
+    """Open chart PDF(s) in browser.
+
+    Handles single and multi-page charts, optional rotation, and both
+    system browser and Playwright browser modes.
+
+    Args:
+        pdf_urls: List of PDF URLs (1 for single-page, multiple for continuation pages)
+        airport: Airport code for temp file naming
+        chart_name: Chart name for display
+        rotation: Rotation angle in degrees (0, 90, 180, 270)
+        session: If provided, use Playwright browser session; otherwise use system browser
+
+    Returns:
+        Path to opened file/URL, or None on failure.
+    """
+    num_pages = len(pdf_urls)
+
+    if num_pages == 1:
+        pdf_url = pdf_urls[0]
+
+        if session is not None:
+            # Playwright mode: check if already open (tab reuse)
+            page, was_existing = session.get_or_create_page(pdf_url)
+            if was_existing:
+                click.echo(f"Chart already open: {chart_name}")
+            else:
+                page.goto(f"{pdf_url}#view=FitV")
+                click.echo(f"Chart found: {chart_name}")
+            return pdf_url
+
+        # System browser mode: download, optionally rotate, and open
+        temp_fd, temp_path = tempfile.mkstemp(suffix=".pdf", prefix=f"zoa_{airport}_")
+        os.close(temp_fd)
+
+        if download_and_rotate_pdf(pdf_url, temp_path, rotation):
+            click.echo(f"Opening chart: {chart_name}")
+            _open_in_browser(temp_path)
+            return temp_path
+        else:
+            click.echo("Failed to download chart", err=True)
+            # Fall back to opening URL directly (no rotation)
+            webbrowser.open(f"{pdf_url}#view=FitV")
+            return pdf_url
+    else:
+        # Multi-page chart - merge pages
+        click.echo(f"Chart has {num_pages} pages, merging...")
+
+        temp_fd, temp_path = tempfile.mkstemp(suffix=".pdf", prefix=f"zoa_{airport}_")
+        os.close(temp_fd)
+
+        if download_and_merge_pdfs(pdf_urls, temp_path, rotation):
+            if session is not None:
+                # Playwright mode
+                page = session.new_page()
+                page.goto(f"{Path(temp_path).as_uri()}#view=FitV")
+            else:
+                # System browser mode
+                _open_in_browser(temp_path)
+            click.echo(f"Chart found: {chart_name} ({num_pages} pages)")
+            return temp_path
+        else:
+            click.echo("Failed to merge PDF pages, opening first page only")
+            pdf_url = pdf_urls[0]
+            if session is not None:
+                page, was_existing = session.get_or_create_page(pdf_url)
+                if not was_existing:
+                    page.goto(f"{pdf_url}#view=FitV")
+            else:
+                webbrowser.open(f"{pdf_url}#view=FitV")
+            return pdf_url
+
+
 def _lookup_chart_api(query_str: str, headless: bool = False, rotation: int = 0) -> str | None:
     """Look up a chart using the API.
 
@@ -791,52 +870,20 @@ def _lookup_chart_api(query_str: str, headless: bool = False, rotation: int = 0)
 
     if pdf_urls and matched_chart:
         chart_name = matched_chart.chart_name
-        num_pages = len(pdf_urls)
 
-        if num_pages == 1:
-            # Single page chart
-            pdf_url = pdf_urls[0]
-            if headless:
-                click.echo(pdf_url)
-                return pdf_url
+        if headless:
+            # In headless mode, just output URL(s)
+            for url in pdf_urls:
+                click.echo(url)
+            return pdf_urls[0]
 
-            # Download and optionally rotate
-            temp_fd, temp_path = tempfile.mkstemp(suffix=".pdf", prefix=f"zoa_{parsed.airport}_")
-            os.close(temp_fd)
-
-            if download_and_rotate_pdf(pdf_url, temp_path, rotation):
-                click.echo(f"Opening chart: {chart_name}")
-                _open_in_browser(temp_path)
-                return temp_path
-            else:
-                click.echo("Failed to download chart", err=True)
-                # Fall back to opening URL directly (no rotation)
-                webbrowser.open(f"{pdf_url}#view=FitV")
-                return pdf_url
-        else:
-            # Multi-page chart - need to merge
-            click.echo(f"Chart has {num_pages} pages, merging...")
-
-            if headless:
-                # In headless mode, just output all URLs
-                for url in pdf_urls:
-                    click.echo(url)
-                return pdf_urls[0]
-
-            # Create temp file for merged PDF
-            temp_fd, temp_path = tempfile.mkstemp(suffix=".pdf", prefix=f"zoa_{parsed.airport}_")
-            os.close(temp_fd)
-
-            if download_and_merge_pdfs(pdf_urls, temp_path, rotation):
-                click.echo(f"Opening merged chart: {chart_name} ({num_pages} pages)")
-                _open_in_browser(temp_path)
-                return temp_path
-            else:
-                click.echo("Failed to merge PDF pages", err=True)
-                # Fall back to opening just the first page
-                click.echo(f"Opening first page only: {chart_name}")
-                webbrowser.open(f"{pdf_urls[0]}#view=FitV")
-                return pdf_urls[0]
+        # Open the chart in browser
+        return _open_chart_pdf(
+            pdf_urls=pdf_urls,
+            airport=parsed.airport,
+            chart_name=chart_name,
+            rotation=rotation,
+        )
 
     # No unambiguous match found
     if matches:
@@ -1104,58 +1151,16 @@ def _handle_chart_interactive(query: str, ctx: InteractiveContext) -> None:
         pdf_urls, matched_chart, matches = lookup_chart_with_pages(parsed)
 
         if pdf_urls and matched_chart:
-            chart_name = matched_chart.chart_name
-            num_pages = len(pdf_urls)
+            # Get session if in playwright mode
+            session = ctx.get_or_create_visible_session() if ctx.use_playwright else None
 
-            if ctx.use_playwright:
-                # Playwright mode: use managed browser with tab reuse
-                session = ctx.get_or_create_visible_session()
-
-                if num_pages == 1:
-                    # Single page chart - check if already open
-                    pdf_url = pdf_urls[0]
-                    page, was_existing = session.get_or_create_page(pdf_url)
-                    if was_existing:
-                        click.echo(f"Chart already open: {chart_name}")
-                    else:
-                        page.goto(f"{pdf_url}#view=FitV")
-                        click.echo(f"Chart found: {chart_name}")
-                else:
-                    # Multi-page chart - merge and open
-                    click.echo(f"Chart has {num_pages} pages, merging...")
-
-                    temp_fd, temp_path = tempfile.mkstemp(suffix=".pdf", prefix=f"zoa_{parsed.airport}_")
-                    os.close(temp_fd)
-
-                    if download_and_merge_pdfs(pdf_urls, temp_path):
-                        page = session.new_page()
-                        page.goto(f"{Path(temp_path).as_uri()}#view=FitV")
-                        click.echo(f"Chart found: {chart_name} ({num_pages} pages)")
-                    else:
-                        click.echo("Failed to merge PDF pages, opening first page only")
-                        pdf_url = pdf_urls[0]
-                        page, was_existing = session.get_or_create_page(pdf_url)
-                        if not was_existing:
-                            page.goto(f"{pdf_url}#view=FitV")
-            else:
-                # System browser mode: open directly (no rotation in interactive mode)
-                if num_pages == 1:
-                    pdf_url = pdf_urls[0]
-                    webbrowser.open(f"{pdf_url}#view=FitV")
-                    click.echo(f"Chart found: {chart_name}")
-                else:
-                    # Multi-page chart - merge and open
-                    click.echo(f"Chart has {num_pages} pages, merging...")
-
-                    temp_fd, temp_path = tempfile.mkstemp(suffix=".pdf", prefix=f"zoa_{parsed.airport}_")
-                    os.close(temp_fd)
-
-                    if download_and_merge_pdfs(pdf_urls, temp_path):
-                        _open_in_browser(temp_path)
-                        click.echo(f"Chart found: {chart_name} ({num_pages} pages)")
-                    else:
-                        click.echo("Failed to merge PDF pages, opening first page only")
-                        webbrowser.open(f"{pdf_urls[0]}#view=FitV")
+            _open_chart_pdf(
+                pdf_urls=pdf_urls,
+                airport=parsed.airport,
+                chart_name=matched_chart.chart_name,
+                rotation=0,  # No rotation in interactive mode
+                session=session,
+            )
         elif matches:
             # Ambiguous match - show candidates
             click.echo(f"Ambiguous match for '{parsed.chart_name}':")
