@@ -13,11 +13,18 @@ nest_asyncio.apply()
 HISTORY_FILE = Path.home() / ".zoa-ref" / "history"
 
 
+QUIT_ALIASES = frozenset(("quit", "exit", "q"))
+
+
 class NoDuplicatesFileHistory(FileHistory):
     """File-backed history that removes duplicates, keeping most recent."""
 
     def store_string(self, string: str) -> None:
         """Store a string in history, removing any existing duplicate."""
+        # Never store quit aliases in history
+        if string.lower() in QUIT_ALIASES:
+            return
+
         # Remove existing duplicate if present
         try:
             self._loaded_strings.remove(string)
