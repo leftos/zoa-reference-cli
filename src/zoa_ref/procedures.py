@@ -483,6 +483,16 @@ def fetch_procedures_list(
 
 # --- Fuzzy Matching ---
 
+# Aliases for common procedure search terms
+# Maps a search term to additional terms that should also be searched
+PROCEDURE_ALIASES: dict[str, list[str]] = {
+    "NCT": ["NORCAL TRACON", "NORTHERN CALIFORNIA TRACON"],
+    "NORCAL": ["NCT", "NORTHERN CALIFORNIA TRACON"],
+    "ZOA": ["OAKLAND CENTER"],
+    "OAKLAND": ["ZOA"],
+}
+
+
 def find_procedure_by_name(
     procedures: list[ProcedureInfo],
     query: ProcedureQuery,
@@ -501,13 +511,28 @@ def find_procedure_by_name(
         If ambiguous, best_match will be None and all_matches contains candidates.
     """
     search_term = query.procedure_term.upper()
+
+    # Expand search terms with aliases
+    search_terms = [search_term]
+    if search_term in PROCEDURE_ALIASES:
+        search_terms.extend(PROCEDURE_ALIASES[search_term])
+
     matches = []
+    seen_procs: set[str] = set()  # Track by PDF URL to avoid duplicates
 
     for proc in procedures:
-        # Calculate similarity against procedure name
-        score = _calculate_similarity(search_term, proc.name)
-        if score > 0.2:  # Minimum threshold
-            matches.append(ProcedureMatch(procedure=proc, score=score))
+        if proc.pdf_url in seen_procs:
+            continue
+
+        # Calculate similarity against all search terms, use best score
+        best_score = 0.0
+        for term in search_terms:
+            score = _calculate_similarity(term, proc.name)
+            best_score = max(best_score, score)
+
+        if best_score > 0.2:  # Minimum threshold
+            matches.append(ProcedureMatch(procedure=proc, score=best_score))
+            seen_procs.add(proc.pdf_url)
 
     if not matches:
         return None, []
