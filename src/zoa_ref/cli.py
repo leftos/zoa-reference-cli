@@ -20,6 +20,33 @@ BROWSERS = {
     "opera.exe": "opera",
 }
 
+# Interactive mode command help lines
+INTERACTIVE_HELP_COMMANDS = [
+    "  <airport> <chart>  - Look up a chart (e.g., OAK CNDEL5)",
+    "  chart <query>      - Same as above (e.g., chart OAK CNDEL5)",
+    "  charts <query>     - Browse charts in browser (e.g., charts OAK CNDEL5)",
+    "  list <airport>     - List charts for an airport",
+    "  route <dep> <arr>  - Look up routes (e.g., route SFO LAX)",
+    "  atis <airport>     - Look up ATIS (e.g., atis SFO or atis all)",
+    "  airline <query>    - Look up airline codes (e.g., airline UAL)",
+    "  airport <query>    - Look up airport codes (e.g., airport KSFO)",
+    "  aircraft <query>   - Look up aircraft types (e.g., aircraft B738)",
+]
+
+
+def _print_interactive_help(include_help_line: bool = False) -> None:
+    """Print interactive mode command help.
+
+    Args:
+        include_help_line: If True, include the 'help' command in the output.
+    """
+    click.echo("Commands:")
+    for line in INTERACTIVE_HELP_COMMANDS:
+        click.echo(line)
+    if include_help_line:
+        click.echo("  help               - Show this help")
+    click.echo("  quit / exit / q    - Exit the program")
+
 
 def _get_running_browser() -> str | None:
     """Check if any known browser is running and return its command name."""
@@ -875,18 +902,7 @@ def interactive_mode(use_playwright: bool = False):
     if use_playwright:
         click.echo("(Using Playwright browser with tab management)")
     click.echo("=" * 50)
-    click.echo("Commands:")
-    click.echo("  <airport> <chart>  - Look up a chart (e.g., OAK CNDEL5)")
-    click.echo("  chart <query>      - Same as above (e.g., chart OAK CNDEL5)")
-    click.echo("  charts <query>     - Browse charts in browser (e.g., charts OAK CNDEL5)")
-    click.echo("  list <airport>     - List charts for an airport")
-    click.echo("  route <dep> <arr>  - Look up routes (e.g., route SFO LAX)")
-    click.echo("  atis <airport>     - Look up ATIS (e.g., atis SFO or atis all)")
-    click.echo("  airline <query>    - Look up airline codes (e.g., airline UAL)")
-    click.echo("  airport <query>    - Look up airport codes (e.g., airport KSFO)")
-    click.echo("  aircraft <query>   - Look up aircraft types (e.g., aircraft B738)")
-    click.echo("  help               - Show this help")
-    click.echo("  quit / exit / q    - Exit the program")
+    _print_interactive_help(include_help_line=True)
     click.echo("=" * 50)
     click.echo()
 
@@ -923,17 +939,7 @@ def interactive_mode(use_playwright: bool = False):
                 break
 
             if lower_query == "help":
-                click.echo("Commands:")
-                click.echo("  <airport> <chart>  - Look up a chart (e.g., OAK CNDEL5)")
-                click.echo("  chart <query>      - Same as above (e.g., chart OAK CNDEL5)")
-                click.echo("  charts <query>     - Browse charts in browser (e.g., charts OAK CNDEL5)")
-                click.echo("  list <airport>     - List charts for an airport")
-                click.echo("  route <dep> <arr>  - Look up routes (e.g., route SFO LAX)")
-                click.echo("  atis <airport>     - Look up ATIS (e.g., atis SFO or atis all)")
-                click.echo("  airline <query>    - Look up airline codes (e.g., airline UAL)")
-                click.echo("  airport <query>    - Look up airport codes (e.g., airport KSFO)")
-                click.echo("  aircraft <query>   - Look up aircraft types (e.g., aircraft B738)")
-                click.echo("  quit / exit / q    - Exit the program")
+                _print_interactive_help()
                 click.echo()
                 continue
 
