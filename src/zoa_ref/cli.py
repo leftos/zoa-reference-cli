@@ -47,15 +47,15 @@ BROWSERS = {
 
 # Interactive mode command help lines
 INTERACTIVE_HELP_COMMANDS = [
-    "  <airport> <chart>  - Look up a chart (e.g., OAK CNDEL5)",
+    "  <airport> <chart>  - Look up a chart (e.g., OAK CNDEL5 -r)",
     "  chart <query>      - Same as above (e.g., chart OAK CNDEL5)",
     "  charts <query>     - Browse charts in browser (e.g., charts OAK CNDEL5)",
     "  list <airport>     - List charts for an airport",
-    "  route <dep> <arr>  - Look up routes (e.g., route SFO LAX -a -f)",
-    "  atis <airport>     - Look up ATIS (e.g., atis SFO or atis all)",
-    "  sop <query>        - Look up SOP/procedure (e.g., sop OAK 2-2)",
+    "  route <dep> <arr>  - Look up routes (e.g., route SFO LAX -a -f --browser)",
+    "  atis <airport>     - Look up ATIS (e.g., atis SFO or atis -a)",
+    "  sop <query>        - Look up SOP/procedure (e.g., sop OAK 2-2 or sop --list)",
     "  proc <query>       - Same as above (e.g., proc OAK 2-2)",
-    "  airline <query>    - Look up airline codes (e.g., airline UAL)",
+    "  airline <query>    - Look up airline codes (e.g., airline UAL --browser)",
     "  airport <query>    - Look up airport codes (e.g., airport KSFO)",
     "  aircraft <query>   - Look up aircraft types (e.g., aircraft B738)",
 ]
@@ -65,39 +65,26 @@ COMMAND_HELP = {
     "chart": """
 chart - Look up a chart and open the PDF directly
 
-Usage:
-  chart <airport> <chart_name>
-  <airport> <chart_name>        (implicit, without 'chart' prefix)
+Opens the chart PDF in your browser. Chart names are fuzzy-matched,
+so "CNDEL5" will find "CNDEL FIVE". Multi-page charts (with CONT.1,
+CONT.2 pages) are automatically merged. Charts are auto-rotated
+based on text orientation unless --no-rotate is specified.
 
-Arguments:
-  airport     Airport code (e.g., OAK, SFO, SJC)
-  chart_name  Chart name or partial match (e.g., CNDEL5, ILS 28R)
-
-Description:
-  Opens the chart PDF in your browser. Chart names are fuzzy-matched,
-  so "CNDEL5" will find "CNDEL FIVE". Multi-page charts (with CONT.1,
-  CONT.2 pages) are automatically merged.
-
+\b
 Examples:
-  chart OAK CNDEL5       - CNDEL FIVE departure
+  chart OAK CNDEL5       - CNDEL FIVE departure (auto-rotate)
   OAK ILS 28R            - ILS 28R approach (implicit)
+  chart OAK CNDEL5 -r    - Force 90 degree rotation
   chart SFO SERFR2       - SERFR TWO arrival
 """,
     "charts": """
 charts - Browse charts in the Reference Tool browser
 
-Usage:
-  charts <airport> <chart_name>
+Opens the chart in the Reference Tool interface, allowing you to
+browse other charts for the same airport. Use 'chart' instead if
+you just want to view a single PDF.
 
-Arguments:
-  airport     Airport code (e.g., OAK, SFO, SJC)
-  chart_name  Chart name or partial match
-
-Description:
-  Opens the chart in the Reference Tool interface, allowing you to
-  browse other charts for the same airport. Use 'chart' instead if
-  you just want to view a single PDF.
-
+\b
 Examples:
   charts OAK CNDEL5      - Open CNDEL FIVE, browse other OAK charts
   charts SFO ILS 28L     - Open ILS 28L, browse other SFO charts
@@ -105,16 +92,10 @@ Examples:
     "list": """
 list - List all charts for an airport
 
-Usage:
-  list <airport>
+Shows all available charts for the specified airport, including
+chart type codes (DP, STAR, IAP, etc.).
 
-Arguments:
-  airport     Airport code (e.g., OAK, SFO, SJC)
-
-Description:
-  Shows all available charts for the specified airport, including
-  chart type codes (DP, STAR, IAP, etc.).
-
+\b
 Examples:
   list OAK               - List all OAK charts
   list SFO               - List all SFO charts
@@ -122,136 +103,95 @@ Examples:
     "route": """
 route - Look up routes between two airports
 
-Usage:
-  route <departure> <arrival> [-a] [-f] [-n N]
+Shows TEC/AAR/ADR routes, LOA rules, and real-world routes between
+the specified airports. By default shows top 5 real-world routes.
 
-Arguments:
-  departure   Departure airport code
-  arrival     Arrival airport code
-
-Options:
-  -a          Show all real world routes (default: top 5)
-  -f          Include recent flights (hidden by default)
-  -n N        Show top N real world routes
-
-Description:
-  Shows TEC/AAR/ADR routes, LOA rules, and real-world routes between
-  the specified airports. By default shows top 5 real-world routes.
-
+\b
 Examples:
   route SFO LAX          - Routes from SFO to LAX (top 5)
   route SFO LAX -a       - Show all real world routes
   route SFO LAX -f       - Include recent flights
   route SFO LAX -a -f    - Show everything
   route OAK SAN -n 10    - Show top 10 real world routes
+  route SFO LAX --browser - Open routes page in browser
 """,
     "atis": """
 atis - Look up current ATIS for an airport
 
-Usage:
-  atis <airport>
-  atis all
-
-Arguments:
-  airport     Airport code (SFO, OAK, SJC, SMF, or RNO)
-
-Description:
-  Fetches the current ATIS (Automatic Terminal Information Service)
-  for the specified airport. Use "atis all" to show ATIS for all
-  supported airports.
+Fetches the current ATIS (Automatic Terminal Information Service)
+for the specified airport. Use "atis all" or "atis -a" to show
+ATIS for all supported airports.
 
 Supported airports: SFO, OAK, SJC, SMF, RNO
 
+\b
 Examples:
   atis SFO               - ATIS for San Francisco
   atis all               - ATIS for all airports
+  atis -a                - ATIS for all airports
 """,
     "sop": """
 sop - Look up Standard Operating Procedures (SOPs)
 
-Usage:
-  sop <procedure>
-  sop <procedure> <section>
-  sop <procedure> <section> <search_text>
+Opens procedure PDFs, optionally jumping to a specific section or
+searching for text within a section. Multi-step lookups let you
+find specific content within large documents.
 
-Arguments:
-  procedure    Procedure name or airport code (e.g., OAK, "NORCAL TRACON")
-  section      Section number or heading (e.g., 2-2, "IFR Departures")
-  search_text  Text to find within the section
-
-Description:
-  Opens procedure PDFs, optionally jumping to a specific section or
-  searching for text within a section. Multi-step lookups let you
-  find specific content within large documents.
-
+\b
 Examples:
   sop OAK                        - Open Oakland ATCT SOP
   sop OAK 2-2                    - Open OAK SOP at section 2-2
   sop "NORCAL TRACON"            - Open NORCAL TRACON SOP
   sop SJC "IFR Departures" SJCE  - Find SJCE in IFR Departures section
+  sop --list                     - List all available procedures
 
 Alias: 'proc' is an alias for 'sop'
 """,
     "proc": """
 proc - Alias for 'sop' command
 
-See 'help sop' for full documentation.
+See 'sop --help' for full documentation.
 """,
     "airline": """
 airline - Look up airline codes
 
-Usage:
-  airline <query>
+Searches for airlines by ICAO identifier (e.g., UAL), telephony
+callsign (e.g., UNITED), or airline name. Results are cached for
+faster subsequent lookups.
 
-Arguments:
-  query       ICAO code, telephony, or airline name
-
-Description:
-  Searches for airlines by ICAO identifier (e.g., UAL), telephony
-  callsign (e.g., UNITED), or airline name. Results are cached for
-  faster subsequent lookups.
-
+\b
 Examples:
   airline UAL            - Search by ICAO code
   airline united         - Search by telephony/name
   airline "Delta Air"    - Multi-word search
+  airline UAL --browser  - Open codes page in browser
 """,
     "airport": """
 airport - Look up airport codes
 
-Usage:
-  airport <query>
+Searches for airports by ICAO code (e.g., KSFO), FAA/local
+identifier (e.g., SFO), or airport name. Results are cached.
 
-Arguments:
-  query       ICAO code, FAA identifier, or airport name
-
-Description:
-  Searches for airports by ICAO code (e.g., KSFO), FAA/local
-  identifier (e.g., SFO), or airport name. Results are cached.
-
+\b
 Examples:
   airport KSFO           - Search by ICAO code
   airport SFO            - Search by FAA identifier
   airport "San Fran"     - Search by name
+  airport SFO --browser  - Open codes page in browser
 """,
     "aircraft": """
 aircraft - Look up aircraft type codes
 
-Usage:
-  aircraft <query>
+Searches for aircraft by ICAO type designator (e.g., B738),
+manufacturer (e.g., Boeing), or model name. Shows engine type,
+weight class, and other operational data. Results are cached.
 
-Arguments:
-  query       Type designator, manufacturer, or model
-
-Description:
-  Searches for aircraft by ICAO type designator (e.g., B738),
-  manufacturer (e.g., Boeing), or model name. Shows engine type,
-  weight class, and other operational data. Results are cached.
-
+\b
 Examples:
   aircraft B738          - Search by type designator
   aircraft boeing        - Search by manufacturer
   aircraft "737-800"     - Search by model
+  aircraft B738 --browser - Open codes page in browser
 """,
 }
 
@@ -271,7 +211,7 @@ def _print_interactive_help(include_help_line: bool = False) -> None:
 
 
 def _print_command_help(command: str) -> bool:
-    """Print detailed help for a specific command.
+    """Print detailed help for a specific command using Click's help formatter.
 
     Args:
         command: The command name to show help for.
@@ -280,8 +220,13 @@ def _print_command_help(command: str) -> bool:
         True if help was found and printed, False otherwise.
     """
     cmd_lower = command.lower().strip()
-    if cmd_lower in COMMAND_HELP:
-        click.echo(COMMAND_HELP[cmd_lower].strip())
+    # Get the Click command from the main group
+    ctx = click.Context(main)
+    cmd = main.get_command(ctx, cmd_lower)
+    if cmd is not None:
+        # Create a context for the command and print its help
+        with click.Context(cmd, info_name=cmd_lower, parent=ctx) as cmd_ctx:
+            click.echo(cmd.get_help(cmd_ctx))
         return True
     return False
 
@@ -357,6 +302,75 @@ class InteractiveContext:
             click.echo("Reopening browser...")
             self.visible_session = self.headless_session.create_child_session(headless=False)
         return self.visible_session
+
+
+@dataclass
+class ParsedArgs:
+    """Parsed arguments from interactive command input.
+
+    Separates positional arguments from flags and options.
+    """
+
+    positional: list[str]
+    flags: dict[str, bool]
+    options: dict[str, str]
+    show_help: bool = False
+
+
+def _parse_interactive_args(
+    args: str,
+    flag_defs: dict[str, tuple[str, ...]] | None = None,
+    option_defs: dict[str, tuple[str, ...]] | None = None,
+) -> ParsedArgs:
+    """Parse flags and options from interactive input string.
+
+    Args:
+        args: The input string to parse (e.g., "SFO LAX -a -n 10")
+        flag_defs: Map of flag_name -> tuple of aliases (e.g., {"all": ("-a", "--all")})
+        option_defs: Map of option_name -> tuple of aliases that expect a value
+
+    Returns:
+        ParsedArgs with separated positional args, flags, and options.
+        The show_help field is True if --help or -h was specified.
+    """
+    flag_defs = flag_defs or {}
+    option_defs = option_defs or {}
+
+    # Build reverse lookup: alias -> (type, name)
+    alias_map: dict[str, tuple[str, str]] = {}  # alias -> ("flag"|"option", name)
+    for name, aliases in flag_defs.items():
+        for alias in aliases:
+            alias_map[alias] = ("flag", name)
+    for name, aliases in option_defs.items():
+        for alias in aliases:
+            alias_map[alias] = ("option", name)
+
+    positional: list[str] = []
+    flags: dict[str, bool] = {}
+    options: dict[str, str] = {}
+    show_help = False
+
+    parts = args.strip().split()
+    i = 0
+    while i < len(parts):
+        part = parts[i]
+        if part in ("--help", "-h"):
+            show_help = True
+        elif part in alias_map:
+            kind, name = alias_map[part]
+            if kind == "flag":
+                flags[name] = True
+            else:  # option
+                if i + 1 < len(parts):
+                    options[name] = parts[i + 1]
+                    i += 1
+                # If no value follows, silently ignore (usage error)
+        elif not part.startswith("-"):
+            positional.append(part)
+        # Unknown flags starting with "-" are ignored
+        i += 1
+
+    return ParsedArgs(positional=positional, flags=flags, options=options, show_help=show_help)
 
 
 def _is_page_alive(page) -> bool:
@@ -448,7 +462,7 @@ def main(ctx, playwright: bool):
         interactive_mode(use_playwright=playwright)
 
 
-@main.command()
+@main.command(help=COMMAND_HELP["chart"].strip())
 @click.argument("query", nargs=-1, required=True)
 @click.option("--headless", is_flag=True, help="Run browser in headless mode (outputs PDF URL)")
 @click.option("-r", "rotate_flag", is_flag=True, help="Rotate chart 90°")
@@ -462,24 +476,6 @@ def chart(
     rotate: str | None,
     no_rotate: bool,
 ):
-    """Look up a chart and open the PDF directly.
-
-    Opens the PDF in the browser for viewing. Use 'charts' command instead
-    if you want to stay on the Reference Tool page to browse other charts.
-
-    Charts are auto-rotated based on text orientation. Use --no-rotate to disable.
-
-    Examples:
-
-        zoa chart OAK CNDEL5            - CNDEL FIVE departure (auto-rotate)
-
-        zoa chart OAK CNDEL5 -r         - Force 90° rotation
-
-        zoa chart OAK ILS 28R --rotate 180  - Force 180° rotation
-
-        zoa chart OAK DYAMD5 --no-rotate    - Disable auto-rotation
-    """
-    query_str = " ".join(query)
     if rotate:
         rotation: int | None = int(rotate)
     elif rotate_flag:
@@ -488,35 +484,18 @@ def chart(
         rotation = 0
     else:
         rotation = None  # Auto-detect
-    _lookup_chart_api(query_str, headless=headless, rotation=rotation)
+    _do_chart_lookup(" ".join(query), headless=headless, rotation=rotation)
 
 
-@main.command()
+@main.command(help=COMMAND_HELP["charts"].strip())
 @click.argument("query", nargs=-1, required=True)
 def charts(query: tuple[str, ...]):
-    """Look up a chart and stay on the Reference Tool page.
-
-    Opens the chart in the Reference Tool, allowing you to browse
-    other charts for the same airport. Use 'chart' command instead
-    if you just want to view a single PDF.
-
-    Examples:
-
-        zoa charts OAK CNDEL5    - Open CNDEL FIVE, browse other OAK charts
-
-        zoa charts SFO ILS 28L   - Open ILS 28L, browse other SFO charts
-    """
-    query_str = " ".join(query)
-    _lookup_chart(query_str, headless=False, browse=True)
+    _do_charts_browse(" ".join(query))
 
 
-@main.command("list")
+@main.command("list", help=COMMAND_HELP["list"].strip())
 @click.argument("airport")
 def list_cmd(airport: str):
-    """List all charts for an airport.
-
-    Example: zoa list OAK
-    """
     airport = airport.upper()
     if airport not in ZOA_AIRPORTS:
         click.echo(f"Warning: {airport} is not a known ZOA airport")
@@ -552,7 +531,7 @@ def airports():
     click.echo(f"  {', '.join(minor)}")
 
 
-@main.command()
+@main.command(help=COMMAND_HELP["route"].strip())
 @click.argument("departure")
 @click.argument("arrival")
 @click.option("--browser", is_flag=True, help="Open browser instead of CLI display")
@@ -560,185 +539,37 @@ def airports():
 @click.option("--flights", "-f", is_flag=True, help="Show recent flights (hidden by default)")
 @click.option("--top", "-n", type=int, default=5, help="Number of real world routes to show (default: 5)")
 def route(departure: str, arrival: str, browser: bool, all_routes: bool, flights: bool, top: int):
-    """Look up routes between two airports.
-
-    Examples:
-
-        zoa route SFO LAX           - Show routes (top 5 real world)
-
-        zoa route SFO LAX -a        - Show all real world routes
-
-        zoa route SFO LAX -f        - Include recent flights
-
-        zoa route SFO LAX -a -f     - Show everything
-
-        zoa route SFO LAX -n 10     - Show top 10 real world routes
-
-        zoa route OAK SAN --browser - Open browser to routes page
-    """
-    departure = departure.upper()
-    arrival = arrival.upper()
-
-    click.echo(f"Searching routes: {departure} -> {arrival}...")
-
-    if browser:
-        # Browser mode: open and keep open
-        with BrowserSession(headless=False) as session:
-            page = session.new_page()
-            success = open_routes_browser(page, departure, arrival)
-            if success:
-                _wait_for_input_or_close(session, "Routes page open. Press Enter to close browser...", page)
-            else:
-                _wait_for_input_or_close(session, "Failed to load routes page. Press Enter to close browser...", page)
-    else:
-        # CLI mode: scrape and display
-        with BrowserSession(headless=True) as session:
-            page = session.new_page()
-            result = search_routes(page, departure, arrival)
-            if result:
-                _display_routes(result, max_real_world=None if all_routes else top, show_flights=flights)
-            else:
-                click.echo("Failed to retrieve routes.", err=True)
+    _do_route_lookup(
+        departure, arrival,
+        browser=browser,
+        show_all=all_routes,
+        show_flights=flights,
+        top_n=top,
+    )
 
 
-@main.command()
+@main.command(help=COMMAND_HELP["airline"].strip())
 @click.argument("query", nargs=-1, required=True)
 @click.option("--browser", is_flag=True, help="Open browser instead of CLI display")
 @click.option("--no-cache", is_flag=True, help="Bypass cache and fetch fresh data")
 def airline(query: tuple[str, ...], browser: bool, no_cache: bool):
-    """Look up an airline by ICAO code, telephony, or name.
-
-    Examples:
-
-        zoa airline UAL            - Search by ICAO ID
-
-        zoa airline united         - Search by telephony/name
-
-        zoa airline "United Air"   - Multi-word search
-
-        zoa airline UAL --browser  - Open in browser
-
-        zoa airline UAL --no-cache - Bypass cache
-    """
-    query_str = " ".join(query)
-
-    # Try cache first (instant lookup)
-    if not no_cache and not browser:
-        result = search_airline(None, query_str, use_cache=True)
-        if result:
-            _display_airlines(result)
-            return
-
-    click.echo(f"Searching airlines: {query_str}...")
-
-    if browser:
-        with BrowserSession(headless=False) as session:
-            page = session.new_page()
-            success = open_codes_browser(page)
-            if success:
-                _wait_for_input_or_close(session, "Codes page open. Press Enter to close browser...", page)
-            else:
-                _wait_for_input_or_close(session, "Failed to load codes page. Press Enter to close browser...", page)
-    else:
-        with BrowserSession(headless=True) as session:
-            page = session.new_page()
-            result = search_airline(page, query_str, use_cache=not no_cache)
-            if result:
-                _display_airlines(result)
-            else:
-                click.echo("Failed to retrieve airline codes.", err=True)
+    _do_icao_lookup("airline", " ".join(query), browser=browser, no_cache=no_cache)
 
 
-@main.command()
+@main.command(help=COMMAND_HELP["airport"].strip())
 @click.argument("query", nargs=-1, required=True)
 @click.option("--browser", is_flag=True, help="Open browser instead of CLI display")
 @click.option("--no-cache", is_flag=True, help="Bypass cache and fetch fresh data")
 def airport(query: tuple[str, ...], browser: bool, no_cache: bool):
-    """Look up an airport by ICAO code, local ID, or name.
-
-    Examples:
-
-        zoa airport KSFO           - Search by ICAO ID
-
-        zoa airport SFO            - Search by local (FAA) ID
-
-        zoa airport "San Francisco" - Search by name
-
-        zoa airport SFO --no-cache - Bypass cache
-    """
-    query_str = " ".join(query)
-
-    # Try cache first (instant lookup)
-    if not no_cache and not browser:
-        result = search_airport_code(None, query_str, use_cache=True)
-        if result:
-            _display_airport_codes(result)
-            return
-
-    click.echo(f"Searching airports: {query_str}...")
-
-    if browser:
-        with BrowserSession(headless=False) as session:
-            page = session.new_page()
-            success = open_codes_browser(page)
-            if success:
-                _wait_for_input_or_close(session, "Codes page open. Press Enter to close browser...", page)
-            else:
-                _wait_for_input_or_close(session, "Failed to load codes page. Press Enter to close browser...", page)
-    else:
-        with BrowserSession(headless=True) as session:
-            page = session.new_page()
-            result = search_airport_code(page, query_str, use_cache=not no_cache)
-            if result:
-                _display_airport_codes(result)
-            else:
-                click.echo("Failed to retrieve airport codes.", err=True)
+    _do_icao_lookup("airport", " ".join(query), browser=browser, no_cache=no_cache)
 
 
-@main.command()
+@main.command(help=COMMAND_HELP["aircraft"].strip())
 @click.argument("query", nargs=-1, required=True)
 @click.option("--browser", is_flag=True, help="Open browser instead of CLI display")
 @click.option("--no-cache", is_flag=True, help="Bypass cache and fetch fresh data")
 def aircraft(query: tuple[str, ...], browser: bool, no_cache: bool):
-    """Look up an aircraft by type designator or manufacturer/model.
-
-    Examples:
-
-        zoa aircraft B738          - Search by type designator
-
-        zoa aircraft boeing        - Search by manufacturer
-
-        zoa aircraft "737-800"     - Search by model
-
-        zoa aircraft B738 --no-cache - Bypass cache
-    """
-    query_str = " ".join(query)
-
-    # Try cache first (instant lookup)
-    if not no_cache and not browser:
-        result = search_aircraft(None, query_str, use_cache=True)
-        if result:
-            _display_aircraft(result)
-            return
-
-    click.echo(f"Searching aircraft: {query_str}...")
-
-    if browser:
-        with BrowserSession(headless=False) as session:
-            page = session.new_page()
-            success = open_codes_browser(page)
-            if success:
-                _wait_for_input_or_close(session, "Codes page open. Press Enter to close browser...", page)
-            else:
-                _wait_for_input_or_close(session, "Failed to load codes page. Press Enter to close browser...", page)
-    else:
-        with BrowserSession(headless=True) as session:
-            page = session.new_page()
-            result = search_aircraft(page, query_str, use_cache=not no_cache)
-            if result:
-                _display_aircraft(result)
-            else:
-                click.echo("Failed to retrieve aircraft types.", err=True)
+    _do_icao_lookup("aircraft", " ".join(query), browser=browser, no_cache=no_cache)
 
 
 # --- Procedure/SOP Commands ---
@@ -789,13 +620,33 @@ def _open_procedure_pdf(procedure: ProcedureInfo, page_num: int = 1) -> None:
     webbrowser.open(url_with_page)
 
 
-def _list_procedures(no_cache: bool = False) -> None:
-    """List all available procedures grouped by category."""
+def _list_procedures(
+    no_cache: bool = False,
+    headless_session: "BrowserSession | None" = None,
+) -> None:
+    """List all available procedures grouped by category.
+
+    Args:
+        no_cache: If True, bypass cache
+        headless_session: Shared headless session (interactive mode)
+    """
     click.echo("Fetching procedures list...")
 
-    with BrowserSession(headless=True) as session:
+    own_session = headless_session is None
+    if own_session:
+        session = BrowserSession(headless=True)
+        session.start()
+    else:
+        session = headless_session
+
+    try:
         page = session.new_page()
         by_category = list_all_procedures(page, use_cache=not no_cache)
+        if headless_session is not None:
+            page.close()
+    finally:
+        if own_session:
+            session.stop()
 
     if not by_category:
         click.echo("Failed to fetch procedures list.", err=True)
@@ -834,13 +685,21 @@ def _list_procedures(no_cache: bool = False) -> None:
 
 def _handle_sop_command(
     query: tuple[str, ...],
-    list_procs: bool,
-    no_cache: bool
+    list_procs: bool = False,
+    no_cache: bool = False,
+    headless_session: "BrowserSession | None" = None,
 ) -> None:
-    """Handle sop/proc command logic."""
+    """Handle sop/proc command logic.
+
+    Args:
+        query: Query tuple (procedure name, optional section, optional search text)
+        list_procs: If True, list all available procedures
+        no_cache: If True, bypass cache
+        headless_session: Shared headless session (interactive mode)
+    """
     # List mode
     if list_procs:
-        _list_procedures(no_cache)
+        _list_procedures(no_cache, headless_session=headless_session)
         return
 
     # Parse query - pass tuple directly to preserve quoted strings
@@ -863,9 +722,21 @@ def _handle_sop_command(
         click.echo(f"  Search for: {parsed.search_term}")
 
     # Fetch procedures (cached)
-    with BrowserSession(headless=True) as session:
+    own_session = headless_session is None
+    if own_session:
+        session = BrowserSession(headless=True)
+        session.start()
+    else:
+        session = headless_session
+
+    try:
         page = session.new_page()
         procedures = fetch_procedures_list(page, use_cache=not no_cache)
+        if headless_session is not None:
+            page.close()
+    finally:
+        if own_session:
+            session.stop()
 
     if not procedures:
         click.echo("Failed to fetch procedures list.", err=True)
@@ -922,88 +793,27 @@ def _handle_sop_command(
     _open_procedure_pdf(procedure, page_num)
 
 
-@main.command()
+@main.command(help=COMMAND_HELP["sop"].strip())
 @click.argument("query", nargs=-1, required=False)
 @click.option("--list", "list_procs", is_flag=True, help="List available procedures")
 @click.option("--no-cache", is_flag=True, help="Bypass cache and fetch fresh data")
 def sop(query: tuple[str, ...], list_procs: bool, no_cache: bool):
-    """Look up a Standard Operating Procedure (SOP) or policy document.
-
-    Opens the procedure PDF, optionally at a specific section or text match.
-
-    Examples:
-
-        zoa sop OAK                - Open Oakland ATCT SOP
-
-        zoa sop OAK 2-2            - Open OAK SOP at section 2-2
-
-        zoa sop "NORCAL TRACON"    - Open NORCAL TRACON SOP
-
-        zoa sop SJC "IFR Departures" SJCE  - Multi-step: find SJCE in IFR Departures
-
-        zoa sop --list             - List all available procedures
-    """
     _handle_sop_command(query or (), list_procs, no_cache)
 
 
-@main.command("proc")
+@main.command("proc", help=COMMAND_HELP["proc"].strip())
 @click.argument("query", nargs=-1, required=False)
 @click.option("--list", "list_procs", is_flag=True, help="List available procedures")
 @click.option("--no-cache", is_flag=True, help="Bypass cache and fetch fresh data")
 def proc(query: tuple[str, ...], list_procs: bool, no_cache: bool):
-    """Alias for 'sop' command. Look up procedure documents.
-
-    Examples:
-
-        zoa proc OAK               - Open Oakland ATCT SOP
-
-        zoa proc SFO 3-1           - Open SFO SOP at section 3-1
-    """
     _handle_sop_command(query or (), list_procs, no_cache)
 
 
-@main.command()
+@main.command(help=COMMAND_HELP["atis"].strip())
 @click.argument("airport", required=False)
 @click.option("--all", "-a", "show_all", is_flag=True, help="Show ATIS for all airports")
 def atis(airport: str | None, show_all: bool):
-    """Look up current ATIS for an airport.
-
-    Examples:
-
-        zoa atis SFO          - Show ATIS for SFO
-
-        zoa atis OAK          - Show ATIS for OAK
-
-        zoa atis --all        - Show ATIS for all airports
-    """
-    if not airport and not show_all:
-        click.echo(f"Available airports: {', '.join(ATIS_AIRPORTS)}")
-        click.echo("Error: Please specify an airport or use --all", err=True)
-        return
-
-    click.echo("Fetching ATIS...")
-
-    with BrowserSession(headless=True) as session:
-        page = session.new_page()
-
-        if show_all:
-            result = fetch_all_atis(page)
-            if result and result.atis_list:
-                _display_atis(result.atis_list)
-            else:
-                click.echo("Failed to retrieve ATIS.", err=True)
-        elif airport:
-            airport = airport.upper()
-            if airport not in ATIS_AIRPORTS:
-                click.echo(f"Warning: {airport} is not a known ATIS airport")
-                click.echo(f"Available airports: {', '.join(ATIS_AIRPORTS)}")
-                return
-
-            atis_info = fetch_atis(page, airport)
-            if atis_info:
-                _display_atis([atis_info])
-            else:
-                click.echo(f"Failed to retrieve ATIS for {airport}.", err=True)
+    _do_atis_lookup(airport, show_all=show_all)
 
 
 def _print_table_header(title: str, header: str) -> None:
@@ -1208,6 +1018,343 @@ def _display_aircraft(result: AircraftSearchResult) -> None:
     _print_table_footer(len(result.results), "aircraft type(s)")
 
 
+# =============================================================================
+# Unified command implementations (shared between CLI and interactive modes)
+# =============================================================================
+
+
+def _do_icao_lookup(
+    search_type: str,
+    query: str,
+    browser: bool = False,
+    no_cache: bool = False,
+    codes_page: "CodesPage | None" = None,
+    headless_session: "BrowserSession | None" = None,
+) -> None:
+    """Shared ICAO lookup for airline/airport/aircraft.
+
+    Args:
+        search_type: One of "airline", "airport", or "aircraft"
+        query: Search query string
+        browser: If True, open codes page in visible browser
+        no_cache: If True, bypass cache
+        codes_page: Persistent CodesPage for fast lookups (interactive mode)
+        headless_session: Shared headless session (interactive mode)
+    """
+    # Map search type to functions and display
+    search_funcs = {
+        "airline": (search_airline, _display_airlines, "airlines"),
+        "airport": (search_airport_code, _display_airport_codes, "airports"),
+        "aircraft": (search_aircraft, _display_aircraft, "aircraft"),
+    }
+    search_func, display_func, search_label = search_funcs[search_type]
+
+    # Map codes_page methods
+    codes_page_methods = {
+        "airline": "search_airline",
+        "airport": "search_airport",
+        "aircraft": "search_aircraft",
+    }
+
+    # Try cache first (if not no_cache and not browser)
+    if not no_cache and not browser:
+        if codes_page is not None:
+            # Use CodesPage method for cache lookup
+            method = getattr(codes_page, codes_page_methods[search_type])
+            result = method(query, use_cache=True)
+        else:
+            # Direct cache lookup
+            result = search_func(None, query, use_cache=True)
+        if result:
+            display_func(result)
+            return
+
+    click.echo(f"Searching {search_label}: {query}...")
+
+    if browser:
+        # Browser mode: open codes page in visible browser
+        own_session = headless_session is None
+        if own_session:
+            session = BrowserSession(headless=False)
+            session.start()
+        else:
+            # Create visible child session from headless
+            session = headless_session.create_child_session(headless=False)
+
+        try:
+            page = session.new_page()
+            success = open_codes_browser(page)
+            if success:
+                _wait_for_input_or_close(session, "Codes page open. Press Enter to close browser...", page)
+            else:
+                _wait_for_input_or_close(session, "Failed to load codes page. Press Enter to close browser...", page)
+        finally:
+            if own_session:
+                session.stop()
+    else:
+        # CLI mode: search and display
+        if codes_page is not None:
+            # Use persistent CodesPage
+            if codes_page.ensure_ready():
+                method = getattr(codes_page, codes_page_methods[search_type])
+                result = method(query, use_cache=not no_cache)
+                if result:
+                    display_func(result)
+                else:
+                    click.echo(f"Failed to retrieve {search_label} codes.", err=True)
+            else:
+                click.echo(f"Failed to retrieve {search_label} codes.", err=True)
+        elif headless_session is not None:
+            # Use provided headless session
+            page = headless_session.new_page()
+            result = search_func(page, query, use_cache=not no_cache)
+            page.close()
+            if result:
+                display_func(result)
+            else:
+                click.echo(f"Failed to retrieve {search_label} codes.", err=True)
+        else:
+            # Create own session
+            with BrowserSession(headless=True) as session:
+                page = session.new_page()
+                result = search_func(page, query, use_cache=not no_cache)
+                if result:
+                    display_func(result)
+                else:
+                    click.echo(f"Failed to retrieve {search_label} codes.", err=True)
+
+
+def _do_route_lookup(
+    departure: str,
+    arrival: str,
+    browser: bool = False,
+    show_all: bool = False,
+    show_flights: bool = False,
+    top_n: int = 5,
+    headless_session: "BrowserSession | None" = None,
+) -> None:
+    """Shared route lookup.
+
+    Args:
+        departure: Departure airport code
+        arrival: Arrival airport code
+        browser: If True, open routes page in visible browser
+        show_all: If True, show all real world routes (otherwise top N)
+        show_flights: If True, include recent flights
+        top_n: Number of real world routes to show (if not show_all)
+        headless_session: Shared headless session (interactive mode)
+    """
+    departure = departure.upper()
+    arrival = arrival.upper()
+
+    click.echo(f"Searching routes: {departure} -> {arrival}...")
+
+    if browser:
+        # Browser mode: open routes page in visible browser
+        own_session = headless_session is None
+        if own_session:
+            session = BrowserSession(headless=False)
+            session.start()
+        else:
+            # Create visible child session from headless
+            session = headless_session.create_child_session(headless=False)
+
+        try:
+            page = session.new_page()
+            success = open_routes_browser(page, departure, arrival)
+            if success:
+                _wait_for_input_or_close(session, "Routes page open. Press Enter to close browser...", page)
+            else:
+                _wait_for_input_or_close(session, "Failed to load routes page. Press Enter to close browser...", page)
+        finally:
+            if own_session:
+                session.stop()
+    else:
+        # CLI mode: scrape and display
+        own_session = headless_session is None
+        if own_session:
+            with BrowserSession(headless=True) as session:
+                page = session.new_page()
+                result = search_routes(page, departure, arrival)
+                if result:
+                    _display_routes(result, max_real_world=None if show_all else top_n, show_flights=show_flights)
+                else:
+                    click.echo("Failed to retrieve routes.", err=True)
+        else:
+            page = headless_session.new_page()
+            result = search_routes(page, departure, arrival)
+            page.close()
+            if result:
+                _display_routes(result, max_real_world=None if show_all else top_n, show_flights=show_flights)
+            else:
+                click.echo("Failed to retrieve routes.", err=True)
+
+
+def _do_atis_lookup(
+    airport: str | None,
+    show_all: bool = False,
+    headless_session: "BrowserSession | None" = None,
+) -> None:
+    """Shared ATIS lookup.
+
+    Args:
+        airport: Airport code (or None if show_all is True)
+        show_all: If True, fetch ATIS for all airports
+        headless_session: Shared headless session (interactive mode)
+    """
+    if not airport and not show_all:
+        click.echo(f"Available airports: {', '.join(ATIS_AIRPORTS)}")
+        click.echo("Error: Please specify an airport or use --all/-a", err=True)
+        return
+
+    click.echo("Fetching ATIS...")
+
+    own_session = headless_session is None
+    if own_session:
+        session = BrowserSession(headless=True)
+        session.start()
+    else:
+        session = headless_session
+
+    try:
+        page = session.new_page()
+
+        if show_all:
+            result = fetch_all_atis(page)
+            if result and result.atis_list:
+                _display_atis(result.atis_list)
+            else:
+                click.echo("Failed to retrieve ATIS.", err=True)
+        elif airport:
+            airport = airport.upper()
+            if airport not in ATIS_AIRPORTS:
+                click.echo(f"Warning: {airport} is not a known ATIS airport")
+                click.echo(f"Available airports: {', '.join(ATIS_AIRPORTS)}")
+                return
+
+            atis_info = fetch_atis(page, airport)
+            if atis_info:
+                _display_atis([atis_info])
+            else:
+                click.echo(f"Failed to retrieve ATIS for {airport}.", err=True)
+
+        if headless_session is not None:
+            page.close()
+    finally:
+        if own_session:
+            session.stop()
+
+
+def _do_chart_lookup(
+    query_str: str,
+    headless: bool = False,
+    rotation: int | None = None,
+    visible_session: "BrowserSession | None" = None,
+) -> str | None:
+    """Shared chart lookup using API.
+
+    Args:
+        query_str: The chart query string (e.g., "OAK CNDEL5")
+        headless: If True, just output the PDF URL; otherwise open in browser
+        rotation: Rotation angle in degrees (0, 90, 180, 270).
+                  If None, auto-detects from text orientation.
+        visible_session: Playwright session for tab management (interactive mode)
+
+    Returns the PDF URL if found, None otherwise.
+    """
+    try:
+        parsed = ChartQuery.parse(query_str)
+        click.echo(f"Looking up: {parsed.airport} - {parsed.chart_name}")
+        if parsed.chart_type.value != "unknown":
+            click.echo(f"  Detected type: {parsed.chart_type.value.upper()}")
+    except ValueError as e:
+        click.echo(f"Error: {e}", err=True)
+        return None
+
+    pdf_urls, matched_chart, matches = lookup_chart_with_pages(parsed)
+
+    if pdf_urls and matched_chart:
+        chart_name = matched_chart.chart_name
+
+        if headless:
+            # In headless mode, just output URL(s)
+            for url in pdf_urls:
+                click.echo(url)
+            return pdf_urls[0]
+
+        # Open the chart in browser
+        return _open_chart_pdf(
+            pdf_urls=pdf_urls,
+            airport=parsed.airport,
+            chart_name=chart_name,
+            rotation=rotation,
+            session=visible_session,
+        )
+
+    # No unambiguous match found
+    if matches:
+        # Ambiguous match - show candidates
+        click.echo(f"Ambiguous match for '{parsed.chart_name}':")
+        _display_chart_matches(matches)
+        click.echo("\nTry a more specific query.")
+    else:
+        click.echo(f"No charts found for {parsed.airport}", err=True)
+
+    return None
+
+
+def _do_charts_browse(
+    query_str: str,
+    visible_session: "BrowserSession | None" = None,
+) -> str | None:
+    """Browse charts on Reference Tool page.
+
+    Args:
+        query_str: The chart query string (e.g., "OAK CNDEL5")
+        visible_session: Playwright session for browsing (interactive mode)
+
+    Returns the PDF URL if found, None otherwise.
+    """
+    try:
+        parsed = ChartQuery.parse(query_str)
+        click.echo(f"Opening charts browser: {parsed.airport} - {parsed.chart_name}")
+    except ValueError as e:
+        click.echo(f"Error: {e}", err=True)
+        return None
+
+    own_session = visible_session is None
+    if own_session:
+        window_size = _calculate_viewport_size()
+        session = BrowserSession(headless=False, window_size=window_size)
+        session.start()
+    else:
+        session = visible_session
+
+    try:
+        page = session.new_page()
+        pdf_url = lookup_chart(page, parsed)
+
+        if pdf_url:
+            # Modify the embedded PDF to fit to height
+            page.evaluate("""() => {
+                const obj = document.querySelector('object[data*=".PDF"]');
+                if (obj && obj.data && !obj.data.includes('#')) {
+                    obj.data = obj.data + '#view=FitV';
+                }
+            }""")
+            click.echo("Chart found! Browse other charts in the browser window.")
+        else:
+            click.echo("Could not find chart. Browse manually in the browser window.")
+
+        if own_session:
+            _wait_for_input_or_close(session, page=page)
+
+        return pdf_url
+    finally:
+        if own_session:
+            session.stop()
+
+
 def _display_atis(atis_list: list[AtisInfo]) -> None:
     """Display ATIS information in formatted CLI output."""
     for atis in atis_list:
@@ -1313,126 +1460,6 @@ def _open_chart_pdf(
             return pdf_url
 
 
-def _lookup_chart_api(
-    query_str: str, headless: bool = False, rotation: int | None = None
-) -> str | None:
-    """Look up a chart using the API.
-
-    Args:
-        query_str: The chart query string (e.g., "OAK CNDEL5")
-        headless: If True, just output the PDF URL; otherwise open in browser
-        rotation: Rotation angle in degrees (0, 90, 180, 270).
-                  If None, auto-detects from text orientation.
-
-    Returns the PDF URL if found, None otherwise.
-    """
-    try:
-        parsed = ChartQuery.parse(query_str)
-        click.echo(f"Looking up: {parsed.airport} - {parsed.chart_name}")
-        if parsed.chart_type.value != "unknown":
-            click.echo(f"  Detected type: {parsed.chart_type.value.upper()}")
-    except ValueError as e:
-        click.echo(f"Error: {e}", err=True)
-        return None
-
-    pdf_urls, matched_chart, matches = lookup_chart_with_pages(parsed)
-
-    if pdf_urls and matched_chart:
-        chart_name = matched_chart.chart_name
-
-        if headless:
-            # In headless mode, just output URL(s)
-            for url in pdf_urls:
-                click.echo(url)
-            return pdf_urls[0]
-
-        # Open the chart in browser
-        return _open_chart_pdf(
-            pdf_urls=pdf_urls,
-            airport=parsed.airport,
-            chart_name=chart_name,
-            rotation=rotation,
-        )
-
-    # No unambiguous match found
-    if matches:
-        # Ambiguous match - show candidates
-        click.echo(f"Ambiguous match for '{parsed.chart_name}':")
-        _display_chart_matches(matches)
-        click.echo("\nTry a more specific query.")
-    else:
-        click.echo(f"No charts found for {parsed.airport}", err=True)
-
-    return None
-
-
-def _lookup_chart(
-    query_str: str,
-    headless: bool = False,
-    session: BrowserSession | None = None,
-    browse: bool = False,
-) -> str | None:
-    """Internal function to look up a chart.
-
-    Args:
-        query_str: The chart query string (e.g., "OAK CNDEL5")
-        headless: Run browser in headless mode
-        session: Existing browser session to use
-        browse: If True, stay on Reference Tool page; if False, navigate to PDF URL
-
-    Returns the PDF URL if found, None otherwise.
-    """
-    try:
-        parsed = ChartQuery.parse(query_str)
-        click.echo(f"Looking up: {parsed.airport} - {parsed.chart_name}")
-        if parsed.chart_type.value != "unknown":
-            click.echo(f"  Detected type: {parsed.chart_type.value.upper()}")
-    except ValueError as e:
-        click.echo(f"Error: {e}", err=True)
-        return None
-
-    own_session = session is None
-    if own_session:
-        # Use larger window for browse mode (charts command)
-        window_size = _calculate_viewport_size() if browse and not headless else None
-        session = BrowserSession(headless=headless, window_size=window_size)
-        session.start()
-
-    try:
-        page = session.new_page()
-        pdf_url = lookup_chart(page, parsed)
-
-        if pdf_url:
-            if headless:
-                click.echo(pdf_url)
-            else:
-                # Navigate directly to PDF unless in browse mode
-                if not browse:
-                    page.goto(f"{pdf_url}#view=FitV")
-                else:
-                    # For browse mode, modify the embedded PDF to fit to height
-                    page.evaluate("""() => {
-                        const obj = document.querySelector('object[data*=".PDF"]');
-                        if (obj && obj.data && !obj.data.includes('#')) {
-                            obj.data = obj.data + '#view=FitV';
-                        }
-                    }""")
-                click.echo("Chart found! Browser will remain open.")
-        else:
-            if not headless:
-                click.echo("Could not find chart. Browser will remain open for manual navigation.")
-            else:
-                click.echo("Could not find chart.", err=True)
-
-        if own_session and not headless:
-            _wait_for_input_or_close(session, page=page)
-
-        return pdf_url
-    finally:
-        if own_session:
-            session.stop()
-
-
 # =============================================================================
 # Interactive mode command handlers
 # =============================================================================
@@ -1440,10 +1467,11 @@ def _lookup_chart(
 
 def _handle_list_interactive(args: str) -> None:
     """Handle 'list <airport>' command in interactive mode."""
-    airport = args.strip().upper()
-    if not airport:
-        click.echo("Usage: list <airport>  (e.g., list OAK)")
+    parsed = _parse_interactive_args(args)
+    if parsed.show_help or not parsed.positional:
+        _print_command_help("list")
         return
+    airport = parsed.positional[0].upper()
 
     click.echo(f"Fetching charts for {airport}...")
     charts = fetch_charts_from_api(airport)
@@ -1461,293 +1489,191 @@ def _handle_list_interactive(args: str) -> None:
 
 def _handle_charts_interactive(args: str, ctx: InteractiveContext) -> None:
     """Handle 'charts <query>' command in interactive mode."""
-    query_str = args.strip()
-    if not query_str:
-        click.echo("Usage: charts <airport> <chart>  (e.g., charts OAK CNDEL5)")
+    parsed = _parse_interactive_args(args)
+    if parsed.show_help or not parsed.positional:
+        _print_command_help("charts")
         return
+    query_str = " ".join(parsed.positional)
 
-    try:
-        parsed = ChartQuery.parse(query_str)
-        click.echo(f"Opening charts browser: {parsed.airport} - {parsed.chart_name}")
-
-        # Get or create visible browser session for charts browsing
-        session = ctx.get_or_create_visible_session()
-        page = session.new_page()
-        pdf_url = lookup_chart(page, parsed)
-
-        if pdf_url:
-            # Modify the embedded PDF to fit to height
-            page.evaluate("""() => {
-                const obj = document.querySelector('object[data*=".PDF"]');
-                if (obj && obj.data && !obj.data.includes('#')) {
-                    obj.data = obj.data + '#view=FitV';
-                }
-            }""")
-            click.echo("Chart found! Browse other charts in the browser window.")
-        else:
-            click.echo("Could not find chart. Browse manually in the browser window.")
-    except ValueError as e:
-        click.echo(f"Error: {e}")
-        click.echo("Format: charts <airport> <chart_name>  (e.g., charts OAK CNDEL5)")
+    # Get or create visible browser session for charts browsing
+    visible_session = ctx.get_or_create_visible_session()
+    _do_charts_browse(query_str, visible_session=visible_session)
 
 
 def _handle_route_interactive(args: str, ctx: InteractiveContext) -> None:
     """Handle 'route <departure> <arrival> [options]' command in interactive mode."""
-    # Parse flags and arguments
-    parts = args.strip().split()
-    show_all = False
-    show_flights = False
-    top_n = 5
-    airports = []
+    parsed = _parse_interactive_args(
+        args,
+        flag_defs={
+            "all": ("-a", "--all"),
+            "flights": ("-f", "--flights"),
+            "browser": ("--browser",),
+        },
+        option_defs={"top": ("-n", "--top")},
+    )
 
-    i = 0
-    while i < len(parts):
-        part = parts[i]
-        if part in ("-a", "--all"):
-            show_all = True
-        elif part in ("-f", "--flights"):
-            show_flights = True
-        elif part in ("-n", "--top"):
-            if i + 1 < len(parts):
-                try:
-                    top_n = int(parts[i + 1])
-                    i += 1
-                except ValueError:
-                    click.echo(f"Invalid number for -n: {parts[i + 1]}")
-                    return
-            else:
-                click.echo("Missing number after -n")
-                return
-        elif not part.startswith("-"):
-            airports.append(part.upper())
-        i += 1
-
-    if len(airports) < 2:
-        click.echo("Usage: route <departure> <arrival> [-a] [-f] [-n N]")
-        click.echo("  -a        Show all real world routes (default: top 5)")
-        click.echo("  -f        Include recent flights")
-        click.echo("  -n N      Show top N real world routes")
+    if parsed.show_help or len(parsed.positional) < 2:
+        _print_command_help("route")
         return
 
-    departure, arrival = airports[0], airports[1]
-    click.echo(f"Searching routes: {departure} -> {arrival}...")
-    page = ctx.headless_session.new_page()
-    result = search_routes(page, departure, arrival)
-    page.close()
+    try:
+        top_n = int(parsed.options.get("top", 5))
+    except ValueError:
+        top_n = 5
 
-    if result:
-        _display_routes(result, max_real_world=None if show_all else top_n, show_flights=show_flights)
-    else:
-        click.echo("Failed to retrieve routes.")
+    _do_route_lookup(
+        parsed.positional[0],
+        parsed.positional[1],
+        browser=parsed.flags.get("browser", False),
+        show_all=parsed.flags.get("all", False),
+        show_flights=parsed.flags.get("flights", False),
+        top_n=top_n,
+        headless_session=ctx.headless_session,
+    )
 
 
 def _handle_atis_interactive(args: str, ctx: InteractiveContext) -> None:
-    """Handle 'atis [airport|all]' command in interactive mode."""
-    parts = args.strip().upper().split()
+    """Handle 'atis [airport|all|-a]' command in interactive mode."""
+    parsed = _parse_interactive_args(
+        args,
+        flag_defs={"all": ("-a", "--all")},
+    )
 
-    if not parts or (len(parts) == 1 and parts[0] == "ALL"):
-        # Fetch all ATIS
-        click.echo("Fetching ATIS for all airports...")
-        page = ctx.headless_session.new_page()
-        result = fetch_all_atis(page)
-        page.close()
+    if parsed.show_help:
+        _print_command_help("atis")
+        return
 
-        if result and result.atis_list:
-            _display_atis(result.atis_list)
-        else:
-            click.echo("Failed to retrieve ATIS.")
-    elif len(parts) == 1:
-        # Fetch single airport ATIS
-        airport = parts[0]
-        if airport not in ATIS_AIRPORTS:
-            click.echo(f"Unknown airport: {airport}")
-            click.echo(f"Available: {', '.join(ATIS_AIRPORTS)}")
-        else:
-            click.echo(f"Fetching ATIS for {airport}...")
-            page = ctx.headless_session.new_page()
-            atis_info = fetch_atis(page, airport)
-            page.close()
+    # "atis all" or "atis -a" means show all
+    show_all = parsed.flags.get("all", False)
+    if parsed.positional and parsed.positional[0].upper() == "ALL":
+        show_all = True
+        parsed.positional.pop(0)
 
-            if atis_info:
-                _display_atis([atis_info])
-            else:
-                click.echo(f"Failed to retrieve ATIS for {airport}.")
-    else:
-        click.echo("Usage: atis <airport>  (e.g., atis SFO or atis all)")
+    airport = parsed.positional[0] if parsed.positional else None
+
+    _do_atis_lookup(
+        airport,
+        show_all=show_all,
+        headless_session=ctx.headless_session,
+    )
 
 
 def _handle_airline_interactive(args: str, ctx: InteractiveContext) -> None:
-    """Handle 'airline <query>' command in interactive mode."""
-    query_text = args.strip()
-    if not query_text:
-        click.echo("Usage: airline <query>  (e.g., airline UAL)")
+    """Handle 'airline <query> [--browser] [--no-cache]' command in interactive mode."""
+    parsed = _parse_interactive_args(
+        args,
+        flag_defs={"browser": ("--browser",), "no_cache": ("--no-cache",)},
+    )
+    if parsed.show_help or not parsed.positional:
+        _print_command_help("airline")
         return
 
-    # Try cache first, then use persistent codes page
-    result = ctx.codes_page.search_airline(query_text, use_cache=True)
-    if not result:
-        # Page not ready, initialize it
-        click.echo(f"Searching airlines: {query_text}...")
-        if ctx.codes_page.ensure_ready():
-            result = ctx.codes_page.search_airline(query_text)
-
-    if result:
-        _display_airlines(result)
-    else:
-        click.echo("Failed to retrieve airline codes.")
+    _do_icao_lookup(
+        "airline",
+        " ".join(parsed.positional),
+        browser=parsed.flags.get("browser", False),
+        no_cache=parsed.flags.get("no_cache", False),
+        codes_page=ctx.codes_page,
+        headless_session=ctx.headless_session,
+    )
 
 
 def _handle_airport_interactive(args: str, ctx: InteractiveContext) -> None:
-    """Handle 'airport <query>' command in interactive mode."""
-    query_text = args.strip()
-    if not query_text:
-        click.echo("Usage: airport <query>  (e.g., airport KSFO)")
+    """Handle 'airport <query> [--browser] [--no-cache]' command in interactive mode."""
+    parsed = _parse_interactive_args(
+        args,
+        flag_defs={"browser": ("--browser",), "no_cache": ("--no-cache",)},
+    )
+    if parsed.show_help or not parsed.positional:
+        _print_command_help("airport")
         return
 
-    # Try cache first, then use persistent codes page
-    result = ctx.codes_page.search_airport(query_text, use_cache=True)
-    if not result:
-        # Page not ready, initialize it
-        click.echo(f"Searching airport codes: {query_text}...")
-        if ctx.codes_page.ensure_ready():
-            result = ctx.codes_page.search_airport(query_text)
-
-    if result:
-        _display_airport_codes(result)
-    else:
-        click.echo("Failed to retrieve airport codes.")
+    _do_icao_lookup(
+        "airport",
+        " ".join(parsed.positional),
+        browser=parsed.flags.get("browser", False),
+        no_cache=parsed.flags.get("no_cache", False),
+        codes_page=ctx.codes_page,
+        headless_session=ctx.headless_session,
+    )
 
 
 def _handle_aircraft_interactive(args: str, ctx: InteractiveContext) -> None:
-    """Handle 'aircraft <query>' command in interactive mode."""
-    query_text = args.strip()
-    if not query_text:
-        click.echo("Usage: aircraft <query>  (e.g., aircraft B738)")
+    """Handle 'aircraft <query> [--browser] [--no-cache]' command in interactive mode."""
+    parsed = _parse_interactive_args(
+        args,
+        flag_defs={"browser": ("--browser",), "no_cache": ("--no-cache",)},
+    )
+    if parsed.show_help or not parsed.positional:
+        _print_command_help("aircraft")
         return
 
-    # Try cache first, then use persistent codes page
-    result = ctx.codes_page.search_aircraft(query_text, use_cache=True)
-    if not result:
-        # Page not ready, initialize it
-        click.echo(f"Searching aircraft: {query_text}...")
-        if ctx.codes_page.ensure_ready():
-            result = ctx.codes_page.search_aircraft(query_text)
-
-    if result:
-        _display_aircraft(result)
-    else:
-        click.echo("Failed to retrieve aircraft types.")
+    _do_icao_lookup(
+        "aircraft",
+        " ".join(parsed.positional),
+        browser=parsed.flags.get("browser", False),
+        no_cache=parsed.flags.get("no_cache", False),
+        codes_page=ctx.codes_page,
+        headless_session=ctx.headless_session,
+    )
 
 
 def _handle_chart_interactive(query: str, ctx: InteractiveContext) -> None:
-    """Handle implicit chart lookup in interactive mode."""
-    try:
-        parsed = ChartQuery.parse(query)
-        click.echo(f"Looking up: {parsed.airport} - {parsed.chart_name}")
-        if parsed.chart_type.value != "unknown":
-            click.echo(f"  Detected type: {parsed.chart_type.value.upper()}")
+    """Handle implicit chart lookup in interactive mode.
 
-        # Use API to find chart
-        pdf_urls, matched_chart, matches = lookup_chart_with_pages(parsed)
+    Supports flags: -r (rotate 90°), --rotate 90/180/270, --no-rotate
+    """
+    parsed = _parse_interactive_args(
+        query,
+        flag_defs={"rotate_flag": ("-r",), "no_rotate": ("--no-rotate",)},
+        option_defs={"rotate": ("--rotate",)},
+    )
 
-        if pdf_urls and matched_chart:
-            # Get session if in playwright mode
-            session = ctx.get_or_create_visible_session() if ctx.use_playwright else None
+    if parsed.show_help or not parsed.positional:
+        _print_command_help("chart")
+        return
 
-            _open_chart_pdf(
-                pdf_urls=pdf_urls,
-                airport=parsed.airport,
-                chart_name=matched_chart.chart_name,
-                rotation=None,  # Auto-detect rotation
-                session=session,
-            )
-        elif matches:
-            # Ambiguous match - show candidates
-            click.echo(f"Ambiguous match for '{parsed.chart_name}':")
-            _display_chart_matches(matches)
-            click.echo("\nTry a more specific query.")
-        else:
-            click.echo(f"No charts found for {parsed.airport}")
+    # Determine rotation
+    if parsed.options.get("rotate"):
+        rotation: int | None = int(parsed.options["rotate"])
+    elif parsed.flags.get("rotate_flag"):
+        rotation = 90
+    elif parsed.flags.get("no_rotate"):
+        rotation = 0
+    else:
+        rotation = None  # Auto-detect
 
-    except ValueError as e:
-        click.echo(f"Error: {e}")
-        click.echo("Format: <airport> <chart_name>  (e.g., OAK CNDEL5)")
+    # Get session if in playwright mode
+    visible_session = ctx.get_or_create_visible_session() if ctx.use_playwright else None
+
+    _do_chart_lookup(
+        " ".join(parsed.positional),
+        rotation=rotation,
+        visible_session=visible_session,
+    )
 
 
 def _handle_sop_interactive(args: str, ctx: InteractiveContext) -> None:
-    """Handle 'sop <query>' command in interactive mode."""
-    query_text = args.strip()
-    if not query_text:
-        click.echo("Usage: sop <query>  (e.g., sop OAK 2-2)")
-        click.echo("       sop SJC \"IFR Dep\" SJCE  (multi-step lookup)")
+    """Handle 'sop <query> [--list] [--no-cache]' command in interactive mode."""
+    parsed = _parse_interactive_args(
+        args,
+        flag_defs={"list": ("--list",), "no_cache": ("--no-cache",)},
+    )
+
+    if parsed.show_help:
+        _print_command_help("sop")
         return
 
-    try:
-        parsed = ProcedureQuery.parse(query_text)
-    except ValueError as e:
-        click.echo(f"Error: {e}")
-        return
+    # Convert positional args to tuple for _handle_sop_command
+    # This preserves the ability to handle quoted strings from the original input
+    query_tuple = tuple(parsed.positional)
 
-    click.echo(f"Looking up: {parsed.procedure_term}")
-    if parsed.section_term:
-        click.echo(f"  Section: {parsed.section_term}")
-    if parsed.search_term:
-        click.echo(f"  Search for: {parsed.search_term}")
-
-    # Fetch procedures (use headless session, cached)
-    page = ctx.headless_session.new_page()
-    procedures = fetch_procedures_list(page, use_cache=True)
-    page.close()
-
-    if not procedures:
-        click.echo("Failed to fetch procedures list.")
-        return
-
-    procedure, matches = find_procedure_by_name(procedures, parsed)
-
-    if not procedure:
-        if matches:
-            # Ambiguous - show numbered disambiguation prompt
-            _display_procedure_matches(matches)
-            choice = _prompt_procedure_choice(matches)
-            if choice:
-                procedure = choice
-            else:
-                return
-        else:
-            click.echo(f"No procedure found matching '{parsed.procedure_term}'")
-            return
-
-    # Determine page number
-    page_num = 1
-    if parsed.section_term and parsed.search_term:
-        # Multi-step lookup: find text within section
-        click.echo(f"Searching for '{parsed.search_term}' in section '{parsed.section_term}'...")
-        found_page = find_text_in_section(procedure, parsed.section_term, parsed.search_term)
-        if found_page:
-            page_num = found_page
-            click.echo(f"Found '{parsed.search_term}' at page {page_num}")
-        else:
-            # Fall back to just the section
-            click.echo(f"'{parsed.search_term}' not found in section, trying section only...")
-            found_page = find_heading_page(procedure, parsed.section_term)
-            if found_page:
-                page_num = found_page
-                click.echo(f"Found section at page {page_num}")
-            else:
-                click.echo(f"Section '{parsed.section_term}' not found, opening first page")
-    elif parsed.section_term:
-        # Single section lookup
-        click.echo(f"Searching for section '{parsed.section_term}'...")
-        found_page = find_heading_page(procedure, parsed.section_term)
-        if found_page:
-            page_num = found_page
-            click.echo(f"Found section at page {page_num}")
-        else:
-            click.echo(f"Section '{parsed.section_term}' not found, opening first page")
-
-    # Open PDF
-    _open_procedure_pdf(procedure, page_num)
+    _handle_sop_command(
+        query_tuple,
+        list_procs=parsed.flags.get("list", False),
+        no_cache=parsed.flags.get("no_cache", False),
+        headless_session=ctx.headless_session,
+    )
 
 
 # Command registry: maps command prefix to (handler, prefix_length, needs_context)
