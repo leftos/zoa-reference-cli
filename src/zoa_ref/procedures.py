@@ -576,14 +576,16 @@ def _extract_pdf_bookmarks(pdf_data: bytes) -> list[HeadingInfo]:
                 else:
                     # Destination object
                     try:
-                        page_num = reader.get_destination_page_number(item) + 1
-                        title = str(item.title) if item.title else ""
-                        if title:
-                            headings.append(HeadingInfo(
-                                title=title,
-                                page=page_num,
-                                level=level
-                            ))
+                        page_idx = reader.get_destination_page_number(item)
+                        if page_idx is not None:
+                            page_num = page_idx + 1
+                            title = str(item.title) if item.title else ""
+                            if title:
+                                headings.append(HeadingInfo(
+                                    title=title,
+                                    page=page_num,
+                                    level=level
+                                ))
                     except Exception:
                         pass
 
