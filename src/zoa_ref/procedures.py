@@ -775,17 +775,25 @@ def find_text_in_section(
     # Get headings to determine section boundaries
     headings = get_procedure_headings(procedure, use_cache)
 
-    # Find the end page of the section (start of next section at same or higher level)
+    # Find the end page and heading of the section (next section at same or higher level)
     end_page = None
+    next_section_title = None
     if headings:
-        # Find the heading that matches our section
+        # Find the heading that matches our section and its index
         section_heading = _find_matching_heading(headings, section_query)
         if section_heading:
             section_level = section_heading.level
+            # Find index of section heading in the list
+            section_idx = next(
+                (i for i, h in enumerate(headings) if h.title == section_heading.title),
+                -1
+            )
             # Find next heading at same or higher level (lower number = higher level)
-            for heading in headings:
-                if heading.page > section_page and heading.level <= section_level:
+            # Start from after the section heading in the list order
+            for heading in headings[section_idx + 1:]:
+                if heading.level <= section_level:
                     end_page = heading.page
+                    next_section_title = heading.title
                     break
 
     # Download PDF and search for the term
@@ -802,9 +810,10 @@ def find_text_in_section(
         reader = PdfReader(io.BytesIO(pdf_data))
         search_upper = search_term.upper()
 
-        # Search from section start to section end (or end of document)
+        # Search from section start to section end (inclusive of end page)
         start_idx = section_page - 1  # 0-based
-        end_idx = (end_page - 1) if end_page else len(reader.pages)
+        # Include end_page in search range (content may appear before next heading)
+        end_idx = end_page if end_page else len(reader.pages)
 
         for page_idx in range(start_idx, end_idx):
             if page_idx >= len(reader.pages):
@@ -812,6 +821,14 @@ def find_text_in_section(
 
             page = reader.pages[page_idx]
             text = page.extract_text() or ""
+
+            # On the last page, only search up to the next section heading
+            if end_page and page_idx == end_page - 1 and next_section_title:
+                # Find where the next section heading starts and truncate
+                heading_pos = text.upper().find(next_section_title.upper())
+                if heading_pos > 0:
+                    text = text[:heading_pos]
+
             text_upper = text.upper()
 
             if search_upper in text_upper:
