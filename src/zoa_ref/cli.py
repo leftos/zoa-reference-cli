@@ -68,7 +68,7 @@ from .browser import BrowserSession, _calculate_viewport_size
 from .charts import (
     ChartQuery, lookup_chart, list_charts, ZOA_AIRPORTS,
     ChartMatch, fetch_charts_from_api,
-    lookup_chart_with_pages, download_and_merge_pdfs,
+    lookup_chart_with_pages, download_and_merge_pdfs, download_and_rotate_pdf,
 )
 from .routes import search_routes, open_routes_browser, RouteSearchResult
 from .icao import (
@@ -175,7 +175,10 @@ def main(ctx, playwright: bool):
 @main.command()
 @click.argument("query", nargs=-1, required=True)
 @click.option("--headless", is_flag=True, help="Run browser in headless mode (outputs PDF URL)")
-def chart(query: tuple[str, ...], headless: bool):
+@click.option("-r", "rotate_flag", is_flag=True, help="Rotate chart 90°")
+@click.option("--rotate", type=click.Choice(["90", "180", "270"]), default=None,
+              help="Rotate chart by specific degrees")
+def chart(query: tuple[str, ...], headless: bool, rotate_flag: bool, rotate: str | None):
     """Look up a chart and open the PDF directly.
 
     Opens the PDF in the browser for viewing. Use 'charts' command instead
@@ -183,14 +186,20 @@ def chart(query: tuple[str, ...], headless: bool):
 
     Examples:
 
-        zoa chart OAK CNDEL5     - CNDEL FIVE departure
+        zoa chart OAK CNDEL5            - CNDEL FIVE departure (no rotation)
 
-        zoa chart OAK ILS 28R    - ILS or LOC RWY 28R approach
+        zoa chart OAK CNDEL5 -r         - Rotated 90°
 
-        zoa chart SFO RNAV 28L   - RNAV approach to runway 28L
+        zoa chart OAK ILS 28R --rotate 180  - Rotated 180°
     """
     query_str = " ".join(query)
-    _lookup_chart_api(query_str, headless=headless)
+    if rotate:
+        rotation = int(rotate)
+    elif rotate_flag:
+        rotation = 90
+    else:
+        rotation = 0
+    _lookup_chart_api(query_str, headless=headless, rotation=rotation)
 
 
 @main.command()
@@ -704,12 +713,13 @@ def _display_chart_matches(matches: list[ChartMatch], max_display: int = 10) -> 
         click.echo(f"  ... and {len(matches) - max_display} more")
 
 
-def _lookup_chart_api(query_str: str, headless: bool = False) -> str | None:
+def _lookup_chart_api(query_str: str, headless: bool = False, rotation: int = 0) -> str | None:
     """Look up a chart using the API.
 
     Args:
         query_str: The chart query string (e.g., "OAK CNDEL5")
         headless: If True, just output the PDF URL; otherwise open in browser
+        rotation: Rotation angle in degrees (0, 90, 180, 270)
 
     Returns the PDF URL if found, None otherwise.
     """
@@ -736,10 +746,21 @@ def _lookup_chart_api(query_str: str, headless: bool = False) -> str | None:
             pdf_url = pdf_urls[0]
             if headless:
                 click.echo(pdf_url)
-            else:
+                return pdf_url
+
+            # Download and optionally rotate
+            temp_fd, temp_path = tempfile.mkstemp(suffix=".pdf", prefix=f"zoa_{parsed.airport}_")
+            os.close(temp_fd)
+
+            if download_and_rotate_pdf(pdf_url, temp_path, rotation):
                 click.echo(f"Opening chart: {chart_name}")
+                _open_in_browser(temp_path)
+                return temp_path
+            else:
+                click.echo("Failed to download chart", err=True)
+                # Fall back to opening URL directly (no rotation)
                 webbrowser.open(f"{pdf_url}#view=FitV")
-            return pdf_url
+                return pdf_url
         else:
             # Multi-page chart - need to merge
             click.echo(f"Chart has {num_pages} pages, merging...")
@@ -754,7 +775,7 @@ def _lookup_chart_api(query_str: str, headless: bool = False) -> str | None:
             temp_fd, temp_path = tempfile.mkstemp(suffix=".pdf", prefix=f"zoa_{parsed.airport}_")
             os.close(temp_fd)
 
-            if download_and_merge_pdfs(pdf_urls, temp_path):
+            if download_and_merge_pdfs(pdf_urls, temp_path, rotation):
                 click.echo(f"Opening merged chart: {chart_name} ({num_pages} pages)")
                 _open_in_browser(temp_path)
                 return temp_path
@@ -1139,7 +1160,7 @@ def interactive_mode(use_playwright: bool = False):
 
                             if download_and_merge_pdfs(pdf_urls, temp_path):
                                 page = session.new_page()
-                                page.goto(f"file://{temp_path}#view=FitV")
+                                page.goto(f"{Path(temp_path).as_uri()}#view=FitV")
                                 click.echo(f"Chart found: {chart_name} ({num_pages} pages)")
                             else:
                                 click.echo("Failed to merge PDF pages, opening first page only")
@@ -1148,7 +1169,7 @@ def interactive_mode(use_playwright: bool = False):
                                 if not was_existing:
                                     page.goto(f"{pdf_url}#view=FitV")
                     else:
-                        # System browser mode: use webbrowser.open()
+                        # System browser mode: open directly (no rotation in interactive mode)
                         if num_pages == 1:
                             pdf_url = pdf_urls[0]
                             webbrowser.open(f"{pdf_url}#view=FitV")

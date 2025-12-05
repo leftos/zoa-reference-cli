@@ -192,9 +192,13 @@ def find_chart_by_name(
 
     chart_name_upper = query.chart_name.upper()
 
-    # Score all charts
+    # Score all charts, excluding continuation pages (CONT.1, CONT.2, etc.)
+    # Continuation pages will be found later via find_all_chart_pages
     matches: list[ChartMatch] = []
     for chart in charts:
+        # Skip continuation pages - they're not separate charts
+        if ", CONT." in chart.chart_name:
+            continue
         score = _calculate_similarity(chart_name_upper, chart.chart_name.upper())
         if score > 0.2:  # Minimum threshold
             matches.append(ChartMatch(chart=chart, score=score))
@@ -283,18 +287,23 @@ def find_all_chart_pages(
     return [chart for _, chart in pages]
 
 
-def download_and_merge_pdfs(pdf_urls: list[str], output_path: str) -> bool:
+def download_and_merge_pdfs(
+    pdf_urls: list[str],
+    output_path: str,
+    rotation: int = 0,
+) -> bool:
     """
     Download multiple PDFs and merge them into one file.
 
     Args:
         pdf_urls: List of PDF URLs to download and merge
         output_path: Path to save the merged PDF
+        rotation: Rotation angle in degrees (0, 90, 180, 270)
 
     Returns:
         True if successful, False otherwise.
     """
-    from pypdf import PdfWriter
+    from pypdf import PdfReader, PdfWriter
     import tempfile
     import os
 
@@ -320,8 +329,12 @@ def download_and_merge_pdfs(pdf_urls: list[str], output_path: str) -> bool:
             with os.fdopen(temp_fd, "wb") as f:
                 f.write(pdf_data)
 
-            # Append to writer
-            writer.append(temp_path)
+            # Read and append pages with optional rotation
+            reader = PdfReader(temp_path)
+            for page in reader.pages:
+                if rotation:
+                    page.rotate(rotation)
+                writer.add_page(page)
 
         # Write merged PDF
         with open(output_path, "wb") as f:
@@ -336,6 +349,58 @@ def download_and_merge_pdfs(pdf_urls: list[str], output_path: str) -> bool:
                 os.unlink(temp_path)
             except OSError:
                 pass
+
+
+def download_and_rotate_pdf(pdf_url: str, output_path: str, rotation: int = 0) -> bool:
+    """
+    Download a single PDF and optionally rotate it.
+
+    Args:
+        pdf_url: URL of the PDF to download
+        output_path: Path to save the PDF
+        rotation: Rotation angle in degrees (0, 90, 180, 270)
+
+    Returns:
+        True if successful, False otherwise.
+    """
+    from pypdf import PdfReader, PdfWriter
+    import tempfile
+    import os
+
+    try:
+        with urllib.request.urlopen(pdf_url, timeout=30) as response:
+            pdf_data = response.read()
+    except urllib.error.URLError as e:
+        print(f"Error downloading {pdf_url}: {e}")
+        return False
+
+    if not rotation:
+        # No rotation needed, just save directly
+        with open(output_path, "wb") as f:
+            f.write(pdf_data)
+        return True
+
+    # Need to rotate - write to temp, read, rotate, write to output
+    temp_fd, temp_path = tempfile.mkstemp(suffix=".pdf")
+    try:
+        with os.fdopen(temp_fd, "wb") as f:
+            f.write(pdf_data)
+
+        reader = PdfReader(temp_path)
+        writer = PdfWriter()
+        for page in reader.pages:
+            page.rotate(rotation)
+            writer.add_page(page)
+
+        with open(output_path, "wb") as f:
+            writer.write(f)
+
+        return True
+    finally:
+        try:
+            os.unlink(temp_path)
+        except OSError:
+            pass
 
 
 def lookup_chart_with_pages(
