@@ -148,14 +148,6 @@ zoa aircraft B738 --no-cache # Bypass cache
 
 Results include type designator, manufacturer, model, engine type, FAA weight class, CWT, SRS, and LAHSO category.
 
-### List Airports
-
-View all supported ZOA airports:
-
-```bash
-zoa airports
-```
-
 ### Interactive Mode
 
 Run without arguments to enter interactive mode:
@@ -202,9 +194,3 @@ Available interactive commands:
 ## Caching
 
 ICAO code lookups (airline, airport, aircraft) are cached locally for 7 days to provide instant lookups. Cache is stored in `~/.zoa-ref/cache/`. Use `--no-cache` to bypass the cache and fetch fresh data.
-
-## Supported Airports
-
-Major: SFO, OAK, SJC, SMF, RNO, FAT, MRY, BAB
-
-Other: APC, CCR, CIC, HWD, LVK, MER, MHR, MOD, NUQ, PAO, RDD, RHV, SAC, SCK, SNS, SQL, STS, SUU, TRK
