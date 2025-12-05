@@ -551,6 +551,32 @@ def atis(airport: str | None, show_all: bool):
                 click.echo(f"Failed to retrieve ATIS for {airport}.", err=True)
 
 
+def _print_table_header(title: str, header: str) -> None:
+    """Print standard table header with title and column headers."""
+    click.echo()
+    click.echo("=" * 80)
+    click.echo(title)
+    click.echo("=" * 80)
+    click.echo(header)
+    click.echo("-" * 80)
+
+
+def _print_table_empty(title: str, message: str) -> None:
+    """Print empty table with title and message."""
+    click.echo()
+    click.echo("=" * 80)
+    click.echo(title)
+    click.echo("=" * 80)
+    click.echo(f"  {message}")
+    click.echo()
+
+
+def _print_table_footer(count: int, item_name: str) -> None:
+    """Print standard table footer with count."""
+    click.echo(f"\nTotal: {count} {item_name}")
+    click.echo()
+
+
 def _display_routes(result: RouteSearchResult, max_real_world: int | None = 5, show_flights: bool = False) -> None:
     """Display route search results in formatted CLI output."""
     click.echo()
@@ -672,66 +698,49 @@ def _display_recent_flights_table(flights: list) -> None:
 
 def _display_airlines(result: AirlineSearchResult) -> None:
     """Display airline search results in formatted CLI output."""
-    click.echo()
-    click.echo("=" * 80)
-    click.echo("AIRLINE CODES")
-    click.echo("=" * 80)
-
     if not result.results:
-        click.echo(f"  No airlines found for '{result.query}'.")
-        click.echo()
+        _print_table_empty("AIRLINE CODES", f"No airlines found for '{result.query}'.")
         return
 
-    # Header
-    click.echo(f"{'ICAO':<8} {'Telephony':<15} {'Name':<35} Country")
-    click.echo("-" * 80)
+    _print_table_header(
+        "AIRLINE CODES",
+        f"{'ICAO':<8} {'Telephony':<15} {'Name':<35} Country",
+    )
 
     for airline in result.results:
         name_display = airline.name[:33] + ".." if len(airline.name) > 35 else airline.name
         click.echo(f"{airline.icao_id:<8} {airline.telephony:<15} {name_display:<35} {airline.country}")
 
-    click.echo(f"\nTotal: {len(result.results)} airline(s)")
-    click.echo()
+    _print_table_footer(len(result.results), "airline(s)")
 
 
 def _display_airport_codes(result: AirportSearchResult) -> None:
     """Display airport code search results in formatted CLI output."""
-    click.echo()
-    click.echo("=" * 80)
-    click.echo("AIRPORT CODES")
-    click.echo("=" * 80)
-
     if not result.results:
-        click.echo(f"  No airports found for '{result.query}'.")
-        click.echo()
+        _print_table_empty("AIRPORT CODES", f"No airports found for '{result.query}'.")
         return
 
-    # Header
-    click.echo(f"{'ICAO':<8} {'Local':<8} Name")
-    click.echo("-" * 80)
+    _print_table_header(
+        "AIRPORT CODES",
+        f"{'ICAO':<8} {'Local':<8} Name",
+    )
 
     for airport in result.results:
         click.echo(f"{airport.icao_id:<8} {airport.local_id:<8} {airport.name}")
 
-    click.echo(f"\nTotal: {len(result.results)} airport(s)")
-    click.echo()
+    _print_table_footer(len(result.results), "airport(s)")
 
 
 def _display_aircraft(result: AircraftSearchResult) -> None:
     """Display aircraft search results in formatted CLI output."""
-    click.echo()
-    click.echo("=" * 80)
-    click.echo("AIRCRAFT TYPES")
-    click.echo("=" * 80)
-
     if not result.results:
-        click.echo(f"  No aircraft found for '{result.query}'.")
-        click.echo()
+        _print_table_empty("AIRCRAFT TYPES", f"No aircraft found for '{result.query}'.")
         return
 
-    # Header
-    click.echo(f"{'Type':<8} {'Manufacturer/Model':<30} {'Eng':<5} {'Wt':<4} {'CWT':<5} {'SRS':<5} LAHSO")
-    click.echo("-" * 80)
+    _print_table_header(
+        "AIRCRAFT TYPES",
+        f"{'Type':<8} {'Manufacturer/Model':<30} {'Eng':<5} {'Wt':<4} {'CWT':<5} {'SRS':<5} LAHSO",
+    )
 
     for ac in result.results:
         mfr_model = f"{ac.manufacturer} {ac.model}"
@@ -741,8 +750,7 @@ def _display_aircraft(result: AircraftSearchResult) -> None:
             f"{ac.faa_weight:<4} {ac.cwt:<5} {ac.srs:<5} {ac.lahso}"
         )
 
-    click.echo(f"\nTotal: {len(result.results)} aircraft type(s)")
-    click.echo()
+    _print_table_footer(len(result.results), "aircraft type(s)")
 
 
 def _display_atis(atis_list: list[AtisInfo]) -> None:
