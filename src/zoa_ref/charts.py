@@ -192,6 +192,9 @@ def find_chart_by_name(
 
     chart_name_upper = query.chart_name.upper()
 
+    # Tokenize query for all-terms matching
+    query_tokens = set(re.findall(r"[A-Z0-9]+", chart_name_upper))
+
     # Score all charts, excluding continuation pages (CONT.1, CONT.2, etc.)
     # Continuation pages will be found later via find_all_chart_pages
     matches: list[ChartMatch] = []
@@ -214,6 +217,26 @@ def find_chart_by_name(
     # Check for exact match
     if best_match.score == 1.0:
         return best_match.chart, matches
+
+    # Check if only one match contains ALL query tokens
+    # This handles cases like "ILS 28R" where only one result has both terms
+    if len(query_tokens) > 1:
+        full_matches = []
+        for m in matches:
+            chart_tokens = set(re.findall(r"[A-Z0-9]+", m.chart.chart_name.upper()))
+            if query_tokens <= chart_tokens:  # All query tokens present
+                full_matches.append(m)
+
+        if len(full_matches) == 1:
+            # Only one match has all query tokens - auto-select it
+            return full_matches[0].chart, matches
+        elif len(full_matches) > 1:
+            # Multiple matches have all tokens - check ambiguity among them
+            full_matches.sort(key=lambda m: m.score, reverse=True)
+            if full_matches[0].score - full_matches[1].score >= ambiguity_threshold:
+                return full_matches[0].chart, matches
+            # Ambiguous among full matches
+            return None, full_matches
 
     # Check for ambiguity
     if len(matches) > 1:

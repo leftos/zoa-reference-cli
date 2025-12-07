@@ -521,6 +521,9 @@ def find_procedure_by_name(
     if search_term in PROCEDURE_ALIASES:
         search_terms.extend(PROCEDURE_ALIASES[search_term])
 
+    # Tokenize query for all-terms matching
+    query_tokens = set(re.findall(r"[A-Z0-9]+", search_term))
+
     matches = []
     seen_procs: set[str] = set()  # Track by PDF URL to avoid duplicates
 
@@ -549,6 +552,26 @@ def find_procedure_by_name(
     # Check for exact match
     if best_match.score == 1.0:
         return best_match.procedure, matches
+
+    # Check if only one match contains ALL query tokens
+    # This handles cases like "ZOA NCT" where only one result has both terms
+    if len(query_tokens) > 1:
+        full_matches = []
+        for m in matches:
+            proc_tokens = set(re.findall(r"[A-Z0-9]+", m.procedure.name.upper()))
+            if query_tokens <= proc_tokens:  # All query tokens present
+                full_matches.append(m)
+
+        if len(full_matches) == 1:
+            # Only one match has all query tokens - auto-select it
+            return full_matches[0].procedure, matches
+        elif len(full_matches) > 1:
+            # Multiple matches have all tokens - check ambiguity among them
+            full_matches.sort(key=lambda m: m.score, reverse=True)
+            if full_matches[0].score - full_matches[1].score >= ambiguity_threshold:
+                return full_matches[0].procedure, matches
+            # Ambiguous among full matches
+            return None, full_matches
 
     # Check for ambiguity
     if len(matches) > 1:
