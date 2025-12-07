@@ -62,6 +62,9 @@ INTERACTIVE_HELP_COMMANDS = [
     "  airline <query>    - Look up airline codes (e.g., airline UAL)",
     "  airport <query>    - Look up airport codes (e.g., airport KSFO)",
     "  aircraft <query>   - Look up aircraft types (e.g., aircraft B738)",
+    "  vis                - Open ZOA airspace visualizer",
+    "  tdls               - Open TDLS (Pre-Departure Clearances)",
+    "  strips             - Open flight strips",
 ]
 
 # Detailed help for individual commands (used by "help <command>")
@@ -196,6 +199,33 @@ Examples:
   aircraft boeing        - Search by manufacturer
   aircraft "737-800"     - Search by model
   aircraft B738 --browser - Open codes page in browser
+""",
+    "vis": """
+vis - Open ZOA airspace visualizer
+
+Opens the ZOA airspace visualization tool in your browser.
+Shows sector boundaries, airspace structure, and related info.
+
+\b
+URL: https://airspace.oakartcc.org/
+""",
+    "tdls": """
+tdls - Open TDLS (Tower Data Link Services)
+
+Opens the TDLS tool for sending Pre-Departure Clearances (PDCs)
+to pilots.
+
+\b
+URL: https://tdls.virtualnas.net/
+""",
+    "strips": """
+strips - Open flight strips
+
+Opens the flight strips tool in your browser.
+Used for managing flight progress strips.
+
+\b
+URL: https://strips.virtualnas.net/
 """,
 }
 
@@ -828,6 +858,27 @@ def proc(query: tuple[str, ...], list_procs: bool, no_cache: bool):
 @click.option("--all", "-a", "show_all", is_flag=True, help="Show ATIS for all airports")
 def atis(airport: str | None, show_all: bool):
     _do_atis_lookup(airport, show_all=show_all)
+
+
+@main.command(help=COMMAND_HELP["vis"].strip())
+def vis():
+    """Open ZOA airspace visualizer."""
+    webbrowser.open("https://airspace.oakartcc.org/")
+    click.echo("Opened airspace visualizer")
+
+
+@main.command(help=COMMAND_HELP["tdls"].strip())
+def tdls():
+    """Open TDLS (Pre-Departure Clearances)."""
+    webbrowser.open("https://tdls.virtualnas.net/")
+    click.echo("Opened TDLS")
+
+
+@main.command(help=COMMAND_HELP["strips"].strip())
+def strips():
+    """Open flight strips."""
+    webbrowser.open("https://strips.virtualnas.net/")
+    click.echo("Opened flight strips")
 
 
 # =============================================================================
@@ -1561,6 +1612,24 @@ def _handle_sop_interactive(args: str, ctx: InteractiveContext) -> None:
     )
 
 
+def _handle_vis_interactive() -> None:
+    """Handle 'vis' command in interactive mode."""
+    webbrowser.open("https://airspace.oakartcc.org/")
+    click.echo("Opened airspace visualizer")
+
+
+def _handle_tdls_interactive() -> None:
+    """Handle 'tdls' command in interactive mode."""
+    webbrowser.open("https://tdls.virtualnas.net/")
+    click.echo("Opened TDLS")
+
+
+def _handle_strips_interactive() -> None:
+    """Handle 'strips' command in interactive mode."""
+    webbrowser.open("https://strips.virtualnas.net/")
+    click.echo("Opened flight strips")
+
+
 # Command registry: maps command prefix to (handler, prefix_length, needs_context)
 # needs_context indicates whether the handler requires InteractiveContext
 INTERACTIVE_COMMANDS: dict[str, tuple] = {
@@ -1573,6 +1642,9 @@ INTERACTIVE_COMMANDS: dict[str, tuple] = {
     "airline ": (_handle_airline_interactive, 8, True),
     "airport ": (_handle_airport_interactive, 8, True),
     "aircraft ": (_handle_aircraft_interactive, 9, True),
+    "vis": (_handle_vis_interactive, 3, False),
+    "tdls": (_handle_tdls_interactive, 4, False),
+    "strips": (_handle_strips_interactive, 6, False),
 }
 
 
