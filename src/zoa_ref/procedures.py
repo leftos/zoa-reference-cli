@@ -650,12 +650,115 @@ def _extract_pdf_bookmarks(pdf_data: bytes) -> list[HeadingInfo]:
     return headings
 
 
+def _calculate_proximity_score(text: str, query_words: list[str]) -> float:
+    """
+    Calculate a score based on how close query words appear to each other.
+
+    Prioritizes:
+    1. All words appearing in the same line (highest score)
+    2. Words appearing close together with smaller spans
+    3. Words appearing in query order (bonus)
+
+    Returns 0 if not all words are present.
+    """
+    if not query_words:
+        return 0.0
+
+    text_upper = text.upper()
+
+    # Check all words present
+    if not all(word in text_upper for word in query_words):
+        return 0.0
+
+    # For single word, just presence is enough
+    if len(query_words) == 1:
+        return 1.0
+
+    # First, check for lines containing ALL query words (best case)
+    # Split by common line separators
+    lines = text_upper.replace('\r', '\n').split('\n')
+    best_line_score = 0.0
+
+    for line in lines:
+        if all(word in line for word in query_words):
+            # All words in same line - calculate span within line
+            positions = []
+            for word in query_words:
+                idx = line.find(word)
+                if idx >= 0:
+                    positions.append(idx)
+
+            if len(positions) == len(query_words):
+                span = max(positions) - min(positions) + len(query_words[-1])
+                # Check if words are in query order
+                in_order = positions == sorted(positions)
+                # Line matches get high base score
+                line_score = 0.8 + (0.15 if in_order else 0) + (0.05 * max(0, 1 - span / 100))
+                best_line_score = max(best_line_score, min(1.0, line_score))
+
+    if best_line_score > 0:
+        return best_line_score
+
+    # Fallback: find minimum span across the whole text
+    word_positions: dict[str, list[int]] = {}
+    for word in query_words:
+        positions = []
+        start = 0
+        while True:
+            idx = text_upper.find(word, start)
+            if idx == -1:
+                break
+            positions.append(idx)
+            start = idx + 1
+        word_positions[word] = positions
+
+    # Find the minimum span that contains all words
+    best_span = float('inf')
+    best_in_order = False
+
+    first_word = query_words[0]
+    for first_pos in word_positions[first_word]:
+        positions_used = [first_pos]
+        in_order = True
+        prev_pos = first_pos
+
+        for word in query_words[1:]:
+            closest = None
+            closest_dist = float('inf')
+            for pos in word_positions[word]:
+                dist = abs(pos - prev_pos)
+                if dist < closest_dist:
+                    closest_dist = dist
+                    closest = pos
+            if closest is not None:
+                positions_used.append(closest)
+                if closest < prev_pos:
+                    in_order = False
+                prev_pos = closest
+
+        if len(positions_used) == len(query_words):
+            span = max(positions_used) - min(positions_used)
+            if span < best_span or (span == best_span and in_order and not best_in_order):
+                best_span = span
+                best_in_order = in_order
+
+    if best_span == float('inf'):
+        return 0.0
+
+    # Score for cross-line matches (lower than same-line matches)
+    # Cap at 0.7 since same-line matches get 0.8+
+    base_score = max(0.1, 0.7 - (best_span / 1000))
+    order_bonus = 0.05 if best_in_order else 0.0
+
+    return min(0.75, base_score + order_bonus)
+
+
 def _search_pdf_text_for_heading(pdf_data: bytes, heading_query: str) -> int | None:
     """
     Search PDF text for a heading pattern when bookmarks unavailable.
 
     Looks for patterns like "2-2", "2.2", "Section 2-2", heading text, etc.
-    For multi-word queries, finds pages containing ALL words.
+    For multi-word queries, scores pages by word proximity and returns best match.
     Returns 1-based page number if found, None otherwise.
     """
     try:
@@ -677,24 +780,35 @@ def _search_pdf_text_for_heading(pdf_data: bytes, heading_query: str) -> int | N
                 re.IGNORECASE
             )
 
-        # Split query into words for multi-word AND matching
+        # Split query into words for multi-word matching
         query_words = query_upper.split()
+
+        # Track best match across all pages
+        best_page = None
+        best_score = 0.0
 
         for page_num, page in enumerate(reader.pages, start=1):
             text = page.extract_text() or ""
             text_upper = text.upper()
 
-            # Try section pattern first
+            # Try section pattern first - exact match is best
             if section_pattern and section_pattern.search(text):
                 return page_num
 
-            # Try direct text match (exact phrase)
+            # Try direct text match (exact phrase) - also best
             if query_upper in text_upper:
                 return page_num
 
-            # For multi-word queries, check if ALL words are present
-            if len(query_words) > 1 and all(word in text_upper for word in query_words):
-                return page_num
+            # For multi-word queries, score by proximity
+            if len(query_words) > 1:
+                score = _calculate_proximity_score(text_upper, query_words)
+                if score > best_score:
+                    best_score = score
+                    best_page = page_num
+
+        # Return best match if found
+        if best_page is not None and best_score > 0:
+            return best_page
 
     except Exception:
         pass
