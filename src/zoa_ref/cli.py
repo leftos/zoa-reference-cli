@@ -1612,19 +1612,19 @@ def _handle_sop_interactive(args: str, ctx: InteractiveContext) -> None:
     )
 
 
-def _handle_vis_interactive() -> None:
+def _handle_vis_interactive(args: str) -> None:
     """Handle 'vis' command in interactive mode."""
     webbrowser.open("https://airspace.oakartcc.org/")
     click.echo("Opened airspace visualizer")
 
 
-def _handle_tdls_interactive() -> None:
+def _handle_tdls_interactive(args: str) -> None:
     """Handle 'tdls' command in interactive mode."""
     webbrowser.open("https://tdls.virtualnas.net/")
     click.echo("Opened TDLS")
 
 
-def _handle_strips_interactive() -> None:
+def _handle_strips_interactive(args: str) -> None:
     """Handle 'strips' command in interactive mode."""
     webbrowser.open("https://strips.virtualnas.net/")
     click.echo("Opened flight strips")
