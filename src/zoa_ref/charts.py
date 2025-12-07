@@ -203,6 +203,12 @@ def find_chart_by_name(
         if ", CONT." in chart.chart_name:
             continue
         score = _calculate_similarity(chart_name_upper, chart.chart_name.upper())
+
+        # Boost score if detected chart type matches the actual chart type
+        # This helps prioritize IAPs when user searches for "RNAV 4R" etc.
+        if query.chart_type != ChartType.UNKNOWN and chart.chart_type == query.chart_type:
+            score += 0.15  # Type match bonus
+
         if score > 0.2:  # Minimum threshold
             matches.append(ChartMatch(chart=chart, score=score))
 
@@ -678,6 +684,28 @@ def _get_filter_text(chart_name: str, chart_type: ChartType) -> str:
     return chart_name
 
 
+def _normalize_runway_numbers(text: str) -> str:
+    """
+    Normalize runway numbers to have leading zeros.
+
+    Examples:
+        "4R" -> "04R"
+        "RNAV 4R" -> "RNAV 04R"
+        "RWY 4L" -> "RWY 04L"
+        "28R" -> "28R" (already 2 digits)
+    """
+    # Pattern: single digit followed by optional L/R/C (runway designator)
+    # Must be preceded by space, start of string, or common prefixes
+    def add_leading_zero(match):
+        return match.group(1) + "0" + match.group(2)
+
+    # Match single digit runway numbers with optional L/R/C suffix
+    # (?:^|\s|RWY) - start of string, whitespace, or RWY prefix
+    # (\d)([LRC]?) - single digit with optional L/R/C
+    # (?=\s|$) - followed by whitespace or end of string
+    return re.sub(r"(^|\s)(\d[LRC]?)(?=\s|$)", add_leading_zero, text)
+
+
 def _levenshtein(s1: str, s2: str) -> int:
     """
     Calculate the Levenshtein (edit) distance between two strings.
@@ -719,6 +747,10 @@ def _calculate_similarity(query: str, target: str) -> float:
     """
     query = query.upper()
     target = target.upper()
+
+    # Normalize runway numbers (4R -> 04R) for consistent matching
+    query = _normalize_runway_numbers(query)
+    target = _normalize_runway_numbers(target)
 
     # Exact match
     if query == target:
