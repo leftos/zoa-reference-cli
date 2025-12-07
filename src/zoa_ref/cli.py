@@ -35,6 +35,7 @@ from .procedures import (
     ProcedureQuery, ProcedureInfo, ProcedureMatch,
     fetch_procedures_list, find_procedure_by_name, find_heading_page,
     find_text_in_section, list_all_procedures, _download_pdf as download_procedure_pdf,
+    AIRPORT_ALIASES,
 )
 from .routes import search_routes, open_routes_browser
 
@@ -1223,14 +1224,43 @@ def _sanitize_chart_filename(airport: str, chart_name: str) -> str:
 def _sanitize_procedure_filename(procedure_name: str) -> str:
     """Convert procedure name to a clean, descriptive filename.
 
-    Example: "Oakland ATCT SOP" -> "ZOA_SOP_Oakland_ATCT.pdf"
+    Example: "Sacramento ATCT SOP" -> "ZOA_SOP_SMF_ATCT.pdf"
+    Example: "ZOA - NCT LOA" -> "ZOA_LOA_ZOA_NCT.pdf"
     """
+    # Build reverse mapping: city name -> airport code
+    city_to_code = {name.upper(): code for code, name in AIRPORT_ALIASES.items()}
+    # Add multi-word variants
+    city_to_code["SAN FRANCISCO"] = "SFO"
+    city_to_code["SAN JOSE"] = "SJC"
+    city_to_code["OAKLAND CENTER"] = "ZOA"
+    city_to_code["NORTHERN CALIFORNIA TRACON"] = "NCT"
+    city_to_code["NORTHERN CALIFORNIA"] = "NCT"
+    city_to_code["RENO-TAHOE"] = "RNO"
+
+    # Detect document type (LOA takes precedence over SOP)
+    doc_type = "SOP"
+    if re.search(r'\bLOA\b', procedure_name, re.IGNORECASE):
+        doc_type = "LOA"
+
     name = procedure_name
+    # Remove parenthesized codes like (NCT), (FAT) - they're redundant
+    name = re.sub(r'\s*\([A-Z]{2,4}\)', '', name)
+    # Replace city names with airport codes (case-insensitive)
+    for city, code in sorted(city_to_code.items(), key=lambda x: -len(x[0])):
+        pattern = re.compile(re.escape(city), re.IGNORECASE)
+        name = pattern.sub(code, name)
+    # Replace slashes with underscores before removing special chars
+    name = name.replace('/', '_')
     # Remove special chars (keep alphanumeric, spaces, hyphens)
     name = re.sub(r'[^\w\s-]', '', name)
-    # Replace spaces with underscores
+    # Remove "SOP" and "LOA" since doc_type is in the prefix
+    name = re.sub(r'\b(SOP|LOA)\b', '', name, flags=re.IGNORECASE)
+    # Clean up standalone hyphens and multiple spaces
+    name = re.sub(r'\s+-\s+', '_', name)
     name = re.sub(r'\s+', '_', name.strip())
-    return f'ZOA_SOP_{name}.pdf'
+    name = re.sub(r'_+', '_', name)  # Collapse multiple underscores
+    name = name.strip('_')
+    return f'ZOA_{doc_type}_{name}.pdf'
 
 
 def _open_chart_pdf(
