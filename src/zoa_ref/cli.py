@@ -1345,7 +1345,21 @@ def _sanitize_chart_filename(airport: str, chart_name: str) -> str:
     - Remove the word RWY
     - Strip standalone hyphens
     - Replace spaces with underscores
+    - Convert trailing number words (ONE, TWO, etc.) to digits without underscore
     """
+    # Reverse mapping: word -> digit for chart iteration numbers
+    word_to_digit = {
+        "ONE": "1",
+        "TWO": "2",
+        "THREE": "3",
+        "FOUR": "4",
+        "FIVE": "5",
+        "SIX": "6",
+        "SEVEN": "7",
+        "EIGHT": "8",
+        "NINE": "9",
+    }
+
     name = chart_name
     # Extract CAT designations from parentheses before removal
     cat_matches = re.findall(r"\(([^)]*CAT[^)]*)\)", name)
@@ -1367,6 +1381,11 @@ def _sanitize_chart_filename(airport: str, chart_name: str) -> str:
     name = re.sub(r"\s+", "_", name.strip())
     # Remove any trailing/leading underscores
     name = name.strip("_")
+    # Convert trailing number words to digits (e.g., SCTWN_FOUR -> SCTWN4)
+    for word, digit in word_to_digit.items():
+        if name.endswith(f"_{word}"):
+            name = name[: -len(word) - 1] + digit
+            break
     return f"ZOA_{airport}_{name}{cat_suffix}.pdf"
 
 
