@@ -11,6 +11,7 @@ ATIS_AIRPORTS = ["SFO", "SJC", "RNO", "OAK", "SMF"]
 @dataclass
 class AtisInfo:
     """ATIS information for an airport."""
+
     airport: str
     raw_text: str
 
@@ -18,6 +19,7 @@ class AtisInfo:
 @dataclass
 class AtisResult:
     """Result of an ATIS fetch."""
+
     atis_list: list[AtisInfo]
 
 
@@ -44,12 +46,9 @@ def _scrape_atis_for_airport(page: Page, airport: str) -> AtisInfo | None:
         for block in atis_blocks:
             block_text = block.inner_text().strip()
             # Check if this block starts with our airport code
-            lines = block_text.split('\n')
+            lines = block_text.split("\n")
             if lines and lines[0].strip() == airport:
-                return AtisInfo(
-                    airport=airport,
-                    raw_text=block_text
-                )
+                return AtisInfo(airport=airport, raw_text=block_text)
 
         return None
     except Exception:
@@ -70,16 +69,13 @@ def _scrape_all_atis(page: Page) -> list[AtisInfo]:
                     continue
 
                 # First line should be the airport code
-                lines = block_text.split('\n')
+                lines = block_text.split("\n")
                 if not lines:
                     continue
 
                 first_line = lines[0].strip()
                 if first_line in ATIS_AIRPORTS:
-                    atis_list.append(AtisInfo(
-                        airport=first_line,
-                        raw_text=block_text
-                    ))
+                    atis_list.append(AtisInfo(airport=first_line, raw_text=block_text))
             except Exception:
                 continue
 
@@ -126,5 +122,3 @@ def fetch_all_atis(page: Page, timeout: int = 30000) -> AtisResult | None:
 
     atis_list = _scrape_all_atis(page)
     return AtisResult(atis_list=atis_list)
-
-

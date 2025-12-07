@@ -1,7 +1,13 @@
 """Browser automation module using Playwright."""
 
 import ctypes
-from playwright.sync_api import sync_playwright, Browser, BrowserContext, Page, Playwright
+from playwright.sync_api import (
+    sync_playwright,
+    Browser,
+    BrowserContext,
+    Page,
+    Playwright,
+)
 from contextlib import contextmanager
 
 # Approximate taskbar height on Windows
@@ -44,7 +50,9 @@ class BrowserSession:
         self.headless = headless
         self.window_size = window_size
         self._playwright: Playwright | None = playwright
-        self._owns_playwright = playwright is None  # Only stop playwright if we created it
+        self._owns_playwright = (
+            playwright is None
+        )  # Only stop playwright if we created it
         self._browser: Browser | None = None
         self._context: BrowserContext | None = None
         self._disconnected = False
@@ -61,7 +69,7 @@ class BrowserSession:
             headless=self.headless,
             args=args if args else None,
         )
-        self._browser.on('disconnected', self._on_disconnected)
+        self._browser.on("disconnected", self._on_disconnected)
         # Create a single context for all pages (tabs) in this session
         self._context = self._browser.new_context(no_viewport=True)
 

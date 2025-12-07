@@ -16,25 +16,45 @@ import click
 from .atis import fetch_atis, fetch_all_atis, ATIS_AIRPORTS
 from .browser import BrowserSession, _calculate_viewport_size
 from .charts import (
-    ChartInfo, ChartMatch, ChartQuery, lookup_chart, ZOA_AIRPORTS,
-    fetch_charts_from_api, find_all_chart_pages,
-    lookup_chart_with_pages, download_and_merge_pdfs, download_and_rotate_pdf,
+    ChartInfo,
+    ChartMatch,
+    ChartQuery,
+    lookup_chart,
+    ZOA_AIRPORTS,
+    fetch_charts_from_api,
+    find_all_chart_pages,
+    lookup_chart_with_pages,
+    download_and_merge_pdfs,
+    download_and_rotate_pdf,
     detect_pdf_view_mode,
 )
 from .display import (
-    display_routes, display_airlines, display_airport_codes,
-    display_aircraft, display_atis, display_chart_matches,
+    display_routes,
+    display_airlines,
+    display_airport_codes,
+    display_aircraft,
+    display_atis,
+    display_chart_matches,
     display_procedure_matches,
 )
 from .icao import (
-    search_airline, search_airport_code, search_aircraft,
-    open_codes_browser, CodesPage,
+    search_airline,
+    search_airport_code,
+    search_aircraft,
+    open_codes_browser,
+    CodesPage,
 )
 from .input import create_prompt_session, prompt_with_history, prompt_single_choice
 from .procedures import (
-    ProcedureQuery, ProcedureInfo, ProcedureMatch,
-    fetch_procedures_list, find_procedure_by_name, find_heading_page,
-    find_text_in_section, list_all_procedures, _download_pdf as download_procedure_pdf,
+    ProcedureQuery,
+    ProcedureInfo,
+    ProcedureMatch,
+    fetch_procedures_list,
+    find_procedure_by_name,
+    find_heading_page,
+    find_text_in_section,
+    list_all_procedures,
+    _download_pdf as download_procedure_pdf,
     AIRPORT_ALIASES,
 )
 from .routes import search_routes, open_routes_browser
@@ -283,7 +303,9 @@ def _get_running_browser() -> str | None:
     return None
 
 
-def _open_in_browser(file_path: str, view: str = "FitV", page: int | None = None) -> bool:
+def _open_in_browser(
+    file_path: str, view: str = "FitV", page: int | None = None
+) -> bool:
     """Open a local file in a running browser, or fall back to default handler.
 
     Args:
@@ -337,10 +359,14 @@ class InteractiveContext:
         Creates a child session from headless_session if needed.
         """
         if self.visible_session is None:
-            self.visible_session = self.headless_session.create_child_session(headless=False)
+            self.visible_session = self.headless_session.create_child_session(
+                headless=False
+            )
         elif not self.visible_session.is_connected:
             click.echo("Reopening browser...")
-            self.visible_session = self.headless_session.create_child_session(headless=False)
+            self.visible_session = self.headless_session.create_child_session(
+                headless=False
+            )
         return self.visible_session
 
 
@@ -414,7 +440,9 @@ def _parse_interactive_args(
         # Unknown flags starting with "-" are ignored
         i += 1
 
-    return ParsedArgs(positional=positional, flags=flags, options=options, show_help=show_help)
+    return ParsedArgs(
+        positional=positional, flags=flags, options=options, show_help=show_help
+    )
 
 
 def _is_page_alive(page) -> bool:
@@ -467,17 +495,21 @@ class ImplicitChartGroup(click.Group):
     def parse_args(self, ctx, args):
         """Parse args, treating unknown commands as chart queries."""
         # Check if we have args and the first arg isn't a known command or option
-        if args and not args[0].startswith('-'):
+        if args and not args[0].startswith("-"):
             cmd_name = args[0]
             if self.get_command(ctx, cmd_name) is None:
                 # Not a known command - treat all args as chart query
                 # Insert 'chart' command before the args
-                args = ['chart'] + list(args)
+                args = ["chart"] + list(args)
         return super().parse_args(ctx, args)
 
 
 @click.group(cls=ImplicitChartGroup, invoke_without_command=True)
-@click.option("--playwright", is_flag=True, help="Use Playwright browser with tab management instead of system browser")
+@click.option(
+    "--playwright",
+    is_flag=True,
+    help="Use Playwright browser with tab management instead of system browser",
+)
 @click.pass_context
 def main(ctx, playwright: bool):
     """ZOA Reference CLI - Quick lookups to ZOA's Reference Tool.
@@ -500,7 +532,7 @@ def main(ctx, playwright: bool):
     """
     # Store in context for subcommands that might need it
     ctx.ensure_object(dict)
-    ctx.obj['playwright'] = playwright
+    ctx.obj["playwright"] = playwright
 
     if ctx.invoked_subcommand is None:
         interactive_mode(use_playwright=playwright)
@@ -508,10 +540,16 @@ def main(ctx, playwright: bool):
 
 @main.command(help=COMMAND_HELP["chart"].strip())
 @click.argument("query", nargs=-1, required=True)
-@click.option("--headless", is_flag=True, help="Run browser in headless mode (outputs PDF URL)")
+@click.option(
+    "--headless", is_flag=True, help="Run browser in headless mode (outputs PDF URL)"
+)
 @click.option("-r", "rotate_flag", is_flag=True, help="Rotate chart 90°")
-@click.option("--rotate", type=click.Choice(["90", "180", "270"]), default=None,
-              help="Rotate chart by specific degrees")
+@click.option(
+    "--rotate",
+    type=click.Choice(["90", "180", "270"]),
+    default=None,
+    help="Rotate chart by specific degrees",
+)
 @click.option("--no-rotate", is_flag=True, help="Disable auto-rotation")
 def chart(
     query: tuple[str, ...],
@@ -579,12 +617,33 @@ def airports():
 @click.argument("departure")
 @click.argument("arrival")
 @click.option("--browser", is_flag=True, help="Open browser instead of CLI display")
-@click.option("--all-routes", "-a", is_flag=True, help="Show all real world routes (default: top 5)")
-@click.option("--flights", "-f", is_flag=True, help="Show recent flights (hidden by default)")
-@click.option("--top", "-n", type=int, default=5, help="Number of real world routes to show (default: 5)")
-def route(departure: str, arrival: str, browser: bool, all_routes: bool, flights: bool, top: int):
+@click.option(
+    "--all-routes",
+    "-a",
+    is_flag=True,
+    help="Show all real world routes (default: top 5)",
+)
+@click.option(
+    "--flights", "-f", is_flag=True, help="Show recent flights (hidden by default)"
+)
+@click.option(
+    "--top",
+    "-n",
+    type=int,
+    default=5,
+    help="Number of real world routes to show (default: 5)",
+)
+def route(
+    departure: str,
+    arrival: str,
+    browser: bool,
+    all_routes: bool,
+    flights: bool,
+    top: int,
+):
     _do_route_lookup(
-        departure, arrival,
+        departure,
+        arrival,
         browser=browser,
         show_all=all_routes,
         show_flights=flights,
@@ -617,6 +676,7 @@ def aircraft(query: tuple[str, ...], browser: bool, no_cache: bool):
 
 
 # --- Procedure/SOP Commands ---
+
 
 def _prompt_procedure_choice(matches: list[ProcedureMatch]) -> ProcedureInfo | None:
     """Prompt user to select from numbered matches."""
@@ -712,9 +772,16 @@ def _list_procedures(
 
     # Display order
     display_order = [
-        "policy", "enroute", "tracon", "atct",
-        "loa_internal", "loa_external", "loa_military",
-        "zak", "quick_ref", "other"
+        "policy",
+        "enroute",
+        "tracon",
+        "atct",
+        "loa_internal",
+        "loa_external",
+        "loa_military",
+        "zak",
+        "quick_ref",
+        "other",
     ]
 
     for cat in display_order:
@@ -749,7 +816,7 @@ def _handle_sop_command(
     # Parse query - pass tuple directly to preserve quoted strings
     if not query:
         click.echo("Usage: sop <query>  (e.g., sop OAK 2-2)")
-        click.echo("       sop SJC \"IFR Departures\" SJCE  (multi-step lookup)")
+        click.echo('       sop SJC "IFR Departures" SJCE  (multi-step lookup)')
         click.echo("       sop --list   (list all procedures)")
         return
 
@@ -806,27 +873,36 @@ def _handle_sop_command(
     page_num = 1
     if parsed.section_term and parsed.search_term:
         # Multi-step lookup: find text within section
-        click.echo(f"Searching for '{parsed.search_term}' in section '{parsed.section_term}'...")
+        click.echo(
+            f"Searching for '{parsed.search_term}' in section '{parsed.section_term}'..."
+        )
         found_page = find_text_in_section(
-            procedure, parsed.section_term, parsed.search_term,
-            use_cache=not no_cache
+            procedure, parsed.section_term, parsed.search_term, use_cache=not no_cache
         )
         if found_page:
             page_num = found_page
             click.echo(f"Found '{parsed.search_term}' at page {page_num}")
         else:
             # Fall back to just the section
-            click.echo(f"'{parsed.search_term}' not found in section, trying section only...")
-            found_page = find_heading_page(procedure, parsed.section_term, use_cache=not no_cache)
+            click.echo(
+                f"'{parsed.search_term}' not found in section, trying section only..."
+            )
+            found_page = find_heading_page(
+                procedure, parsed.section_term, use_cache=not no_cache
+            )
             if found_page:
                 page_num = found_page
                 click.echo(f"Found section at page {page_num}")
             else:
-                click.echo(f"Section '{parsed.section_term}' not found, opening first page")
+                click.echo(
+                    f"Section '{parsed.section_term}' not found, opening first page"
+                )
     elif parsed.section_term:
         # Single section lookup
         click.echo(f"Searching for section '{parsed.section_term}'...")
-        found_page = find_heading_page(procedure, parsed.section_term, use_cache=not no_cache)
+        found_page = find_heading_page(
+            procedure, parsed.section_term, use_cache=not no_cache
+        )
         if found_page:
             page_num = found_page
             click.echo(f"Found section at page {page_num}")
@@ -855,7 +931,9 @@ def proc(query: tuple[str, ...], list_procs: bool, no_cache: bool):
 
 @main.command(help=COMMAND_HELP["atis"].strip())
 @click.argument("airport", required=False)
-@click.option("--all", "-a", "show_all", is_flag=True, help="Show ATIS for all airports")
+@click.option(
+    "--all", "-a", "show_all", is_flag=True, help="Show ATIS for all airports"
+)
 def atis(airport: str | None, show_all: bool):
     _do_atis_lookup(airport, show_all=show_all)
 
@@ -949,9 +1027,15 @@ def _do_icao_lookup(
             page = session.new_page()
             success = open_codes_browser(page)
             if success:
-                _wait_for_input_or_close(session, "Codes page open. Press Enter to close browser...", page)
+                _wait_for_input_or_close(
+                    session, "Codes page open. Press Enter to close browser...", page
+                )
             else:
-                _wait_for_input_or_close(session, "Failed to load codes page. Press Enter to close browser...", page)
+                _wait_for_input_or_close(
+                    session,
+                    "Failed to load codes page. Press Enter to close browser...",
+                    page,
+                )
         finally:
             if own_session:
                 session.stop()
@@ -1028,9 +1112,15 @@ def _do_route_lookup(
             page = session.new_page()
             success = open_routes_browser(page, departure, arrival)
             if success:
-                _wait_for_input_or_close(session, "Routes page open. Press Enter to close browser...", page)
+                _wait_for_input_or_close(
+                    session, "Routes page open. Press Enter to close browser...", page
+                )
             else:
-                _wait_for_input_or_close(session, "Failed to load routes page. Press Enter to close browser...", page)
+                _wait_for_input_or_close(
+                    session,
+                    "Failed to load routes page. Press Enter to close browser...",
+                    page,
+                )
         finally:
             if own_session:
                 session.stop()
@@ -1042,7 +1132,11 @@ def _do_route_lookup(
                 page = session.new_page()
                 result = search_routes(page, departure, arrival)
                 if result:
-                    display_routes(result, max_real_world=None if show_all else top_n, show_flights=show_flights)
+                    display_routes(
+                        result,
+                        max_real_world=None if show_all else top_n,
+                        show_flights=show_flights,
+                    )
                 else:
                     click.echo("Failed to retrieve routes.", err=True)
         else:
@@ -1051,7 +1145,11 @@ def _do_route_lookup(
             result = search_routes(page, departure, arrival)
             page.close()
             if result:
-                display_routes(result, max_real_world=None if show_all else top_n, show_flights=show_flights)
+                display_routes(
+                    result,
+                    max_real_world=None if show_all else top_n,
+                    show_flights=show_flights,
+                )
             else:
                 click.echo("Failed to retrieve routes.", err=True)
 
@@ -1250,26 +1348,26 @@ def _sanitize_chart_filename(airport: str, chart_name: str) -> str:
     """
     name = chart_name
     # Extract CAT designations from parentheses before removal
-    cat_matches = re.findall(r'\(([^)]*CAT[^)]*)\)', name)
-    cat_suffix = ''
+    cat_matches = re.findall(r"\(([^)]*CAT[^)]*)\)", name)
+    cat_suffix = ""
     if cat_matches:
         cat_text = cat_matches[0]
-        cat_text = re.sub(r'\s+-\s+', '_', cat_text)  # Strip standalone hyphens
-        cat_text = re.sub(r'\s+', '_', cat_text)
-        cat_suffix = '_' + cat_text
+        cat_text = re.sub(r"\s+-\s+", "_", cat_text)  # Strip standalone hyphens
+        cat_text = re.sub(r"\s+", "_", cat_text)
+        cat_suffix = "_" + cat_text
     # Remove anything in parentheses
-    name = re.sub(r'\s*\([^)]*\)', '', name)
+    name = re.sub(r"\s*\([^)]*\)", "", name)
     # Remove 'RWY' word
-    name = re.sub(r'\bRWY\b', '', name)
+    name = re.sub(r"\bRWY\b", "", name)
     # Remove special chars (keep alphanumeric, spaces, hyphens)
-    name = re.sub(r'[^\w\s-]', '', name)
+    name = re.sub(r"[^\w\s-]", "", name)
     # Strip standalone hyphens (surrounded by spaces)
-    name = re.sub(r'\s+-\s+', ' ', name)
+    name = re.sub(r"\s+-\s+", " ", name)
     # Collapse multiple spaces and convert to underscores
-    name = re.sub(r'\s+', '_', name.strip())
+    name = re.sub(r"\s+", "_", name.strip())
     # Remove any trailing/leading underscores
-    name = name.strip('_')
-    return f'ZOA_{airport}_{name}{cat_suffix}.pdf'
+    name = name.strip("_")
+    return f"ZOA_{airport}_{name}{cat_suffix}.pdf"
 
 
 def _sanitize_procedure_filename(procedure_name: str) -> str:
@@ -1290,28 +1388,28 @@ def _sanitize_procedure_filename(procedure_name: str) -> str:
 
     # Detect document type (LOA takes precedence over SOP)
     doc_type = "SOP"
-    if re.search(r'\bLOA\b', procedure_name, re.IGNORECASE):
+    if re.search(r"\bLOA\b", procedure_name, re.IGNORECASE):
         doc_type = "LOA"
 
     name = procedure_name
     # Remove parenthesized codes like (NCT), (FAT) - they're redundant
-    name = re.sub(r'\s*\([A-Z]{2,4}\)', '', name)
+    name = re.sub(r"\s*\([A-Z]{2,4}\)", "", name)
     # Replace city names with airport codes (case-insensitive)
     for city, code in sorted(city_to_code.items(), key=lambda x: -len(x[0])):
         pattern = re.compile(re.escape(city), re.IGNORECASE)
         name = pattern.sub(code, name)
     # Replace slashes with underscores before removing special chars
-    name = name.replace('/', '_')
+    name = name.replace("/", "_")
     # Remove special chars (keep alphanumeric, spaces, hyphens)
-    name = re.sub(r'[^\w\s-]', '', name)
+    name = re.sub(r"[^\w\s-]", "", name)
     # Remove "SOP" and "LOA" since doc_type is in the prefix
-    name = re.sub(r'\b(SOP|LOA)\b', '', name, flags=re.IGNORECASE)
+    name = re.sub(r"\b(SOP|LOA)\b", "", name, flags=re.IGNORECASE)
     # Clean up standalone hyphens and multiple spaces
-    name = re.sub(r'\s+-\s+', '_', name)
-    name = re.sub(r'\s+', '_', name.strip())
-    name = re.sub(r'_+', '_', name)  # Collapse multiple underscores
-    name = name.strip('_')
-    return f'ZOA_{doc_type}_{name}.pdf'
+    name = re.sub(r"\s+-\s+", "_", name)
+    name = re.sub(r"\s+", "_", name.strip())
+    name = re.sub(r"_+", "_", name)  # Collapse multiple underscores
+    name = name.strip("_")
+    return f"ZOA_{doc_type}_{name}.pdf"
 
 
 def _open_chart_pdf(
@@ -1580,7 +1678,9 @@ def _handle_chart_interactive(query: str, ctx: InteractiveContext) -> None:
         rotation = None  # Auto-detect
 
     # Get session if in playwright mode
-    visible_session = ctx.get_or_create_visible_session() if ctx.use_playwright else None
+    visible_session = (
+        ctx.get_or_create_visible_session() if ctx.use_playwright else None
+    )
 
     _do_chart_lookup(
         " ".join(parsed.positional),
@@ -1716,7 +1816,9 @@ def interactive_mode(use_playwright: bool = False):
                 if cmd_name:
                     if not _print_command_help(cmd_name):
                         click.echo(f"Unknown command: {cmd_name}")
-                        click.echo("Available commands: chart, charts, list, route, atis, sop, proc, airline, airport, aircraft")
+                        click.echo(
+                            "Available commands: chart, charts, list, route, atis, sop, proc, airline, airport, aircraft"
+                        )
                 else:
                     _print_interactive_help()
                 click.echo()
@@ -1724,7 +1826,11 @@ def interactive_mode(use_playwright: bool = False):
 
             # Check command registry
             handled = False
-            for prefix, (handler, prefix_len, needs_ctx) in INTERACTIVE_COMMANDS.items():
+            for prefix, (
+                handler,
+                prefix_len,
+                needs_ctx,
+            ) in INTERACTIVE_COMMANDS.items():
                 if lower_query.startswith(prefix):
                     args = query[prefix_len:]
                     if needs_ctx:
@@ -1742,7 +1848,9 @@ def interactive_mode(use_playwright: bool = False):
             if lower_query.startswith("chart "):
                 query = query[6:].strip()
                 if not query:
-                    click.echo("Usage: chart <airport> <chart>  (e.g., chart OAK CNDEL5)")
+                    click.echo(
+                        "Usage: chart <airport> <chart>  (e.g., chart OAK CNDEL5)"
+                    )
                     click.echo()
                     continue
                 # Fall through to chart lookup below
@@ -1763,6 +1871,7 @@ def interactive_mode(use_playwright: bool = False):
         if ctrl_c_exit:
             import sys
             import os
+
             sys.stderr = open(os.devnull, "w")
 
 

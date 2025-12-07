@@ -15,25 +15,50 @@ CHARTS_API_URL = "https://charts-api.oakartcc.org/v1/charts"
 
 # Known airport codes in ZOA
 ZOA_AIRPORTS = [
-    "SFO", "OAK", "SJC", "SMF", "RNO", "FAT", "MRY", "BAB",
-    "APC", "CCR", "CIC", "HWD", "LVK", "MER", "MHR", "MOD",
-    "NUQ", "PAO", "RDD", "RHV", "SAC", "SCK", "SNS", "SQL",
-    "STS", "SUU", "TRK"
+    "SFO",
+    "OAK",
+    "SJC",
+    "SMF",
+    "RNO",
+    "FAT",
+    "MRY",
+    "BAB",
+    "APC",
+    "CCR",
+    "CIC",
+    "HWD",
+    "LVK",
+    "MER",
+    "MHR",
+    "MOD",
+    "NUQ",
+    "PAO",
+    "RDD",
+    "RHV",
+    "SAC",
+    "SCK",
+    "SNS",
+    "SQL",
+    "STS",
+    "SUU",
+    "TRK",
 ]
 
 
 class ChartType(Enum):
     """Types of aviation charts."""
-    SID = "sid"      # Standard Instrument Departure
-    STAR = "star"    # Standard Terminal Arrival Route
-    IAP = "iap"      # Instrument Approach Procedure
-    APD = "apd"      # Airport Diagram
+
+    SID = "sid"  # Standard Instrument Departure
+    STAR = "star"  # Standard Terminal Arrival Route
+    IAP = "iap"  # Instrument Approach Procedure
+    APD = "apd"  # Airport Diagram
     UNKNOWN = "unknown"
 
 
 @dataclass
 class ChartQuery:
     """Parsed chart query."""
+
     airport: str
     chart_name: str
     chart_type: ChartType = ChartType.UNKNOWN
@@ -64,7 +89,9 @@ class ChartQuery:
         name = chart_name.upper()
 
         # IAPs have specific indicators
-        if any(x in name for x in ["ILS", "LOC", "VOR", "RNAV", "RNP", "GPS", "NDB", "RWY"]):
+        if any(
+            x in name for x in ["ILS", "LOC", "VOR", "RNAV", "RNP", "GPS", "NDB", "RWY"]
+        ):
             return ChartType.IAP
 
         if "DIAGRAM" in name:
@@ -91,8 +118,15 @@ def _normalize_chart_name(name: str) -> str:
     """
     # Number word mapping
     number_words = {
-        "1": "ONE", "2": "TWO", "3": "THREE", "4": "FOUR", "5": "FIVE",
-        "6": "SIX", "7": "SEVEN", "8": "EIGHT", "9": "NINE"
+        "1": "ONE",
+        "2": "TWO",
+        "3": "THREE",
+        "4": "FOUR",
+        "5": "FIVE",
+        "6": "SIX",
+        "7": "SEVEN",
+        "8": "EIGHT",
+        "9": "NINE",
     }
 
     # Check if it ends with a single digit (SID/STAR pattern)
@@ -108,6 +142,7 @@ def _normalize_chart_name(name: str) -> str:
 @dataclass
 class ChartInfo:
     """Chart information from the API."""
+
     chart_name: str
     chart_code: str
     pdf_path: str
@@ -152,13 +187,15 @@ def fetch_charts_from_api(airport: str) -> list[ChartInfo]:
     charts = []
     for _, chart_list in data.items():
         for chart_data in chart_list:
-            charts.append(ChartInfo(
-                chart_name=chart_data.get("chart_name", ""),
-                chart_code=chart_data.get("chart_code", ""),
-                pdf_path=chart_data.get("pdf_path", ""),
-                faa_ident=chart_data.get("faa_ident", ""),
-                icao_ident=chart_data.get("icao_ident", ""),
-            ))
+            charts.append(
+                ChartInfo(
+                    chart_name=chart_data.get("chart_name", ""),
+                    chart_code=chart_data.get("chart_code", ""),
+                    pdf_path=chart_data.get("pdf_path", ""),
+                    faa_ident=chart_data.get("faa_ident", ""),
+                    icao_ident=chart_data.get("icao_ident", ""),
+                )
+            )
 
     return charts
 
@@ -166,6 +203,7 @@ def fetch_charts_from_api(airport: str) -> list[ChartInfo]:
 @dataclass
 class ChartMatch:
     """A chart match with similarity score."""
+
     chart: ChartInfo
     score: float
 
@@ -206,7 +244,10 @@ def find_chart_by_name(
 
         # Boost score if detected chart type matches the actual chart type
         # This helps prioritize IAPs when user searches for "RNAV 4R" etc.
-        if query.chart_type != ChartType.UNKNOWN and chart.chart_type == query.chart_type:
+        if (
+            query.chart_type != ChartType.UNKNOWN
+            and chart.chart_type == query.chart_type
+        ):
             score += 0.15  # Type match bonus
 
         if score > 0.2:  # Minimum threshold
@@ -249,7 +290,9 @@ def find_chart_by_name(
         second_score = matches[1].score
         if best_match.score - second_score < ambiguity_threshold:
             # Ambiguous - return None with all close matches
-            close_matches = [m for m in matches if m.score >= best_match.score - ambiguity_threshold]
+            close_matches = [
+                m for m in matches if m.score >= best_match.score - ambiguity_threshold
+            ]
             return None, close_matches
 
     return best_match.chart, matches
@@ -606,7 +649,9 @@ def lookup_chart(page: Page, query: ChartQuery, timeout: int = 30000) -> str | N
             airport_input.fill(query.airport)
             airport_input.press("Enter")
         except PlaywrightTimeout:
-            print(f"Airport {query.airport} not found and custom airport input not available")
+            print(
+                f"Airport {query.airport} not found and custom airport input not available"
+            )
             return None
 
     # Wait for chart buttons to load (not just a fixed timeout)
@@ -630,7 +675,7 @@ def lookup_chart(page: Page, query: ChartQuery, timeout: int = 30000) -> str | N
                 return false;
             }}""",
             arg=query.airport,
-            timeout=10000
+            timeout=10000,
         )
     except PlaywrightTimeout:
         print(f"Warning: Timeout waiting for chart buttons to load for {query.airport}")
@@ -694,6 +739,7 @@ def _normalize_runway_numbers(text: str) -> str:
         "RWY 4L" -> "RWY 04L"
         "28R" -> "28R" (already 2 digits)
     """
+
     # Pattern: single digit followed by optional L/R/C (runway designator)
     # Must be preceded by space, start of string, or common prefixes
     def add_leading_zero(match):
@@ -803,7 +849,12 @@ def _calculate_similarity(query: str, target: str) -> float:
     return min(1.0, jaccard + substring_bonus + prefix_bonus + edit_bonus)
 
 
-def _find_chart_button(page: Page, chart_name: str, chart_type: ChartType, ambiguity_threshold: float = 0.15):
+def _find_chart_button(
+    page: Page,
+    chart_name: str,
+    chart_type: ChartType,
+    ambiguity_threshold: float = 0.15,
+):
     """
     Find the best matching chart button.
 
@@ -851,8 +902,10 @@ def _find_chart_button(page: Page, chart_name: str, chart_type: ChartType, ambig
             elif len(matching) > 1:
                 # Multiple matches for same approach type + runway
                 # Use fuzzy matching to pick the best one
-                scores = [(btn, text, _calculate_similarity(chart_name_upper, text))
-                          for btn, text in matching]
+                scores = [
+                    (btn, text, _calculate_similarity(chart_name_upper, text))
+                    for btn, text in matching
+                ]
                 scores.sort(key=lambda x: x[2], reverse=True)
                 if scores[0][2] - scores[1][2] >= ambiguity_threshold:
                     return scores[0][0]

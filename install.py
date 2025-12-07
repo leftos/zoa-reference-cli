@@ -21,9 +21,9 @@ from pathlib import Path
 
 def print_step(msg: str) -> None:
     """Print a step message."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  {msg}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
 
 def print_success(msg: str) -> None:
@@ -41,7 +41,9 @@ def print_info(msg: str) -> None:
     print(f"  [INFO] {msg}")
 
 
-def run_command(cmd: list[str], check: bool = True, capture: bool = False) -> subprocess.CompletedProcess:
+def run_command(
+    cmd: list[str], check: bool = True, capture: bool = False
+) -> subprocess.CompletedProcess:
     """Run a command and handle errors."""
     print(f"  Running: {' '.join(cmd)}")
     try:
@@ -96,8 +98,13 @@ def install_uv() -> bool:
             # Use PowerShell to install uv on Windows
             print_info("Installing uv via PowerShell...")
             result = subprocess.run(
-                ["powershell", "-ExecutionPolicy", "ByPass", "-Command",
-                 "irm https://astral.sh/uv/install.ps1 | iex"],
+                [
+                    "powershell",
+                    "-ExecutionPolicy",
+                    "ByPass",
+                    "-Command",
+                    "irm https://astral.sh/uv/install.ps1 | iex",
+                ],
                 check=False,
                 capture_output=True,
                 text=True,

@@ -130,7 +130,9 @@ def display_real_world_table(routes: list, max_routes: int | None = None) -> Non
         click.echo(f"{r.frequency:<10} {route_display:<45} {r.altitude}")
 
     if truncated:
-        click.echo(f"\nShowing top {max_routes} of {len(routes)} routes (use -a for all)")
+        click.echo(
+            f"\nShowing top {max_routes} of {len(routes)} routes (use -a for all)"
+        )
     click.echo()
 
 
@@ -150,7 +152,9 @@ def display_recent_flights_table(flights: list) -> None:
     for f in flights:
         # Truncate route if too long
         route_display = f.route[:38] + ".." if len(f.route) > 40 else f.route
-        click.echo(f"{f.callsign:<12} {f.aircraft_type:<8} {route_display:<40} {f.altitude}")
+        click.echo(
+            f"{f.callsign:<12} {f.aircraft_type:<8} {route_display:<40} {f.altitude}"
+        )
     click.echo()
 
 
@@ -166,7 +170,9 @@ def display_airlines(result: AirlineSearchResult) -> None:
     )
 
     for airline in result.results:
-        name_display = airline.name[:33] + ".." if len(airline.name) > 35 else airline.name
+        name_display = (
+            airline.name[:33] + ".." if len(airline.name) > 35 else airline.name
+        )
         click.echo(
             f"{airline.icao_id:<8} {airline.telephony:<15} {name_display:<35} {airline.country}"
         )
@@ -231,7 +237,9 @@ def display_chart_matches(matches: list[ChartMatch]) -> None:
     for i, match in enumerate(matches, start=1):
         chart = match.chart
         type_str = chart.chart_code if chart.chart_code else "?"
-        click.echo(f"  [{i}] [{type_str:<4}] {chart.chart_name} (score: {match.score:.2f})")
+        click.echo(
+            f"  [{i}] [{type_str:<4}] {chart.chart_name} (score: {match.score:.2f})"
+        )
     click.echo()
 
 

@@ -19,22 +19,24 @@ CACHE_DIR = Path.home() / ".zoa-ref" / "cache"
 PROCEDURES_CACHE_FILE = CACHE_DIR / "procedures" / "procedures_list.json"
 HEADINGS_CACHE_DIR = CACHE_DIR / "procedures" / "headings"
 CACHE_TTL_PROCEDURES = 7 * 24 * 60 * 60  # 7 days for procedure list
-CACHE_TTL_HEADINGS = 30 * 24 * 60 * 60   # 30 days for heading mappings
+CACHE_TTL_HEADINGS = 30 * 24 * 60 * 60  # 30 days for heading mappings
 
 
 # --- Data Structures ---
 
+
 @dataclass
 class ProcedureInfo:
     """Procedure document information."""
-    name: str       # Display name (e.g., "Oakland ATCT SOP")
-    pdf_url: str    # Relative URL (e.g., "zoapdfs/<uuid>.pdf")
-    category: str   # Category (e.g., "atct", "enroute", "loa")
+
+    name: str  # Display name (e.g., "Oakland ATCT SOP")
+    pdf_url: str  # Relative URL (e.g., "zoapdfs/<uuid>.pdf")
+    category: str  # Category (e.g., "atct", "enroute", "loa")
 
     @property
     def uuid(self) -> str:
         """Extract UUID from PDF URL."""
-        match = re.search(r'zoapdfs/([^/]+)\.pdf', self.pdf_url)
+        match = re.search(r"zoapdfs/([^/]+)\.pdf", self.pdf_url)
         return match.group(1) if match else ""
 
     @property
@@ -48,14 +50,16 @@ class ProcedureInfo:
 @dataclass
 class HeadingInfo:
     """A heading/section within a procedure PDF."""
-    title: str   # Heading text (e.g., "2-2 IFR Departures")
-    page: int    # 1-based page number
-    level: int   # Nesting level (0 = top-level)
+
+    title: str  # Heading text (e.g., "2-2 IFR Departures")
+    page: int  # 1-based page number
+    level: int  # Nesting level (0 = top-level)
 
 
 @dataclass
 class ProcedureMatch:
     """A procedure match with similarity score."""
+
     procedure: ProcedureInfo
     score: float
 
@@ -63,9 +67,10 @@ class ProcedureMatch:
 @dataclass
 class ProcedureQuery:
     """Parsed procedure query."""
-    procedure_term: str        # e.g., "OAK", "NORCAL TRACON"
-    section_term: str | None   # e.g., "2-2", "IFR Departures", None
-    search_term: str | None    # e.g., "SJCE" - text to find within section
+
+    procedure_term: str  # e.g., "OAK", "NORCAL TRACON"
+    section_term: str | None  # e.g., "2-2", "IFR Departures", None
+    search_term: str | None  # e.g., "SJCE" - text to find within section
 
     @classmethod
     def parse(cls, query: str | tuple[str, ...]) -> "ProcedureQuery":
@@ -97,11 +102,41 @@ class ProcedureQuery:
         # Known keywords and codes for procedure detection
         proc_keywords = {"ATCT", "SOP", "TRACON", "LOA", "CPS", "CENTER"}
         airport_codes = {
-            "SFO", "OAK", "SJC", "SMF", "RNO", "FAT", "MRY", "BAB",
-            "APC", "CCR", "CIC", "HWD", "LVK", "MER", "MHR", "MOD",
-            "NUQ", "PAO", "RDD", "RHV", "SAC", "SCK", "SNS", "SQL",
-            "STS", "SUU", "TRK", "NCT", "ZOA", "ZLA", "ZLC", "ZSE",
-            "NFL", "NLC", "ZAK"
+            "SFO",
+            "OAK",
+            "SJC",
+            "SMF",
+            "RNO",
+            "FAT",
+            "MRY",
+            "BAB",
+            "APC",
+            "CCR",
+            "CIC",
+            "HWD",
+            "LVK",
+            "MER",
+            "MHR",
+            "MOD",
+            "NUQ",
+            "PAO",
+            "RDD",
+            "RHV",
+            "SAC",
+            "SCK",
+            "SNS",
+            "SQL",
+            "STS",
+            "SUU",
+            "TRK",
+            "NCT",
+            "ZOA",
+            "ZLA",
+            "ZLC",
+            "ZSE",
+            "NFL",
+            "NLC",
+            "ZAK",
         }
 
         parts_list = list(parts)
@@ -118,20 +153,28 @@ class ProcedureQuery:
 
             # Check if this looks like a section indicator
             is_section_start = (
-                re.match(r'^\d+[-.]', part_upper) or  # "2-2", "3.1"
-                (i > 0 and part_upper not in proc_keywords and
-                 part_upper not in airport_codes and
-                 len(part) > 1)  # Multi-char non-keyword after first part
+                re.match(r"^\d+[-.]", part_upper)  # "2-2", "3.1"
+                or (
+                    i > 0
+                    and part_upper not in proc_keywords
+                    and part_upper not in airport_codes
+                    and len(part) > 1
+                )  # Multi-char non-keyword after first part
             )
 
             # If first part is an airport code or proc keyword, second part could be section
             if i == 1 and procedure_parts:
                 first_upper = procedure_parts[0].upper()
-                if (first_upper in airport_codes or first_upper in proc_keywords) and is_section_start:
+                if (
+                    first_upper in airport_codes or first_upper in proc_keywords
+                ) and is_section_start:
                     break
                 # If first part is NOT an airport code or proc keyword (e.g., "Class D"),
                 # then this part is likely a section term (even if it's an airport code)
-                if first_upper not in airport_codes and first_upper not in proc_keywords:
+                if (
+                    first_upper not in airport_codes
+                    and first_upper not in proc_keywords
+                ):
                     break
 
             # If we have airport + keyword, next part is section
@@ -142,7 +185,7 @@ class ProcedureQuery:
                     break
 
             # Check if this starts a section (digit pattern)
-            if re.match(r'^\d+[-.]', part_upper):
+            if re.match(r"^\d+[-.]", part_upper):
                 break
 
             procedure_parts.append(part)
@@ -167,7 +210,7 @@ class ProcedureQuery:
         return cls(
             procedure_term=procedure_term,
             section_term=section_term,
-            search_term=search_term
+            search_term=search_term,
         )
 
     @classmethod
@@ -192,6 +235,7 @@ class ProcedureQuery:
 
 # --- Caching ---
 
+
 def _load_procedures_cache() -> list[ProcedureInfo] | None:
     """Load cached procedures list if valid."""
     if not PROCEDURES_CACHE_FILE.exists():
@@ -214,10 +258,7 @@ def _save_procedures_cache(procedures: list[ProcedureInfo]) -> None:
     """Save procedures list to cache."""
     PROCEDURES_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
 
-    data = {
-        "timestamp": time.time(),
-        "procedures": [asdict(p) for p in procedures]
-    }
+    data = {"timestamp": time.time(), "procedures": [asdict(p) for p in procedures]}
 
     try:
         with open(PROCEDURES_CACHE_FILE, "w", encoding="utf-8") as f:
@@ -256,10 +297,7 @@ def _save_headings_cache(uuid: str, headings: list[HeadingInfo]) -> None:
     cache_path = _get_headings_cache_path(uuid)
     cache_path.parent.mkdir(parents=True, exist_ok=True)
 
-    data = {
-        "timestamp": time.time(),
-        "headings": [asdict(h) for h in headings]
-    }
+    data = {"timestamp": time.time(), "headings": [asdict(h) for h in headings]}
 
     try:
         with open(cache_path, "w", encoding="utf-8") as f:
@@ -381,6 +419,7 @@ def _calculate_similarity(query: str, target: str) -> float:
 
 # --- Procedures List Fetching ---
 
+
 def _categorize_procedure(name: str, optgroup: str) -> str:
     """Determine category from procedure name and optgroup."""
     name_lower = name.lower()
@@ -431,11 +470,9 @@ def _scrape_procedures_dropdown(page: Page) -> list[ProcedureInfo]:
 
                 if value and name:
                     category = _categorize_procedure(name, optgroup_label)
-                    procedures.append(ProcedureInfo(
-                        name=name,
-                        pdf_url=value,
-                        category=category
-                    ))
+                    procedures.append(
+                        ProcedureInfo(name=name, pdf_url=value, category=category)
+                    )
 
     except Exception:
         pass
@@ -444,9 +481,7 @@ def _scrape_procedures_dropdown(page: Page) -> list[ProcedureInfo]:
 
 
 def fetch_procedures_list(
-    page: Page | None = None,
-    use_cache: bool = True,
-    timeout: int = 30000
+    page: Page | None = None, use_cache: bool = True, timeout: int = 30000
 ) -> list[ProcedureInfo]:
     """
     Fetch the list of available procedures.
@@ -579,8 +614,7 @@ def find_procedure_by_name(
         if best_match.score - second_score < ambiguity_threshold:
             # Ambiguous - return None with all close matches
             close_matches = [
-                m for m in matches
-                if m.score >= best_match.score - ambiguity_threshold
+                m for m in matches if m.score >= best_match.score - ambiguity_threshold
             ]
             return None, close_matches
 
@@ -589,14 +623,14 @@ def find_procedure_by_name(
 
 # --- PDF Heading Extraction ---
 
+
 def _download_pdf(url: str, timeout: int = 30) -> bytes | None:
     """Download PDF content from URL."""
     full_url = url if url.startswith("http") else f"{BASE_URL}/{url}"
 
     try:
         req = urllib.request.Request(
-            full_url,
-            headers={"User-Agent": "ZOA-Reference-CLI/1.0"}
+            full_url, headers={"User-Agent": "ZOA-Reference-CLI/1.0"}
         )
         with urllib.request.urlopen(req, timeout=timeout) as response:
             return response.read()
@@ -633,11 +667,9 @@ def _extract_pdf_bookmarks(pdf_data: bytes) -> list[HeadingInfo]:
                             page_num = page_idx + 1
                             title = str(item.title) if item.title else ""
                             if title:
-                                headings.append(HeadingInfo(
-                                    title=title,
-                                    page=page_num,
-                                    level=level
-                                ))
+                                headings.append(
+                                    HeadingInfo(title=title, page=page_num, level=level)
+                                )
                     except Exception:
                         pass
 
@@ -676,7 +708,7 @@ def _calculate_proximity_score(text: str, query_words: list[str]) -> float:
 
     # First, check for lines containing ALL query words (best case)
     # Split by common line separators
-    lines = text_upper.replace('\r', '\n').split('\n')
+    lines = text_upper.replace("\r", "\n").split("\n")
     best_line_score = 0.0
 
     for line in lines:
@@ -693,7 +725,9 @@ def _calculate_proximity_score(text: str, query_words: list[str]) -> float:
                 # Check if words are in query order
                 in_order = positions == sorted(positions)
                 # Line matches get high base score
-                line_score = 0.8 + (0.15 if in_order else 0) + (0.05 * max(0, 1 - span / 100))
+                line_score = (
+                    0.8 + (0.15 if in_order else 0) + (0.05 * max(0, 1 - span / 100))
+                )
                 best_line_score = max(best_line_score, min(1.0, line_score))
 
     if best_line_score > 0:
@@ -713,7 +747,7 @@ def _calculate_proximity_score(text: str, query_words: list[str]) -> float:
         word_positions[word] = positions
 
     # Find the minimum span that contains all words
-    best_span = float('inf')
+    best_span = float("inf")
     best_in_order = False
 
     first_word = query_words[0]
@@ -724,7 +758,7 @@ def _calculate_proximity_score(text: str, query_words: list[str]) -> float:
 
         for word in query_words[1:]:
             closest = None
-            closest_dist = float('inf')
+            closest_dist = float("inf")
             for pos in word_positions[word]:
                 dist = abs(pos - prev_pos)
                 if dist < closest_dist:
@@ -738,11 +772,13 @@ def _calculate_proximity_score(text: str, query_words: list[str]) -> float:
 
         if len(positions_used) == len(query_words):
             span = max(positions_used) - min(positions_used)
-            if span < best_span or (span == best_span and in_order and not best_in_order):
+            if span < best_span or (
+                span == best_span and in_order and not best_in_order
+            ):
                 best_span = span
                 best_in_order = in_order
 
-    if best_span == float('inf'):
+    if best_span == float("inf"):
         return 0.0
 
     # Score for cross-line matches (lower than same-line matches)
@@ -772,12 +808,12 @@ def _search_pdf_text_for_heading(pdf_data: bytes, heading_query: str) -> int | N
 
         # Build pattern for section numbers like "2-2" or "2.2"
         section_pattern = None
-        section_match = re.match(r'^(\d+)[-.](\d+)$', heading_query)
+        section_match = re.match(r"^(\d+)[-.](\d+)$", heading_query)
         if section_match:
             # Create flexible pattern for section numbers
             section_pattern = re.compile(
-                rf'\b{section_match.group(1)}[-.\s]*{section_match.group(2)}\b',
-                re.IGNORECASE
+                rf"\b{section_match.group(1)}[-.\s]*{section_match.group(2)}\b",
+                re.IGNORECASE,
             )
 
         # Split query into words for multi-word matching
@@ -816,16 +852,18 @@ def _search_pdf_text_for_heading(pdf_data: bytes, heading_query: str) -> int | N
     return None
 
 
-def _find_matching_heading(headings: list[HeadingInfo], query: str) -> HeadingInfo | None:
+def _find_matching_heading(
+    headings: list[HeadingInfo], query: str
+) -> HeadingInfo | None:
     """Find a heading that matches the query."""
     query_upper = query.upper()
 
     # Check for section number pattern like "2-2" or "2.2"
-    section_match = re.match(r'^(\d+)[-.](\d+)$', query)
+    section_match = re.match(r"^(\d+)[-.](\d+)$", query)
     if section_match:
         section_pattern = re.compile(
-            rf'\b{section_match.group(1)}[-.\s]*{section_match.group(2)}\b',
-            re.IGNORECASE
+            rf"\b{section_match.group(1)}[-.\s]*{section_match.group(2)}\b",
+            re.IGNORECASE,
         )
         for heading in headings:
             if section_pattern.search(heading.title):
@@ -857,8 +895,7 @@ def _find_matching_heading(headings: list[HeadingInfo], query: str) -> HeadingIn
 
 
 def get_procedure_headings(
-    procedure: ProcedureInfo,
-    use_cache: bool = True
+    procedure: ProcedureInfo, use_cache: bool = True
 ) -> list[HeadingInfo]:
     """
     Get headings for a procedure, using cache or fetching PDF.
@@ -894,9 +931,7 @@ def get_procedure_headings(
 
 
 def find_heading_page(
-    procedure: ProcedureInfo,
-    section_query: str,
-    use_cache: bool = True
+    procedure: ProcedureInfo, section_query: str, use_cache: bool = True
 ) -> int | None:
     """
     Find the page number for a section heading.
@@ -930,7 +965,7 @@ def find_text_in_section(
     procedure: ProcedureInfo,
     section_query: str,
     search_term: str,
-    use_cache: bool = True
+    use_cache: bool = True,
 ) -> int | None:
     """
     Find the page number where search_term appears within a section.
@@ -968,11 +1003,11 @@ def find_text_in_section(
             # Find index of section heading in the list
             section_idx = next(
                 (i for i, h in enumerate(headings) if h.title == section_heading.title),
-                -1
+                -1,
             )
             # Find next heading at same or higher level (lower number = higher level)
             # Start from after the section heading in the list order
-            for heading in headings[section_idx + 1:]:
+            for heading in headings[section_idx + 1 :]:
                 if heading.level <= section_level:
                     end_page = heading.page
                     next_section_title = heading.title
@@ -1024,9 +1059,9 @@ def find_text_in_section(
 
 # --- Utility Functions ---
 
+
 def list_all_procedures(
-    page: Page | None = None,
-    use_cache: bool = True
+    page: Page | None = None, use_cache: bool = True
 ) -> dict[str, list[ProcedureInfo]]:
     """
     Get all procedures grouped by category.

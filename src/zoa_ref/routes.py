@@ -10,6 +10,7 @@ ROUTES_URL = "https://reference.oakartcc.org/routes"
 @dataclass
 class TecAarAdrRoute:
     """TEC/AAR/ADR route entry."""
+
     dep_runway: str
     arr_runway: str
     types: str
@@ -19,6 +20,7 @@ class TecAarAdrRoute:
 @dataclass
 class LoaRule:
     """LOA (Letter of Agreement) rule entry."""
+
     route: str
     rnav: str
     notes: str
@@ -27,6 +29,7 @@ class LoaRule:
 @dataclass
 class RealWorldRoute:
     """Real-world route entry from historical data."""
+
     frequency: str
     route: str
     altitude: str
@@ -35,6 +38,7 @@ class RealWorldRoute:
 @dataclass
 class RecentFlight:
     """Recent flight entry."""
+
     callsign: str
     aircraft_type: str
     route: str
@@ -44,6 +48,7 @@ class RecentFlight:
 @dataclass
 class RouteSearchResult:
     """Complete result of a route search."""
+
     departure: str
     arrival: str
     tec_aar_adr: list[TecAarAdrRoute]
@@ -52,7 +57,9 @@ class RouteSearchResult:
     recent_flights: list[RecentFlight]
 
 
-def _fill_and_search(page: Page, departure: str, arrival: str, timeout: int = 30000) -> bool:
+def _fill_and_search(
+    page: Page, departure: str, arrival: str, timeout: int = 30000
+) -> bool:
     """
     Navigate to routes page, fill the search form, and click search.
 
@@ -127,12 +134,14 @@ def _scrape_tec_aar_adr_table(page: Page) -> list[TecAarAdrRoute]:
         for row in rows[1:]:
             cells = row.locator("td").all()
             if len(cells) >= 4:
-                routes.append(TecAarAdrRoute(
-                    dep_runway=cells[0].inner_text().strip(),
-                    arr_runway=cells[1].inner_text().strip(),
-                    types=cells[2].inner_text().strip(),
-                    route=cells[3].inner_text().strip()
-                ))
+                routes.append(
+                    TecAarAdrRoute(
+                        dep_runway=cells[0].inner_text().strip(),
+                        arr_runway=cells[1].inner_text().strip(),
+                        types=cells[2].inner_text().strip(),
+                        route=cells[3].inner_text().strip(),
+                    )
+                )
     except Exception:
         pass
 
@@ -155,18 +164,22 @@ def _scrape_loa_rules_table(page: Page) -> list[LoaRule]:
         for row in rows[1:]:
             cells = row.locator("td").all()
             if len(cells) >= 3:
-                rules.append(LoaRule(
-                    route=cells[0].inner_text().strip(),
-                    rnav=cells[1].inner_text().strip(),
-                    notes=cells[2].inner_text().strip()
-                ))
+                rules.append(
+                    LoaRule(
+                        route=cells[0].inner_text().strip(),
+                        rnav=cells[1].inner_text().strip(),
+                        notes=cells[2].inner_text().strip(),
+                    )
+                )
     except Exception:
         pass
 
     return rules
 
 
-def _scrape_real_world_and_recent_flights(page: Page) -> tuple[list[RealWorldRoute], list[RecentFlight]]:
+def _scrape_real_world_and_recent_flights(
+    page: Page,
+) -> tuple[list[RealWorldRoute], list[RecentFlight]]:
     """
     Scrape both Real World Routes and Recent Flights tables.
 
@@ -187,11 +200,13 @@ def _scrape_real_world_and_recent_flights(page: Page) -> tuple[list[RealWorldRou
             for row in rows[1:]:
                 cells = row.locator("td").all()
                 if len(cells) >= 3:
-                    routes.append(RealWorldRoute(
-                        frequency=cells[0].inner_text().strip(),
-                        route=cells[1].inner_text().strip(),
-                        altitude=cells[2].inner_text().strip()
-                    ))
+                    routes.append(
+                        RealWorldRoute(
+                            frequency=cells[0].inner_text().strip(),
+                            route=cells[1].inner_text().strip(),
+                            altitude=cells[2].inner_text().strip(),
+                        )
+                    )
 
         # Second table: Recent Flights
         if len(tables) >= 2:
@@ -200,12 +215,14 @@ def _scrape_real_world_and_recent_flights(page: Page) -> tuple[list[RealWorldRou
             for row in rows[1:]:
                 cells = row.locator("td").all()
                 if len(cells) >= 4:
-                    flights.append(RecentFlight(
-                        callsign=cells[0].inner_text().strip(),
-                        aircraft_type=cells[1].inner_text().strip(),
-                        route=cells[2].inner_text().strip(),
-                        altitude=cells[3].inner_text().strip()
-                    ))
+                    flights.append(
+                        RecentFlight(
+                            callsign=cells[0].inner_text().strip(),
+                            aircraft_type=cells[1].inner_text().strip(),
+                            route=cells[2].inner_text().strip(),
+                            altitude=cells[3].inner_text().strip(),
+                        )
+                    )
 
     except Exception:
         pass
@@ -213,7 +230,9 @@ def _scrape_real_world_and_recent_flights(page: Page) -> tuple[list[RealWorldRou
     return routes, flights
 
 
-def search_routes(page: Page, departure: str, arrival: str, timeout: int = 30000) -> RouteSearchResult | None:
+def search_routes(
+    page: Page, departure: str, arrival: str, timeout: int = 30000
+) -> RouteSearchResult | None:
     """
     Search for routes between two airports and scrape all results.
 
@@ -234,11 +253,13 @@ def search_routes(page: Page, departure: str, arrival: str, timeout: int = 30000
         tec_aar_adr=_scrape_tec_aar_adr_table(page),
         loa_rules=_scrape_loa_rules_table(page),
         real_world=real_world,
-        recent_flights=recent_flights
+        recent_flights=recent_flights,
     )
 
 
-def open_routes_browser(page: Page, departure: str, arrival: str, timeout: int = 30000) -> bool:
+def open_routes_browser(
+    page: Page, departure: str, arrival: str, timeout: int = 30000
+) -> bool:
     """
     Navigate to routes page, fill the search form, and leave browser open.
 

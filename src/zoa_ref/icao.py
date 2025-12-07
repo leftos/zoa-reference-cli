@@ -14,10 +14,10 @@ CACHE_DIR = Path.home() / ".zoa-ref" / "cache"
 CACHE_TTL_SECONDS = 7 * 24 * 60 * 60  # 7 days - ICAO data rarely changes
 
 
-
 @dataclass
 class AirlineCode:
     """Airline ICAO code entry."""
+
     icao_id: str
     telephony: str
     name: str
@@ -27,6 +27,7 @@ class AirlineCode:
 @dataclass
 class AirportCode:
     """Airport code entry."""
+
     icao_id: str
     local_id: str
     name: str
@@ -35,6 +36,7 @@ class AirportCode:
 @dataclass
 class AircraftCode:
     """Aircraft type designator entry."""
+
     type_designator: str
     manufacturer: str
     model: str
@@ -48,6 +50,7 @@ class AircraftCode:
 @dataclass
 class AirlineSearchResult:
     """Result of an airline code search."""
+
     query: str
     results: list[AirlineCode]
 
@@ -55,6 +58,7 @@ class AirlineSearchResult:
 @dataclass
 class AirportSearchResult:
     """Result of an airport code search."""
+
     query: str
     results: list[AirportCode]
 
@@ -62,11 +66,13 @@ class AirportSearchResult:
 @dataclass
 class AircraftSearchResult:
     """Result of an aircraft code search."""
+
     query: str
     results: list[AircraftCode]
 
 
 # --- Caching ---
+
 
 def _get_cache_path(cache_type: str, query: str) -> Path:
     """Get the cache file path for a given query."""
@@ -98,11 +104,7 @@ def _save_to_cache(cache_type: str, query: str, results: list[dict]) -> None:
     cache_path = _get_cache_path(cache_type, query)
     cache_path.parent.mkdir(parents=True, exist_ok=True)
 
-    data = {
-        "timestamp": time.time(),
-        "query": query,
-        "results": results
-    }
+    data = {"timestamp": time.time(), "query": query, "results": results}
 
     try:
         with open(cache_path, "w", encoding="utf-8") as f:
@@ -126,6 +128,7 @@ def clear_cache() -> int:
 
 # --- Page navigation and scraping ---
 
+
 def _navigate_to_codes_page(page: Page, timeout: int = 30000) -> bool:
     """Navigate to codes page and wait for it to load."""
     try:
@@ -148,12 +151,14 @@ def _scrape_airline_table(page: Page) -> list[AirlineCode]:
         for row in rows[1:]:
             cells = row.locator("td").all()
             if len(cells) >= 4:
-                airlines.append(AirlineCode(
-                    icao_id=cells[0].inner_text().strip(),
-                    telephony=cells[1].inner_text().strip(),
-                    name=cells[2].inner_text().strip(),
-                    country=cells[3].inner_text().strip()
-                ))
+                airlines.append(
+                    AirlineCode(
+                        icao_id=cells[0].inner_text().strip(),
+                        telephony=cells[1].inner_text().strip(),
+                        name=cells[2].inner_text().strip(),
+                        country=cells[3].inner_text().strip(),
+                    )
+                )
     except Exception:
         pass
     return airlines
@@ -170,11 +175,13 @@ def _scrape_airport_table(page: Page) -> list[AirportCode]:
         for row in rows[1:]:
             cells = row.locator("td").all()
             if len(cells) >= 3:
-                airports.append(AirportCode(
-                    icao_id=cells[0].inner_text().strip(),
-                    local_id=cells[1].inner_text().strip(),
-                    name=cells[2].inner_text().strip()
-                ))
+                airports.append(
+                    AirportCode(
+                        icao_id=cells[0].inner_text().strip(),
+                        local_id=cells[1].inner_text().strip(),
+                        name=cells[2].inner_text().strip(),
+                    )
+                )
     except Exception:
         pass
     return airports
@@ -191,16 +198,18 @@ def _scrape_aircraft_table(page: Page) -> list[AircraftCode]:
         for row in rows[1:]:
             cells = row.locator("td").all()
             if len(cells) >= 8:
-                aircraft.append(AircraftCode(
-                    type_designator=cells[0].inner_text().strip(),
-                    manufacturer=cells[1].inner_text().strip(),
-                    model=cells[2].inner_text().strip(),
-                    engine=cells[3].inner_text().strip(),
-                    faa_weight=cells[4].inner_text().strip(),
-                    cwt=cells[5].inner_text().strip(),
-                    srs=cells[6].inner_text().strip(),
-                    lahso=cells[7].inner_text().strip()
-                ))
+                aircraft.append(
+                    AircraftCode(
+                        type_designator=cells[0].inner_text().strip(),
+                        manufacturer=cells[1].inner_text().strip(),
+                        model=cells[2].inner_text().strip(),
+                        engine=cells[3].inner_text().strip(),
+                        faa_weight=cells[4].inner_text().strip(),
+                        cwt=cells[5].inner_text().strip(),
+                        srs=cells[6].inner_text().strip(),
+                        lahso=cells[7].inner_text().strip(),
+                    )
+                )
     except Exception:
         pass
     return aircraft
@@ -253,6 +262,7 @@ def _search_aircraft(page: Page, query: str) -> list[AircraftCode]:
 
 # --- Persistent page for interactive mode ---
 
+
 class CodesPage:
     """
     Wrapper for a page that stays on the codes URL for fast repeated lookups.
@@ -280,14 +290,18 @@ class CodesPage:
                 self._page = self._session.new_page()
 
             self._page.goto(CODES_URL, wait_until="networkidle", timeout=timeout)
-            self._page.wait_for_selector('input[placeholder="Airline 3-letter"]', timeout=10000)
+            self._page.wait_for_selector(
+                'input[placeholder="Airline 3-letter"]', timeout=10000
+            )
             self._ready = True
             return True
         except Exception:
             self._ready = False
             return False
 
-    def search_airline(self, query: str, use_cache: bool = True) -> AirlineSearchResult | None:
+    def search_airline(
+        self, query: str, use_cache: bool = True
+    ) -> AirlineSearchResult | None:
         """Search airlines on the persistent page."""
         # Check cache first
         if use_cache:
@@ -306,7 +320,9 @@ class CodesPage:
 
         return AirlineSearchResult(query=query, results=results)
 
-    def search_airport(self, query: str, use_cache: bool = True) -> AirportSearchResult | None:
+    def search_airport(
+        self, query: str, use_cache: bool = True
+    ) -> AirportSearchResult | None:
         """Search airports on the persistent page."""
         # Check cache first
         if use_cache:
@@ -325,7 +341,9 @@ class CodesPage:
 
         return AirportSearchResult(query=query, results=results)
 
-    def search_aircraft(self, query: str, use_cache: bool = True) -> AircraftSearchResult | None:
+    def search_aircraft(
+        self, query: str, use_cache: bool = True
+    ) -> AircraftSearchResult | None:
         """Search aircraft on the persistent page."""
         # Check cache first
         if use_cache:
@@ -357,11 +375,9 @@ class CodesPage:
 
 # --- Public search functions ---
 
+
 def search_airline(
-    page: Page | None,
-    query: str,
-    timeout: int = 30000,
-    use_cache: bool = True
+    page: Page | None, query: str, timeout: int = 30000, use_cache: bool = True
 ) -> AirlineSearchResult | None:
     """
     Search for an airline by ICAO ID, telephony, name, or country.
@@ -398,10 +414,7 @@ def search_airline(
 
 
 def search_airport_code(
-    page: Page | None,
-    query: str,
-    timeout: int = 30000,
-    use_cache: bool = True
+    page: Page | None, query: str, timeout: int = 30000, use_cache: bool = True
 ) -> AirportSearchResult | None:
     """
     Search for an airport by ICAO ID, local ID, or name.
@@ -438,10 +451,7 @@ def search_airport_code(
 
 
 def search_aircraft(
-    page: Page | None,
-    query: str,
-    timeout: int = 30000,
-    use_cache: bool = True
+    page: Page | None, query: str, timeout: int = 30000, use_cache: bool = True
 ) -> AircraftSearchResult | None:
     """
     Search for an aircraft by type designator or manufacturer/model.

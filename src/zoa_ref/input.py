@@ -52,7 +52,7 @@ def create_key_bindings() -> KeyBindings:
     bindings = KeyBindings()
 
     # Track escape press for double-escape detection
-    @bindings.add('escape', 'escape')
+    @bindings.add("escape", "escape")
     def double_escape(event):
         """Clear the input buffer on double escape."""
         event.current_buffer.reset()
@@ -83,7 +83,9 @@ def create_prompt_session() -> PromptSession:
     )
 
 
-def prompt_with_history(session: PromptSession, prompt_text: str = "zoa> ") -> str | None:
+def prompt_with_history(
+    session: PromptSession, prompt_text: str = "zoa> "
+) -> str | None:
     """Prompt for input with history support.
 
     Returns the input string, or None if the user pressed Ctrl+C or Ctrl+D.
@@ -117,7 +119,7 @@ def prompt_single_choice(
     if num_choices >= 10:
         try:
             choice = input(prompt_text).strip()
-            if choice.lower() in ('q', 'quit', ''):
+            if choice.lower() in ("q", "quit", ""):
                 return None
             idx = int(choice)
             if 1 <= idx <= num_choices:
@@ -127,7 +129,7 @@ def prompt_single_choice(
             return None
 
     # For 1-9 choices, use single keypress
-    print(prompt_text, end='', flush=True)
+    print(prompt_text, end="", flush=True)
 
     if sys.platform == "win32":
         # Windows: use msvcrt for single-key input
@@ -138,16 +140,16 @@ def prompt_single_choice(
                 print()
                 return None
 
-            if ch.lower() == 'q':
-                print('q')
+            if ch.lower() == "q":
+                print("q")
                 return None
-            if ch in '\r\n':  # Enter pressed without selection
+            if ch in "\r\n":  # Enter pressed without selection
                 print()
                 return None
-            if ch == '\x03':  # Ctrl+C
+            if ch == "\x03":  # Ctrl+C
                 print()
                 return None
-            if ch == '\x1b':  # Escape
+            if ch == "\x1b":  # Escape
                 print()
                 return None
             try:
@@ -169,16 +171,16 @@ def prompt_single_choice(
             while True:
                 ch = sys.stdin.read(1)
 
-                if ch.lower() == 'q':
-                    print('q')
+                if ch.lower() == "q":
+                    print("q")
                     return None
-                if ch in '\r\n':
+                if ch in "\r\n":
                     print()
                     return None
-                if ch == '\x03':  # Ctrl+C
+                if ch == "\x03":  # Ctrl+C
                     print()
                     return None
-                if ch == '\x1b':  # Escape
+                if ch == "\x1b":  # Escape
                     print()
                     return None
                 try:
