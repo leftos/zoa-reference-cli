@@ -66,3 +66,7 @@ Modules in `src/zoa_ref/`:
 - Charts API: `charts-api.oakartcc.org/v1/charts?apt=<airport>`
 - Reference Tool: `reference.oakartcc.org/{charts,routes,atis,codes}`
 - SOP PDFs: Linked from Reference Tool procedures page
+
+## Workflow
+
+- Always confirm with the user before creating a commit
