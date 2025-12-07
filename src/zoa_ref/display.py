@@ -41,6 +41,18 @@ def display_routes(
     show_flights: bool = False,
 ) -> None:
     """Display route search results in formatted CLI output."""
+    # Check if all results are empty
+    has_any = (
+        result.tec_aar_adr
+        or result.loa_rules
+        or result.real_world
+        or (show_flights and result.recent_flights)
+    )
+
+    if not has_any:
+        click.echo("\nNo routes found.")
+        return
+
     click.echo()
 
     # TEC/AAR/ADR Routes
@@ -59,14 +71,12 @@ def display_routes(
 
 def display_tec_aar_adr_table(routes: list) -> None:
     """Display TEC/AAR/ADR table with formatting."""
+    if not routes:
+        return
+
     click.echo("=" * 80)
     click.echo("TEC/AAR/ADR ROUTES")
     click.echo("=" * 80)
-
-    if not routes:
-        click.echo("  No TEC/AAR/ADR routes found.")
-        click.echo()
-        return
 
     # Header
     click.echo(f"{'Dep Rwy':<10} {'Arr Rwy':<10} {'Types':<10} Route")
@@ -74,21 +84,17 @@ def display_tec_aar_adr_table(routes: list) -> None:
 
     for r in routes:
         click.echo(f"{r.dep_runway:<10} {r.arr_runway:<10} {r.types:<10} {r.route}")
-
-    click.echo(f"\nTotal: {len(routes)} route(s)")
     click.echo()
 
 
 def display_loa_rules_table(rules: list) -> None:
     """Display LOA Rules table with formatting."""
+    if not rules:
+        return
+
     click.echo("=" * 80)
     click.echo("LOA RULES")
     click.echo("=" * 80)
-
-    if not rules:
-        click.echo("  No LOA rules found.")
-        click.echo()
-        return
 
     # Header
     click.echo(f"{'Route':<35} {'RNAV?':<8} Notes")
@@ -98,21 +104,17 @@ def display_loa_rules_table(rules: list) -> None:
         # Truncate route if too long
         route_display = r.route[:33] + ".." if len(r.route) > 35 else r.route
         click.echo(f"{route_display:<35} {r.rnav:<8} {r.notes}")
-
-    click.echo(f"\nTotal: {len(rules)} rule(s)")
     click.echo()
 
 
 def display_real_world_table(routes: list, max_routes: int | None = None) -> None:
     """Display Real World Routes table with formatting."""
+    if not routes:
+        return
+
     click.echo("=" * 80)
     click.echo("REAL WORLD ROUTES")
     click.echo("=" * 80)
-
-    if not routes:
-        click.echo("  No real world routes found.")
-        click.echo()
-        return
 
     # Limit routes if max_routes is set
     display_routes_list = routes if max_routes is None else routes[:max_routes]
@@ -129,21 +131,17 @@ def display_real_world_table(routes: list, max_routes: int | None = None) -> Non
 
     if truncated:
         click.echo(f"\nShowing top {max_routes} of {len(routes)} routes (use -a for all)")
-    else:
-        click.echo(f"\nTotal: {len(routes)} route(s)")
     click.echo()
 
 
 def display_recent_flights_table(flights: list) -> None:
     """Display Recent Flights table with formatting."""
+    if not flights:
+        return
+
     click.echo("=" * 80)
     click.echo("RECENT FLIGHTS")
     click.echo("=" * 80)
-
-    if not flights:
-        click.echo("  No recent flights found.")
-        click.echo()
-        return
 
     # Header
     click.echo(f"{'Callsign':<12} {'Type':<8} {'Route':<40} Altitude")
@@ -153,8 +151,6 @@ def display_recent_flights_table(flights: list) -> None:
         # Truncate route if too long
         route_display = f.route[:38] + ".." if len(f.route) > 40 else f.route
         click.echo(f"{f.callsign:<12} {f.aircraft_type:<8} {route_display:<40} {f.altitude}")
-
-    click.echo(f"\nTotal: {len(flights)} flight(s)")
     click.echo()
 
 

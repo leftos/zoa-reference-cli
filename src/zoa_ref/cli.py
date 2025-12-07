@@ -1516,11 +1516,16 @@ def interactive_mode(use_playwright: bool = False):
     # Create prompt session with history
     prompt_session = create_prompt_session()
 
+    ctrl_c_exit = False
     try:
         while True:
-            query = prompt_with_history(prompt_session)
+            try:
+                query = prompt_with_history(prompt_session)
+            except KeyboardInterrupt:
+                query = None
             if query is None:
                 click.echo("\nGoodbye!")
+                ctrl_c_exit = True
                 break
 
             query = query.strip()
@@ -1585,6 +1590,12 @@ def interactive_mode(use_playwright: bool = False):
         if ctx.visible_session is not None:
             ctx.visible_session.stop()
         ctx.headless_session.stop()
+
+        # Suppress asyncio "Task exception was never retrieved" on Ctrl+C exit
+        if ctrl_c_exit:
+            import sys
+            import os
+            sys.stderr = open(os.devnull, "w")
 
 
 if __name__ == "__main__":
