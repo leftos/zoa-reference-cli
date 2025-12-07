@@ -83,7 +83,7 @@ INTERACTIVE_HELP_COMMANDS = [
     "  airport <query>    - Look up airport codes (e.g., airport KSFO)",
     "  aircraft <query>   - Look up aircraft types (e.g., aircraft B738)",
     "  vis                - Open ZOA airspace visualizer",
-    "  tdls               - Open TDLS (Pre-Departure Clearances)",
+    "  tdls [airport]     - Open TDLS (Pre-Departure Clearances)",
     "  strips             - Open flight strips",
 ]
 
@@ -230,10 +230,16 @@ Shows sector boundaries, airspace structure, and related info.
 URL: https://airspace.oakartcc.org/
 """,
     "tdls": """
-tdls - Open TDLS (Tower Data Link Services)
+tdls [airport] - Open TDLS (Tower Data Link Services)
 
 Opens the TDLS tool for sending Pre-Departure Clearances (PDCs)
-to pilots.
+to pilots. Optionally specify an airport code to go directly to
+that airport's page.
+
+\b
+Examples:
+  tdls          - Open TDLS home page
+  tdls rno      - Open TDLS for RNO
 
 \b
 URL: https://tdls.virtualnas.net/
@@ -946,10 +952,16 @@ def vis():
 
 
 @main.command(help=COMMAND_HELP["tdls"].strip())
-def tdls():
+@click.argument("airport", required=False, default=None)
+def tdls(airport: str | None):
     """Open TDLS (Pre-Departure Clearances)."""
-    webbrowser.open("https://tdls.virtualnas.net/")
-    click.echo("Opened TDLS")
+    if airport:
+        url = f"https://tdls.virtualnas.net/{airport.upper()}"
+        webbrowser.open(url)
+        click.echo(f"Opened TDLS for {airport.upper()}")
+    else:
+        webbrowser.open("https://tdls.virtualnas.net/")
+        click.echo("Opened TDLS")
 
 
 @main.command(help=COMMAND_HELP["strips"].strip())
@@ -1745,8 +1757,14 @@ def _handle_vis_interactive(args: str) -> None:
 
 def _handle_tdls_interactive(args: str) -> None:
     """Handle 'tdls' command in interactive mode."""
-    webbrowser.open("https://tdls.virtualnas.net/")
-    click.echo("Opened TDLS")
+    airport = args.strip()
+    if airport:
+        url = f"https://tdls.virtualnas.net/{airport.upper()}"
+        webbrowser.open(url)
+        click.echo(f"Opened TDLS for {airport.upper()}")
+    else:
+        webbrowser.open("https://tdls.virtualnas.net/")
+        click.echo("Opened TDLS")
 
 
 def _handle_strips_interactive(args: str) -> None:
