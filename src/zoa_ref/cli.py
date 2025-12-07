@@ -1386,6 +1386,12 @@ def _sanitize_chart_filename(airport: str, chart_name: str) -> str:
         if name.endswith(f"_{word}"):
             name = name[: -len(word) - 1] + digit
             break
+    # Extract runway number from end and move after airport (e.g., ILS_OR_LOC_15 -> RWY15_ILS_OR_LOC)
+    runway_match = re.search(r"_(\d{1,2}[LRC]?)$", name)
+    if runway_match:
+        runway = runway_match.group(1)
+        name = name[: runway_match.start()]
+        return f"ZOA_{airport}_RWY{runway}_{name}{cat_suffix}.pdf"
     return f"ZOA_{airport}_{name}{cat_suffix}.pdf"
 
 
