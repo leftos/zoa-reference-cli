@@ -1,6 +1,7 @@
 """CLI interface for ZOA Reference Tool lookups."""
 
 import os
+import re
 import shlex
 import subprocess
 import tempfile
@@ -33,7 +34,7 @@ from .input import create_prompt_session, prompt_with_history, prompt_single_cho
 from .procedures import (
     ProcedureQuery, ProcedureInfo, ProcedureMatch,
     fetch_procedures_list, find_procedure_by_name, find_heading_page,
-    find_text_in_section, list_all_procedures,
+    find_text_in_section, list_all_procedures, _download_pdf as download_procedure_pdf,
 )
 from .routes import search_routes, open_routes_browser
 
@@ -251,20 +252,26 @@ def _get_running_browser() -> str | None:
     return None
 
 
-def _open_in_browser(file_path: str, view: str = "FitV") -> bool:
+def _open_in_browser(file_path: str, view: str = "FitV", page: int | None = None) -> bool:
     """Open a local file in a running browser, or fall back to default handler.
 
     Args:
         file_path: Path to the local file to open.
         view: PDF view parameter (e.g., "FitV" for fit to height).
+        page: Optional page number to open at.
 
     Returns:
         True if opened successfully.
     """
-    # Convert to proper file:// URI with view fragment
+    # Convert to proper file:// URI with fragment
     file_uri = Path(file_path).as_uri()
+    fragments = []
+    if page:
+        fragments.append(f"page={page}")
     if view:
-        file_uri = f"{file_uri}#view={view}"
+        fragments.append(f"view={view}")
+    if fragments:
+        file_uri = f"{file_uri}#{'&'.join(fragments)}"
 
     # Check for a running browser
     browser_cmd = _get_running_browser()
@@ -598,20 +605,32 @@ def _prompt_chart_choice(matches: list[ChartMatch]) -> ChartInfo | None:
 
 def _open_procedure_pdf(procedure: ProcedureInfo, page_num: int = 1) -> None:
     """Open a procedure PDF at a specific page."""
-    # Build URL with page fragment
-    pdf_url = procedure.full_url
-
-    # PDF.js supports #page=N&view=FitV
-    if page_num > 1:
-        url_with_page = f"{pdf_url}#page={page_num}&view=FitV"
-    else:
-        url_with_page = f"{pdf_url}#view=FitV"
-
     click.echo(f"Opening: {procedure.name}")
     if page_num > 1:
         click.echo(f"  Page: {page_num}")
 
-    webbrowser.open(url_with_page)
+    # Download PDF to temp file with descriptive name
+    pdf_data = download_procedure_pdf(procedure.full_url)
+    if pdf_data:
+        filename = _sanitize_procedure_filename(procedure.name)
+        temp_path = os.path.join(tempfile.gettempdir(), filename)
+        with open(temp_path, "wb") as f:
+            f.write(pdf_data)
+
+        # Open with page fragment
+        if page_num > 1:
+            _open_in_browser(temp_path, page=page_num, view="FitV")
+        else:
+            _open_in_browser(temp_path, view="FitV")
+    else:
+        # Fall back to opening URL directly
+        click.echo("Failed to download, opening URL directly...", err=True)
+        pdf_url = procedure.full_url
+        if page_num > 1:
+            url_with_page = f"{pdf_url}#page={page_num}&view=FitV"
+        else:
+            url_with_page = f"{pdf_url}#view=FitV"
+        webbrowser.open(url_with_page)
 
 
 def _list_procedures(
@@ -1167,6 +1186,53 @@ def _do_charts_browse(
             session.stop()
 
 
+def _sanitize_chart_filename(airport: str, chart_name: str) -> str:
+    """Convert chart name to a clean, descriptive filename.
+
+    Rules:
+    - Keep CAT designations from parentheses (e.g., SA CAT I, CAT II - III)
+    - Remove all other parenthesized content (RNAV, RNP, GPS, etc.)
+    - Remove the word RWY
+    - Strip standalone hyphens
+    - Replace spaces with underscores
+    """
+    name = chart_name
+    # Extract CAT designations from parentheses before removal
+    cat_matches = re.findall(r'\(([^)]*CAT[^)]*)\)', name)
+    cat_suffix = ''
+    if cat_matches:
+        cat_text = cat_matches[0]
+        cat_text = re.sub(r'\s+-\s+', '_', cat_text)  # Strip standalone hyphens
+        cat_text = re.sub(r'\s+', '_', cat_text)
+        cat_suffix = '_' + cat_text
+    # Remove anything in parentheses
+    name = re.sub(r'\s*\([^)]*\)', '', name)
+    # Remove 'RWY' word
+    name = re.sub(r'\bRWY\b', '', name)
+    # Remove special chars (keep alphanumeric, spaces, hyphens)
+    name = re.sub(r'[^\w\s-]', '', name)
+    # Strip standalone hyphens (surrounded by spaces)
+    name = re.sub(r'\s+-\s+', ' ', name)
+    # Collapse multiple spaces and convert to underscores
+    name = re.sub(r'\s+', '_', name.strip())
+    # Remove any trailing/leading underscores
+    name = name.strip('_')
+    return f'ZOA_{airport}_{name}{cat_suffix}.pdf'
+
+
+def _sanitize_procedure_filename(procedure_name: str) -> str:
+    """Convert procedure name to a clean, descriptive filename.
+
+    Example: "Oakland ATCT SOP" -> "ZOA_SOP_Oakland_ATCT.pdf"
+    """
+    name = procedure_name
+    # Remove special chars (keep alphanumeric, spaces, hyphens)
+    name = re.sub(r'[^\w\s-]', '', name)
+    # Replace spaces with underscores
+    name = re.sub(r'\s+', '_', name.strip())
+    return f'ZOA_SOP_{name}.pdf'
+
+
 def _open_chart_pdf(
     pdf_urls: list[str],
     airport: str,
@@ -1206,8 +1272,8 @@ def _open_chart_pdf(
             return pdf_url
 
         # System browser mode: download, optionally rotate, and open
-        temp_fd, temp_path = tempfile.mkstemp(suffix=".pdf", prefix=f"zoa_{airport}_")
-        os.close(temp_fd)
+        filename = _sanitize_chart_filename(airport, chart_name)
+        temp_path = os.path.join(tempfile.gettempdir(), filename)
 
         if download_and_rotate_pdf(pdf_url, temp_path, rotation):
             view_mode = detect_pdf_view_mode(temp_path)
@@ -1223,8 +1289,8 @@ def _open_chart_pdf(
         # Multi-page chart - merge pages
         click.echo(f"Chart has {num_pages} pages, merging...")
 
-        temp_fd, temp_path = tempfile.mkstemp(suffix=".pdf", prefix=f"zoa_{airport}_")
-        os.close(temp_fd)
+        filename = _sanitize_chart_filename(airport, chart_name)
+        temp_path = os.path.join(tempfile.gettempdir(), filename)
 
         if download_and_merge_pdfs(pdf_urls, temp_path, rotation):
             view_mode = detect_pdf_view_mode(temp_path)
