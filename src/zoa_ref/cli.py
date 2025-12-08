@@ -510,6 +510,14 @@ class ImplicitChartGroup(click.Group):
         return super().parse_args(ctx, args)
 
 
+def _set_console_title(title: str) -> None:
+    """Set the console window title using ANSI escape codes."""
+    import sys
+
+    sys.stdout.write(f"\033]0;{title}\007")
+    sys.stdout.flush()
+
+
 @click.group(cls=ImplicitChartGroup, invoke_without_command=True)
 @click.option(
     "--playwright",
@@ -536,6 +544,9 @@ def main(ctx, playwright: bool):
 
         zoa --playwright         - Interactive mode with managed browser
     """
+    # Set console title
+    _set_console_title("ZOA Ref CLI")
+
     # Store in context for subcommands that might need it
     ctx.ensure_object(dict)
     ctx.obj["playwright"] = playwright
