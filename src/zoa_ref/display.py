@@ -29,12 +29,6 @@ def print_table_empty(title: str, message: str) -> None:
     click.echo()
 
 
-def print_table_footer(count: int, item_name: str) -> None:
-    """Print standard table footer with count."""
-    click.echo(f"\nTotal: {count} {item_name}")
-    click.echo()
-
-
 def display_routes(
     result: RouteSearchResult,
     max_real_world: int | None = 5,
@@ -177,8 +171,6 @@ def display_airlines(result: AirlineSearchResult) -> None:
             f"{airline.icao_id:<8} {airline.telephony:<15} {name_display:<35} {airline.country}"
         )
 
-    print_table_footer(len(result.results), "airline(s)")
-
 
 def display_airport_codes(result: AirportSearchResult) -> None:
     """Display airport code search results in formatted CLI output."""
@@ -193,8 +185,6 @@ def display_airport_codes(result: AirportSearchResult) -> None:
 
     for airport in result.results:
         click.echo(f"{airport.icao_id:<8} {airport.local_id:<8} {airport.name}")
-
-    print_table_footer(len(result.results), "airport(s)")
 
 
 def display_aircraft(result: AircraftSearchResult) -> None:
@@ -215,8 +205,6 @@ def display_aircraft(result: AircraftSearchResult) -> None:
             f"{ac.type_designator:<8} {mfr_display:<30} {ac.engine:<5} "
             f"{ac.faa_weight:<4} {ac.cwt:<5} {ac.srs:<5} {ac.lahso}"
         )
-
-    print_table_footer(len(result.results), "aircraft type(s)")
 
 
 def display_atis(atis_list: list[AtisInfo]) -> None:
