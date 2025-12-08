@@ -244,11 +244,9 @@ def print_final_instructions() -> None:
     project_dir = Path(__file__).parent
 
     if platform.system() == "Windows":
-        activate_cmd = r".venv\Scripts\activate"
-        zoa_cmd = r".venv\Scripts\zoa"
+        zoa_cmd = r".\zoa"
     else:
-        activate_cmd = "source .venv/bin/activate"
-        zoa_cmd = ".venv/bin/zoa"
+        zoa_cmd = "./zoa"
 
     print_step("Installation complete!")
     print()
@@ -257,17 +255,14 @@ def print_final_instructions() -> None:
     print(f"    cd {project_dir}")
     print(f"    {zoa_cmd} --help")
     print()
-    print("  Or activate the virtual environment first:")
-    print()
-    print(f"    {activate_cmd}")
-    print("    zoa --help")
-    print()
     print("  Example commands:")
     print()
-    print("    zoa chart OAK CNDEL5     # Look up a chart")
-    print("    zoa route SFO LAX        # Look up routes")
-    print("    zoa list OAK             # List charts for airport")
-    print("    zoa                      # Interactive mode")
+    print(f"    {zoa_cmd} OAK CNDEL5           # Look up a chart")
+    print(f"    {zoa_cmd} route SFO LAX        # Look up routes")
+    print(f"    {zoa_cmd} atis SFO             # Get ATIS for an airport")
+    print(f"    {zoa_cmd} sop OAK              # Open airport SOP")
+    print(f"    {zoa_cmd} airline UAL          # Look up airline code")
+    print(f"    {zoa_cmd}                      # Interactive mode")
     print()
 
 
