@@ -23,22 +23,31 @@ BROWSERS = {
     "opera.exe": "opera",
 }
 
-# Interactive mode command help lines
+# Interactive mode command help lines (ordered like website nav bar)
 INTERACTIVE_HELP_COMMANDS = [
-    "  <airport> <chart>  - Look up a chart (e.g., OAK CNDEL5)",
-    "  chart <query>      - Same as above (e.g., chart OAK CNDEL5)",
-    "  charts <query>     - Browse charts in browser (e.g., charts OAK CNDEL5)",
-    "  list <airport>     - List charts for an airport",
-    "  route <dep> <arr>  - Look up routes (e.g., route SFO LAX)",
-    "  atis <airport>     - Look up ATIS (e.g., atis SFO)",
-    "  sop <query>        - Look up SOP/procedure (e.g., sop OAK IFR)",
-    "  proc <query>       - Same as above (e.g., proc OAK IFR)",
-    "  airline <query>    - Look up airline codes (e.g., airline UAL)",
-    "  airport <query>    - Look up airport codes (e.g., airport KSFO)",
-    "  aircraft <query>   - Look up aircraft types (e.g., aircraft B738)",
-    "  vis                - Open ZOA airspace visualizer",
-    "  tdls [airport]     - Open TDLS (Pre-Departure Clearances)",
-    "  strips             - Open flight strips",
+    "ATIS:",
+    "  atis <airport>            - Look up ATIS (e.g., atis SFO)",
+    "Routes:",
+    "  route <dep> <arr>         - Look up routes (e.g., route SFO LAX)",
+    "Charts:",
+    "  <airport> <chart>         - Look up a chart (e.g., OAK CNDEL5)",
+    "  chart <query>             - Same as above (explicit)",
+    "  charts <query>            - Browse charts in browser",
+    "  list <airport>            - List charts for an airport",
+    "ICAO Codes:",
+    "  airline <query>           - Look up airline codes (e.g., airline UAL)",
+    "  airport <query>           - Look up airport codes (e.g., airport KSFO)",
+    "  aircraft <query>          - Look up aircraft types (e.g., aircraft B738)",
+    "Positions:",
+    "  position|pos <query>      - Look up ATC positions (e.g., pos NCT)",
+    "Procedures:",
+    "  sop|proc <query>          - Look up SOP/procedure (e.g., sop OAK)",
+    "Scratchpads:",
+    "  scratchpad|scratch <fac>  - Look up scratchpads (e.g., scratch OAK)",
+    "External Tools:",
+    "  vis                       - Open ZOA airspace visualizer",
+    "  tdls [airport]            - Open TDLS (Pre-Departure Clearances)",
+    "  strips                    - Open flight strips",
 ]
 
 # Detailed help for individual commands (used by "help <command>")
@@ -51,7 +60,7 @@ so "CNDEL5" will find "CNDEL FIVE". Multi-page charts (with CONT.1,
 CONT.2 pages) are automatically merged. Charts are auto-rotated
 based on text orientation unless --no-rotate is specified.
 
-\\b
+\b
 Examples:
   chart OAK CNDEL5       - CNDEL FIVE departure (auto-rotate)
   OAK ILS 28R            - ILS 28R approach (implicit)
@@ -65,7 +74,7 @@ Opens the chart in the Reference Tool interface, allowing you to
 browse other charts for the same airport. Use 'chart' instead if
 you just want to view a single PDF.
 
-\\b
+\b
 Examples:
   charts OAK CNDEL5      - Open CNDEL FIVE, browse other OAK charts
   charts SFO ILS 28L     - Open ILS 28L, browse other SFO charts
@@ -76,7 +85,7 @@ list - List all charts for an airport
 Shows all available charts for the specified airport, including
 chart type codes (DP, STAR, IAP, etc.).
 
-\\b
+\b
 Examples:
   list OAK               - List all OAK charts
   list SFO               - List all SFO charts
@@ -87,7 +96,7 @@ route - Look up routes between two airports
 Shows TEC/AAR/ADR routes, LOA rules, and real-world routes between
 the specified airports. By default shows top 5 real-world routes.
 
-\\b
+\b
 Examples:
   route SFO LAX          - Routes from SFO to LAX (top 5)
   route SFO LAX -a       - Show all real world routes
@@ -105,7 +114,7 @@ ATIS for all supported airports.
 
 Supported airports: SFO, OAK, SJC, SMF, RNO
 
-\\b
+\b
 Examples:
   atis SFO               - ATIS for San Francisco
   atis all               - ATIS for all airports
@@ -118,7 +127,7 @@ Opens procedure PDFs, optionally jumping to a specific section or
 searching for text within a section. Multi-step lookups let you
 find specific content within large documents.
 
-\\b
+\b
 Examples:
   sop OAK                        - Open Oakland ATCT SOP
   sop OAK 2-2                    - Open OAK SOP at section 2-2
@@ -140,7 +149,7 @@ Searches for airlines by ICAO identifier (e.g., UAL), telephony
 callsign (e.g., UNITED), or airline name. Results are cached for
 faster subsequent lookups.
 
-\\b
+\b
 Examples:
   airline UAL            - Search by ICAO code
   airline united         - Search by telephony/name
@@ -153,7 +162,7 @@ airport - Look up airport codes
 Searches for airports by ICAO code (e.g., KSFO), FAA/local
 identifier (e.g., SFO), or airport name. Results are cached.
 
-\\b
+\b
 Examples:
   airport KSFO           - Search by ICAO code
   airport SFO            - Search by FAA identifier
@@ -167,7 +176,7 @@ Searches for aircraft by ICAO type designator (e.g., B738),
 manufacturer (e.g., Boeing), or model name. Shows engine type,
 weight class, and other operational data. Results are cached.
 
-\\b
+\b
 Examples:
   aircraft B738          - Search by type designator
   aircraft boeing        - Search by manufacturer
@@ -180,7 +189,7 @@ vis - Open ZOA airspace visualizer
 Opens the ZOA airspace visualization tool in your browser.
 Shows sector boundaries, airspace structure, and related info.
 
-\\b
+\b
 URL: https://airspace.oakartcc.org/
 """,
     "tdls": """
@@ -190,12 +199,12 @@ Opens the TDLS tool for sending Pre-Departure Clearances (PDCs)
 to pilots. Optionally specify an airport code to go directly to
 that airport's page.
 
-\\b
+\b
 Examples:
   tdls          - Open TDLS home page
   tdls rno      - Open TDLS for RNO
 
-\\b
+\b
 URL: https://tdls.virtualnas.net/
 """,
     "strips": """
@@ -204,8 +213,50 @@ strips - Open flight strips
 Opens the flight strips tool in your browser.
 Used for managing flight progress strips.
 
-\\b
+\b
 URL: https://strips.virtualnas.net/
+""",
+    "position": """
+position - Look up ATC position frequencies
+
+Searches for ATC positions by name, TCP code, callsign, or frequency.
+Results are cached for faster subsequent lookups.
+
+\b
+Examples:
+  position NCT           - Search by TCP code
+  position 125.35        - Search by frequency
+  position "NorCal"      - Search by callsign/name
+  position OAK           - Search for Oakland positions
+  position --browser     - Open positions page in browser
+  position NCT --no-cache - Force fresh data fetch
+
+Alias: 'pos' is an alias for 'position'
+""",
+    "pos": """
+pos - Alias for 'position' command
+
+See 'position --help' for full documentation.
+""",
+    "scratchpad": """
+scratchpad - Look up STARS scratchpad codes
+
+Shows scratchpad codes used for a specific facility/airport.
+Use --list to see available facilities. Results are cached.
+
+\b
+Examples:
+  scratchpad OAK         - Show OAK scratchpads
+  scratchpad NCT         - Show NorCal TRACON scratchpads
+  scratchpad --list      - List available facilities
+  scratchpad OAK --no-cache - Force fresh data fetch
+
+Alias: 'scratch' is an alias for 'scratchpad'
+""",
+    "scratch": """
+scratch - Alias for 'scratchpad' command
+
+See 'scratchpad --help' for full documentation.
 """,
 }
 
@@ -252,18 +303,18 @@ class ParsedArgs:
     show_help: bool = False
 
 
-def print_interactive_help(include_help_line: bool = False) -> None:
+def print_interactive_help(include_misc: bool = True) -> None:
     """Print interactive mode command help.
 
     Args:
-        include_help_line: If True, include the 'help' command in the output.
+        include_misc: If True, include the misc section (help, quit).
     """
-    click.echo("Commands:")
     for line in INTERACTIVE_HELP_COMMANDS:
         click.echo(line)
-    if include_help_line:
-        click.echo("  help [command]     - Show help (e.g., help sop)")
-    click.echo("  quit / exit / q    - Exit the program")
+    if include_misc:
+        click.echo("Misc:")
+        click.echo("  help [command]            - Show help (e.g., help sop)")
+        click.echo("  quit|exit|q               - Exit the program")
 
 
 def print_command_help(command: str, main_group: click.Group) -> bool:
@@ -463,6 +514,13 @@ class ImplicitChartGroup(click.Group):
                 # Insert 'chart' command before the args
                 args = ["chart"] + list(args)
         return super().parse_args(ctx, args)
+
+    def format_help(self, ctx, formatter):
+        """Write the same help as interactive mode."""
+        click.echo("ZOA Reference CLI - Quick lookups to ZOA's Reference Tool.")
+        click.echo("Usage: zoa [--playwright] [command] [args...]\n")
+        print_interactive_help(include_misc=False)
+        click.echo("\nRun 'zoa <command> --help' for detailed command help.")
 
 
 def set_console_title(title: str) -> None:

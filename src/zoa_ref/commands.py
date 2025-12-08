@@ -31,6 +31,9 @@ from .display import (
     display_atis,
     display_chart_matches,
     display_procedure_matches,
+    display_positions,
+    display_scratchpads,
+    display_scratchpad_facilities,
 )
 from .icao import (
     search_airline,
@@ -40,6 +43,7 @@ from .icao import (
     CodesPage,
 )
 from .input import prompt_single_choice
+from .positions import search_positions, open_positions_browser
 from .procedures import (
     ProcedureQuery,
     ProcedureInfo,
@@ -53,6 +57,7 @@ from .procedures import (
     AIRPORT_ALIASES,
 )
 from .routes import search_routes, open_routes_browser
+from .scratchpads import get_scratchpads, list_facilities, open_scratchpads_browser
 
 
 def prompt_procedure_choice(matches: list[ProcedureMatch]) -> ProcedureInfo | None:
@@ -843,3 +848,131 @@ def do_charts_browse(
     finally:
         if own_session:
             session.stop()
+
+
+def do_position_lookup(
+    query: str,
+    browser: bool = False,
+    no_cache: bool = False,
+    headless_session: "BrowserSession | None" = None,
+) -> None:
+    """Handle position lookup.
+
+    Args:
+        query: Search query (matches name, TCP, callsign, or frequency)
+        browser: If True, open positions page in visible browser
+        no_cache: If True, bypass cache and fetch fresh data
+        headless_session: Shared headless session (interactive mode)
+    """
+    click.echo(f"Searching positions: {query}...")
+
+    if browser:
+        # Browser mode: open positions page in visible browser
+        own_session = headless_session is None
+        if own_session:
+            session = BrowserSession(headless=False)
+            session.start()
+        else:
+            assert headless_session is not None
+            session = headless_session.create_child_session(headless=False)
+
+        try:
+            page = session.new_page()
+            success = open_positions_browser(page)
+            if success:
+                wait_for_input_or_close(
+                    session, "Positions page open. Press Enter to close browser...", page
+                )
+            else:
+                wait_for_input_or_close(
+                    session,
+                    "Failed to load positions page. Press Enter to close browser...",
+                    page,
+                )
+        finally:
+            if own_session:
+                session.stop()
+    else:
+        # CLI mode: search and display
+        own_session = headless_session is None
+        if own_session:
+            with BrowserSession(headless=True) as session:
+                page = session.new_page()
+                result = search_positions(page, query, use_cache=not no_cache)
+                if result:
+                    display_positions(result)
+                else:
+                    click.echo("Failed to retrieve positions.", err=True)
+        else:
+            assert headless_session is not None
+            page = headless_session.new_page()
+            result = search_positions(page, query, use_cache=not no_cache)
+            page.close()
+            if result:
+                display_positions(result)
+            else:
+                click.echo("Failed to retrieve positions.", err=True)
+
+
+def do_scratchpad_lookup(
+    facility: str | None,
+    list_facs: bool = False,
+    no_cache: bool = False,
+    headless_session: "BrowserSession | None" = None,
+) -> None:
+    """Handle scratchpad lookup.
+
+    Args:
+        facility: Facility name or code to look up
+        list_facs: If True, list available facilities
+        no_cache: If True, bypass cache and fetch fresh data
+        headless_session: Shared headless session (interactive mode)
+    """
+    if list_facs:
+        click.echo("Fetching available facilities...")
+
+        own_session = headless_session is None
+        if own_session:
+            with BrowserSession(headless=True) as session:
+                page = session.new_page()
+                facilities = list_facilities(page, use_cache=not no_cache)
+                if facilities:
+                    display_scratchpad_facilities(facilities)
+                else:
+                    click.echo("Failed to retrieve facilities list.", err=True)
+        else:
+            assert headless_session is not None
+            page = headless_session.new_page()
+            facilities = list_facilities(page, use_cache=not no_cache)
+            page.close()
+            if facilities:
+                display_scratchpad_facilities(facilities)
+            else:
+                click.echo("Failed to retrieve facilities list.", err=True)
+        return
+
+    if not facility:
+        click.echo("Usage: scratchpad <facility>  (e.g., scratchpad OAK)")
+        click.echo("       scratchpad --list      (list available facilities)")
+        return
+
+    click.echo(f"Fetching scratchpads for: {facility}...")
+
+    own_session = headless_session is None
+    if own_session:
+        with BrowserSession(headless=True) as session:
+            page = session.new_page()
+            result = get_scratchpads(page, facility, use_cache=not no_cache)
+            if result:
+                display_scratchpads(result)
+            else:
+                click.echo("Failed to retrieve scratchpads.", err=True)
+    else:
+        assert headless_session is not None
+        page = headless_session.new_page()
+        result = get_scratchpads(page, facility, use_cache=not no_cache)
+        page.close()
+        if result:
+            display_scratchpads(result)
+        else:
+            click.echo("Failed to retrieve scratchpads.", err=True)

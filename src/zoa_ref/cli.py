@@ -5,7 +5,7 @@ import webbrowser
 import click
 
 from .charts import ZOA_AIRPORTS, fetch_charts_from_api
-from .cli_utils import COMMAND_HELP, ImplicitChartGroup, set_console_title
+from .cli_utils import COMMAND_HELP, ImplicitChartGroup, set_console_title, print_interactive_help
 from .commands import (
     do_icao_lookup,
     do_route_lookup,
@@ -13,6 +13,8 @@ from .commands import (
     do_chart_lookup,
     do_charts_browse,
     handle_sop_command,
+    do_position_lookup,
+    do_scratchpad_lookup,
 )
 from .interactive import interactive_mode
 
@@ -243,6 +245,67 @@ def strips():
     """Open flight strips."""
     webbrowser.open("https://strips.virtualnas.net/")
     click.echo("Opened flight strips")
+
+
+@main.command("help")
+@click.argument("command", required=False)
+@click.pass_context
+def help_cmd(ctx, command: str | None):
+    """Show help for a command."""
+    if command:
+        # Show help for specific command
+        cmd = main.get_command(ctx, command)
+        if cmd:
+            # Create context with main as parent so usage shows "zoa <cmd>" not "zoa help <cmd>"
+            with click.Context(cmd, info_name=command, parent=ctx.parent) as cmd_ctx:
+                click.echo(cmd.get_help(cmd_ctx))
+        else:
+            click.echo(f"Unknown command: {command}")
+            click.echo("Run 'zoa --help' to see available commands.")
+    else:
+        # Show general help
+        click.echo("ZOA Reference CLI - Quick lookups to ZOA's Reference Tool.")
+        click.echo("Usage: zoa [--playwright] [command] [args...]\n")
+        print_interactive_help(include_misc=False)
+        click.echo("\nRun 'zoa help <command>' for detailed command help.")
+
+
+# --- Position Commands ---
+
+
+@main.command(help=COMMAND_HELP["position"].strip())
+@click.argument("query", nargs=-1, required=True)
+@click.option("--browser", is_flag=True, help="Open browser instead of CLI display")
+@click.option("--no-cache", is_flag=True, help="Bypass cache and fetch fresh data")
+def position(query: tuple[str, ...], browser: bool, no_cache: bool):
+    do_position_lookup(" ".join(query), browser=browser, no_cache=no_cache)
+
+
+@main.command("pos", help=COMMAND_HELP["pos"].strip())
+@click.argument("query", nargs=-1, required=True)
+@click.option("--browser", is_flag=True, help="Open browser instead of CLI display")
+@click.option("--no-cache", is_flag=True, help="Bypass cache and fetch fresh data")
+def pos(query: tuple[str, ...], browser: bool, no_cache: bool):
+    do_position_lookup(" ".join(query), browser=browser, no_cache=no_cache)
+
+
+# --- Scratchpad Commands ---
+
+
+@main.command(help=COMMAND_HELP["scratchpad"].strip())
+@click.argument("facility", required=False)
+@click.option("--list", "list_facs", is_flag=True, help="List available facilities")
+@click.option("--no-cache", is_flag=True, help="Bypass cache and fetch fresh data")
+def scratchpad(facility: str | None, list_facs: bool, no_cache: bool):
+    do_scratchpad_lookup(facility, list_facs=list_facs, no_cache=no_cache)
+
+
+@main.command("scratch", help=COMMAND_HELP["scratch"].strip())
+@click.argument("facility", required=False)
+@click.option("--list", "list_facs", is_flag=True, help="List available facilities")
+@click.option("--no-cache", is_flag=True, help="Bypass cache and fetch fresh data")
+def scratch(facility: str | None, list_facs: bool, no_cache: bool):
+    do_scratchpad_lookup(facility, list_facs=list_facs, no_cache=no_cache)
 
 
 if __name__ == "__main__":

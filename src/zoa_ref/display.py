@@ -5,8 +5,10 @@ import click
 from .atis import AtisInfo
 from .charts import ChartMatch
 from .icao import AirlineSearchResult, AirportSearchResult, AircraftSearchResult
+from .positions import PositionSearchResult
 from .procedures import ProcedureMatch
 from .routes import RouteSearchResult
+from .scratchpads import ScratchpadResult, ScratchpadFacility
 
 
 def print_table_header(title: str, header: str) -> None:
@@ -238,3 +240,57 @@ def display_procedure_matches(matches: list[ProcedureMatch]) -> None:
     for i, match in enumerate(matches, start=1):
         click.echo(f"  [{i}] {match.procedure.name} (score: {match.score:.2f})")
     click.echo()
+
+
+def display_positions(result: PositionSearchResult) -> None:
+    """Display position search results in formatted CLI output."""
+    if not result.results:
+        print_table_empty("POSITIONS", f"No positions found for '{result.query}'.")
+        return
+
+    print_table_header(
+        "POSITIONS",
+        f"{'Name':<25} {'TCP':<6} {'Callsign':<15} {'Radio Name':<18} Freq",
+    )
+
+    for pos in result.results:
+        name_display = pos.name[:23] + ".." if len(pos.name) > 25 else pos.name
+        callsign_display = (
+            pos.callsign[:13] + ".." if len(pos.callsign) > 15 else pos.callsign
+        )
+        radio_display = (
+            pos.radio_name[:16] + ".." if len(pos.radio_name) > 18 else pos.radio_name
+        )
+        click.echo(
+            f"{name_display:<25} {pos.tcp:<6} {callsign_display:<15} {radio_display:<18} {pos.frequency}"
+        )
+
+
+def display_scratchpads(result: ScratchpadResult) -> None:
+    """Display scratchpad results in formatted CLI output."""
+    if not result.scratchpads:
+        print_table_empty(
+            "SCRATCHPADS", f"No scratchpads found for '{result.facility}'."
+        )
+        return
+
+    print_table_header(
+        f"SCRATCHPADS - {result.facility}",
+        f"{'Code':<12} Meaning",
+    )
+
+    for sp in result.scratchpads:
+        click.echo(f"{sp.code:<12} {sp.meaning}")
+
+
+def display_scratchpad_facilities(facilities: list[ScratchpadFacility]) -> None:
+    """Display available scratchpad facilities."""
+    if not facilities:
+        click.echo("\nNo facilities found.")
+        return
+
+    click.echo("\nAvailable facilities:")
+    click.echo("-" * 40)
+    # Display as comma-separated list
+    values = [fac.value for fac in facilities]
+    click.echo(f"  {', '.join(values)}")

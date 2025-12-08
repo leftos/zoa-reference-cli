@@ -19,6 +19,8 @@ from .commands import (
     do_chart_lookup,
     do_charts_browse,
     handle_sop_command,
+    do_position_lookup,
+    do_scratchpad_lookup,
 )
 from .icao import CodesPage
 from .input import create_prompt_session, prompt_with_history
@@ -279,6 +281,49 @@ def _handle_strips_interactive(args: str) -> None:
     click.echo("Opened flight strips")
 
 
+def _handle_position_interactive(args: str, ctx: InteractiveContext) -> None:
+    """Handle 'position <query> [--browser] [--no-cache]' command in interactive mode."""
+    parsed = parse_interactive_args(
+        args,
+        flag_defs={"browser": ("--browser",), "no_cache": ("--no-cache",)},
+    )
+    if parsed.show_help or not parsed.positional:
+        from .cli import main
+
+        print_command_help("position", main)
+        return
+
+    do_position_lookup(
+        " ".join(parsed.positional),
+        browser=parsed.flags.get("browser", False),
+        no_cache=parsed.flags.get("no_cache", False),
+        headless_session=ctx.headless_session,
+    )
+
+
+def _handle_scratchpad_interactive(args: str, ctx: InteractiveContext) -> None:
+    """Handle 'scratchpad [facility] [--list] [--no-cache]' command in interactive mode."""
+    parsed = parse_interactive_args(
+        args,
+        flag_defs={"list": ("--list",), "no_cache": ("--no-cache",)},
+    )
+
+    if parsed.show_help:
+        from .cli import main
+
+        print_command_help("scratchpad", main)
+        return
+
+    facility = parsed.positional[0] if parsed.positional else None
+
+    do_scratchpad_lookup(
+        facility,
+        list_facs=parsed.flags.get("list", False),
+        no_cache=parsed.flags.get("no_cache", False),
+        headless_session=ctx.headless_session,
+    )
+
+
 # Command registry: maps command prefix to (handler, prefix_length, needs_context)
 # needs_context indicates whether the handler requires InteractiveContext
 INTERACTIVE_COMMANDS: dict[str, tuple] = {
@@ -291,6 +336,10 @@ INTERACTIVE_COMMANDS: dict[str, tuple] = {
     "airline ": (_handle_airline_interactive, 8, True),
     "airport ": (_handle_airport_interactive, 8, True),
     "aircraft ": (_handle_aircraft_interactive, 9, True),
+    "position ": (_handle_position_interactive, 9, True),
+    "pos ": (_handle_position_interactive, 4, True),
+    "scratchpad ": (_handle_scratchpad_interactive, 11, True),
+    "scratch ": (_handle_scratchpad_interactive, 8, True),
     "vis": (_handle_vis_interactive, 3, False),
     "tdls": (_handle_tdls_interactive, 4, False),
     "strips": (_handle_strips_interactive, 6, False),
@@ -311,7 +360,7 @@ def interactive_mode(use_playwright: bool = False):
     if use_playwright:
         click.echo("(Using Playwright browser with tab management)")
     click.echo("=" * 50)
-    print_interactive_help(include_help_line=True)
+    print_interactive_help()
     click.echo("=" * 50)
     click.echo()
 
