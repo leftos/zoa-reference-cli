@@ -215,23 +215,29 @@ def vis():
 
 
 @main.command(help=COMMAND_HELP["tdls"].strip())
-@click.argument("airport", required=False, default=None)
-def tdls(airport: str | None):
+@click.argument("facility", required=False, default=None)
+def tdls(facility: str | None):
     """Open TDLS (Pre-Departure Clearances)."""
-    if airport:
-        url = f"https://tdls.virtualnas.net/{airport.upper()}"
+    if facility:
+        url = f"https://tdls.virtualnas.net/{facility.upper()}"
         webbrowser.open(url)
-        click.echo(f"Opened TDLS for {airport.upper()}")
+        click.echo(f"Opened TDLS for {facility.upper()}")
     else:
         webbrowser.open("https://tdls.virtualnas.net/")
         click.echo("Opened TDLS")
 
 
 @main.command(help=COMMAND_HELP["strips"].strip())
-def strips():
+@click.argument("facility", required=False)
+def strips(facility: str | None):
     """Open flight strips."""
-    webbrowser.open("https://strips.virtualnas.net/")
-    click.echo("Opened flight strips")
+    if facility:
+        url = f"https://strips.virtualnas.net/{facility.upper()}"
+        webbrowser.open(url)
+        click.echo(f"Opened flight strips for {facility.upper()}")
+    else:
+        webbrowser.open("https://strips.virtualnas.net/")
+        click.echo("Opened flight strips")
 
 
 @main.command("help")

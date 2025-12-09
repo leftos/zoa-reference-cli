@@ -256,11 +256,11 @@ def _handle_vis_interactive(args: str) -> None:
 
 def _handle_tdls_interactive(args: str) -> None:
     """Handle 'tdls' command in interactive mode."""
-    airport = args.strip()
-    if airport:
-        url = f"https://tdls.virtualnas.net/{airport.upper()}"
+    facility = args.strip()
+    if facility:
+        url = f"https://tdls.virtualnas.net/{facility.upper()}"
         webbrowser.open(url)
-        click.echo(f"Opened TDLS for {airport.upper()}")
+        click.echo(f"Opened TDLS for {facility.upper()}")
     else:
         webbrowser.open("https://tdls.virtualnas.net/")
         click.echo("Opened TDLS")
@@ -268,8 +268,14 @@ def _handle_tdls_interactive(args: str) -> None:
 
 def _handle_strips_interactive(args: str) -> None:
     """Handle 'strips' command in interactive mode."""
-    webbrowser.open("https://strips.virtualnas.net/")
-    click.echo("Opened flight strips")
+    facility = args.strip()
+    if facility:
+        url = f"https://strips.virtualnas.net/{facility.upper()}"
+        webbrowser.open(url)
+        click.echo(f"Opened flight strips for {facility.upper()}")
+    else:
+        webbrowser.open("https://strips.virtualnas.net/")
+        click.echo("Opened flight strips")
 
 
 def _handle_position_interactive(args: str, ctx: InteractiveContext) -> None:

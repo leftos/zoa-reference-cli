@@ -93,8 +93,8 @@ INTERACTIVE_HELP_COMMANDS = [
     "  scratchpad|scratch <fac>  - Look up scratchpads (e.g., scratch OAK)",
     "External Tools:",
     "  vis                       - Open ZOA airspace visualizer",
-    "  tdls [airport]            - Open TDLS (Pre-Departure Clearances)",
-    "  strips                    - Open flight strips",
+    "  tdls [facility]           - Open TDLS (Pre-Departure Clearances)",
+    "  strips [facility]         - Open flight strips",
 ]
 
 # Detailed help for individual commands (used by "help <command>")
@@ -246,11 +246,11 @@ Shows sector boundaries, airspace structure, and related info.
 URL: https://airspace.oakartcc.org/
 """,
     "tdls": """
-tdls [airport] - Open TDLS (Tower Data Link Services)
+tdls [facility] - Open TDLS (Tower Data Link Services)
 
 Opens the TDLS tool for sending Pre-Departure Clearances (PDCs)
-to pilots. Optionally specify an airport code to go directly to
-that airport's page.
+to pilots. Optionally specify a facility code to go directly to
+that facility's page.
 
 \b
 Examples:
@@ -261,10 +261,15 @@ Examples:
 URL: https://tdls.virtualnas.net/
 """,
     "strips": """
-strips - Open flight strips
+strips [facility] - Open flight strips
 
 Opens the flight strips tool in your browser.
 Used for managing flight progress strips.
+
+\b
+Examples:
+  strips          - Open flight strips home page
+  strips nct      - Open flight strips for NCT
 
 \b
 URL: https://strips.virtualnas.net/
