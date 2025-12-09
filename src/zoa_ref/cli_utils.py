@@ -1,5 +1,8 @@
 """CLI utility functions, constants, and data classes."""
 
+import csv
+import io
+import os
 import shlex
 import subprocess
 import threading
@@ -22,6 +25,50 @@ BROWSERS = {
     "brave.exe": "brave",
     "opera.exe": "opera",
 }
+
+
+def _get_descendant_pids() -> set[int]:
+    """Get all PIDs that are descendants of the current process.
+
+    Uses wmic to build a parent->children map, then traverses from current PID.
+    Returns empty set on any error (fail open - better to detect browser than not).
+    """
+    try:
+        result = subprocess.run(
+            ["wmic", "process", "get", "ProcessId,ParentProcessId", "/FORMAT:CSV"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode != 0:
+            return set()
+
+        # Build parent -> children map
+        parent_to_children: dict[int, list[int]] = {}
+        reader = csv.DictReader(io.StringIO(result.stdout))
+        for row in reader:
+            try:
+                pid = int(row.get("ProcessId", 0))
+                ppid = int(row.get("ParentProcessId", 0))
+                if ppid not in parent_to_children:
+                    parent_to_children[ppid] = []
+                parent_to_children[ppid].append(pid)
+            except (ValueError, TypeError):
+                continue
+
+        # BFS from current PID to find all descendants
+        current_pid = os.getpid()
+        descendants: set[int] = set()
+        queue = parent_to_children.get(current_pid, [])
+        while queue:
+            pid = queue.pop(0)
+            if pid not in descendants:
+                descendants.add(pid)
+                queue.extend(parent_to_children.get(pid, []))
+
+        return descendants
+    except Exception:
+        return set()
 
 # Interactive mode command help lines (ordered like website nav bar)
 INTERACTIVE_HELP_COMMANDS = [
@@ -346,7 +393,11 @@ def print_command_help(command: str, main_group: click.Group) -> bool:
 
 
 def get_running_browser() -> str | None:
-    """Check if any known browser is running and return its command name."""
+    """Check if any known browser is running and return its command name.
+
+    Excludes browser processes that are descendants of the current process
+    (e.g., Playwright's Chromium instances).
+    """
     try:
         result = subprocess.run(
             ["tasklist", "/FO", "CSV", "/NH"],
@@ -354,10 +405,29 @@ def get_running_browser() -> str | None:
             text=True,
             timeout=5,
         )
-        processes = result.stdout.lower()
-        for process_name, cmd in BROWSERS.items():
-            if process_name in processes:
-                return cmd
+
+        # Get PIDs to exclude (Playwright browsers spawned by this process)
+        exclude_pids = _get_descendant_pids()
+
+        # Parse CSV output to get process names and PIDs
+        reader = csv.reader(io.StringIO(result.stdout))
+        for row in reader:
+            if len(row) < 2:
+                continue
+            process_name = row[0].lower()
+            try:
+                pid = int(row[1])
+            except (ValueError, IndexError):
+                continue
+
+            # Skip if this is a descendant of our process
+            if pid in exclude_pids:
+                continue
+
+            # Check if this is a known browser
+            for browser_name, cmd in BROWSERS.items():
+                if process_name == browser_name:
+                    return cmd
     except Exception:
         pass
     return None
