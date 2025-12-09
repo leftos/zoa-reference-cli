@@ -976,3 +976,66 @@ def do_scratchpad_lookup(
             display_scratchpads(result)
         else:
             click.echo("Failed to retrieve scratchpads.", err=True)
+
+
+# Chart type aliases for list command
+CHART_TYPE_ALIASES = {
+    "SID": "DP",
+    "APP": "IAP",
+    "TAXI": "APD",
+}
+
+VALID_CHART_TYPES = {"DP", "STAR", "IAP", "APD"}
+
+
+def do_list_charts(airport: str, chart_type: str | None = None) -> None:
+    """List charts for an airport, optionally filtered by type.
+
+    Args:
+        airport: Airport code (e.g., "SFO", "OAK")
+        chart_type: Optional chart type filter (DP, STAR, IAP, APD or aliases)
+    """
+    airport = airport.upper()
+
+    # Normalize chart type
+    filter_type = None
+    if chart_type:
+        chart_type = chart_type.upper()
+        filter_type = CHART_TYPE_ALIASES.get(chart_type, chart_type)
+        # Validate the chart type
+        if filter_type not in VALID_CHART_TYPES:
+            click.echo(
+                f"Unknown chart type: {chart_type}. "
+                f"Valid types: DP/SID, STAR, IAP/APP, APD/TAXI"
+            )
+            return
+
+    if filter_type:
+        click.echo(f"Fetching {filter_type} charts for {airport}...")
+    else:
+        click.echo(f"Fetching charts for {airport}...")
+
+    charts_list = fetch_charts_from_api(airport)
+
+    # Filter by chart type if specified
+    if filter_type and charts_list:
+        charts_list = [c for c in charts_list if c.chart_code == filter_type]
+
+    if charts_list:
+        if filter_type:
+            click.echo(f"\n{filter_type} charts for {airport}:")
+        else:
+            click.echo(f"\nAvailable charts for {airport}:")
+        click.echo("-" * 40)
+        for chart_info in charts_list:
+            if filter_type:
+                # When filtered, don't show the type prefix
+                click.echo(f"  {chart_info.chart_name}")
+            else:
+                type_str = chart_info.chart_code if chart_info.chart_code else "?"
+                click.echo(f"  [{type_str:<4}] {chart_info.chart_name}")
+    else:
+        if filter_type:
+            click.echo(f"No {filter_type} charts found for {airport}")
+        else:
+            click.echo(f"No charts found for {airport}")

@@ -4,7 +4,7 @@ import webbrowser
 
 import click
 
-from .charts import ZOA_AIRPORTS, fetch_charts_from_api
+from .charts import ZOA_AIRPORTS
 from .cli_utils import COMMAND_HELP, ImplicitChartGroup, set_console_title, print_interactive_help
 from .commands import (
     do_icao_lookup,
@@ -12,6 +12,7 @@ from .commands import (
     do_atis_lookup,
     do_chart_lookup,
     do_charts_browse,
+    do_list_charts,
     handle_sop_command,
     do_position_lookup,
     do_scratchpad_lookup,
@@ -95,23 +96,9 @@ def charts(query: tuple[str, ...]):
 
 @main.command("list", help=COMMAND_HELP["list"].strip())
 @click.argument("airport")
-def list_cmd(airport: str):
-    airport = airport.upper()
-    if airport not in ZOA_AIRPORTS:
-        click.echo(f"Warning: {airport} is not a known ZOA airport")
-
-    click.echo(f"Fetching charts for {airport}...")
-
-    charts_list = fetch_charts_from_api(airport)
-
-    if charts_list:
-        click.echo(f"\nAvailable charts for {airport}:")
-        click.echo("-" * 40)
-        for chart_info in charts_list:
-            type_str = chart_info.chart_code if chart_info.chart_code else "?"
-            click.echo(f"  [{type_str:<4}] {chart_info.chart_name}")
-    else:
-        click.echo(f"No charts found for {airport}")
+@click.argument("chart_type", required=False, default=None)
+def list_cmd(airport: str, chart_type: str | None):
+    do_list_charts(airport, chart_type)
 
 
 @main.command()

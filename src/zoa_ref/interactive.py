@@ -5,7 +5,6 @@ import webbrowser
 import click
 
 from .browser import BrowserSession
-from .charts import fetch_charts_from_api
 from .cli_utils import (
     InteractiveContext,
     parse_interactive_args,
@@ -18,6 +17,7 @@ from .commands import (
     do_atis_lookup,
     do_chart_lookup,
     do_charts_browse,
+    do_list_charts,
     handle_sop_command,
     do_position_lookup,
     do_scratchpad_lookup,
@@ -27,7 +27,7 @@ from .input import create_prompt_session, prompt_with_history
 
 
 def _handle_list_interactive(args: str) -> None:
-    """Handle 'list <airport>' command in interactive mode."""
+    """Handle 'list <airport> [chart_type]' command in interactive mode."""
     parsed = parse_interactive_args(args)
     if parsed.show_help or not parsed.positional:
         # Import here to avoid circular import
@@ -35,19 +35,10 @@ def _handle_list_interactive(args: str) -> None:
 
         print_command_help("list", main)
         return
-    airport = parsed.positional[0].upper()
 
-    click.echo(f"Fetching charts for {airport}...")
-    charts = fetch_charts_from_api(airport)
-
-    if charts:
-        click.echo(f"\nAvailable charts for {airport}:")
-        click.echo("-" * 40)
-        for chart in charts:
-            type_str = chart.chart_code if chart.chart_code else "?"
-            click.echo(f"  [{type_str:<4}] {chart.chart_name}")
-    else:
-        click.echo(f"No charts found for {airport}")
+    airport = parsed.positional[0]
+    chart_type = parsed.positional[1] if len(parsed.positional) > 1 else None
+    do_list_charts(airport, chart_type)
 
 
 def _handle_charts_interactive(args: str, ctx: InteractiveContext) -> None:

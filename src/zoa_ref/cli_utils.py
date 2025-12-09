@@ -80,15 +80,21 @@ Examples:
   charts SFO ILS 28L     - Open ILS 28L, browse other SFO charts
 """,
     "list": """
-list - List all charts for an airport
+list - List charts for an airport
 
-Shows all available charts for the specified airport, including
-chart type codes (DP, STAR, IAP, etc.).
+Shows available charts for the specified airport. Optionally filter
+by chart type. Type aliases: SID=DP, APP=IAP, TAXI=APD.
 
 \b
 Examples:
   list OAK               - List all OAK charts
-  list SFO               - List all SFO charts
+  list SFO DP            - List SFO departure procedures
+  list SFO SID           - Same as above (SID is alias for DP)
+  list OAK STAR          - List OAK arrival procedures
+  list SJC IAP           - List SJC instrument approaches
+  list SJC APP           - Same as above (APP is alias for IAP)
+  list RNO APD           - List RNO airport diagrams
+  list RNO TAXI          - Same as above (TAXI is alias for APD)
 """,
     "route": """
 route - Look up routes between two airports

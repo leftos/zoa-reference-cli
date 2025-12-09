@@ -17,6 +17,8 @@ uv venv && uv pip install -e .
 .venv/Scripts/zoa chart OAK ILS 28R -r  # Rotate 90°
 .venv/Scripts/zoa charts OAK CNDEL5     # Browse on Reference Tool
 .venv/Scripts/zoa list OAK              # List airport charts
+.venv/Scripts/zoa list OAK DP           # List departure procedures (aliases: SID)
+.venv/Scripts/zoa list OAK STAR         # List arrivals (also: IAP/APP, APD/TAXI)
 
 # Routes, ATIS, ICAO
 .venv/Scripts/zoa route SFO LAX         # Route lookup
@@ -41,6 +43,8 @@ uv venv && uv pip install -e .
 Modules in `src/zoa_ref/`:
 
 - **cli.py**: Click CLI with `ImplicitChartGroup` for `zoa <airport> <chart>` syntax. Entry point: `main()`
+- **interactive.py**: Interactive mode loop and command handlers. Handlers parse args and delegate to `commands.py`
+- **commands.py**: Shared command implementations (e.g., `do_list_charts`, `do_chart_lookup`). **Both CLI and interactive mode must use these shared functions to ensure feature parity.**
 - **browser.py**: `BrowserSession` wrapping Playwright sync API. Supports child sessions (headless + visible)
 - **charts.py**: API-based chart lookup. `ChartQuery.parse()` normalizes names. Fuzzy matching, multi-page PDF merging, auto-rotation via pypdf
 - **procedures.py**: SOP/procedure lookup. `ProcedureQuery.parse()` handles section/search args. PDF section navigation via text extraction
@@ -49,9 +53,11 @@ Modules in `src/zoa_ref/`:
 - **icao.py**: Airline/airport/aircraft lookups with cache (`~/.zoa-ref/cache/`, 7-day TTL). `CodesPage` for persistent page reuse
 - **display.py**: Output formatting for all result types
 - **input.py**: Prompt session with history, disambiguation prompts
+- **cli_utils.py**: Help text, argument parsing utilities, `InteractiveContext`
 
 ## Key Patterns
 
+- **CLI/Interactive parity**: All command logic lives in `commands.py`. When adding or modifying commands, update the shared `do_*` function—not the CLI or interactive handler directly
 - Chart names normalized: digits → words ("5" → "FIVE"), fuzzy matching
 - Chart type inference: ILS/LOC/VOR → IAP, etc.
 - Multi-page charts (CONT.1, CONT.2) auto-merged
