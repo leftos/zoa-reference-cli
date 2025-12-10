@@ -1,9 +1,118 @@
 """NAVAID data loading and lookup for chart name aliasing."""
 
 import json
+import math
 import re
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+
+# OAK VOR coordinates for distance sorting
+OAK_VOR_LAT = 37.7259
+OAK_VOR_LON = -122.2236
+
+
+@dataclass
+class NavaidInfo:
+    """NAVAID information entry."""
+
+    ident: str
+    name: str
+    navaid_type: str  # e.g., "VORTAC", "VOR/DME", "TACAN"
+    city: str
+    state: str
+    latitude: float
+    longitude: float
+
+
+@dataclass
+class NavaidSearchResult:
+    """Result of a navaid search."""
+
+    query: str
+    results: list[NavaidInfo]
+
+
+@lru_cache(maxsize=1)
+def _load_navaid_features() -> list[dict]:
+    """Load raw navaid features from GeoJSON.
+
+    Returns:
+        List of feature dictionaries from the GeoJSON file.
+    """
+    geojson_path = Path(__file__).parent / "NAVAID_System.geojson"
+
+    if not geojson_path.exists():
+        return []
+
+    try:
+        with open(geojson_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return []
+
+    return data.get("features", [])
+
+
+def _haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Calculate distance in nautical miles between two coordinates using Haversine formula."""
+    R = 3440.065  # Earth's radius in nautical miles
+
+    lat1_rad = math.radians(lat1)
+    lat2_rad = math.radians(lat2)
+    delta_lat = math.radians(lat2 - lat1)
+    delta_lon = math.radians(lon2 - lon1)
+
+    a = (
+        math.sin(delta_lat / 2) ** 2
+        + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(delta_lon / 2) ** 2
+    )
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+    return R * c
+
+
+def _distance_from_oak(navaid: "NavaidInfo") -> float:
+    """Calculate distance from OAK VOR to a navaid."""
+    return _haversine_distance(OAK_VOR_LAT, OAK_VOR_LON, navaid.latitude, navaid.longitude)
+
+
+def _parse_navaid_type(class_txt: str) -> str:
+    """Parse the CLASS_TXT field into a friendly navaid type.
+
+    Examples:
+        "H-VORTAC" -> "VORTAC"
+        "H-VORW/DME" -> "VOR/DME"
+        "H-TACAN" -> "TACAN"
+        "HW/DME" -> "VOR/DME"
+        "HW" -> "VOR"
+    """
+    if not class_txt:
+        return "UNKNOWN"
+
+    # Remove altitude prefix (H-, L-, T-, etc.)
+    cleaned = re.sub(r"^[HLT]-?", "", class_txt)
+
+    # Map common types
+    type_map = {
+        "VORTAC": "VORTAC",
+        "VORTACW": "VORTAC",
+        "TACAN": "TACAN",
+        "VOR": "VOR",
+        "VORW": "VOR",
+        "VOR/DME": "VOR/DME",
+        "VORW/DME": "VOR/DME",
+        "W/DME": "VOR/DME",
+        "DME": "DME",
+        "NDB": "NDB",
+        "NDB/DME": "NDB/DME",
+    }
+
+    for key, value in type_map.items():
+        if key in cleaned.upper():
+            return value
+
+    return cleaned or "UNKNOWN"
 
 
 @lru_cache(maxsize=1)
@@ -15,21 +124,12 @@ def _load_navaid_data() -> tuple[dict[str, str], dict[str, str]]:
         Tuple of (name_to_ident, ident_to_name) dictionaries.
         e.g., ({"MUSTANG": "FMG"}, {"FMG": "MUSTANG"})
     """
-    geojson_path = Path(__file__).parent / "NAVAID_System.geojson"
-
-    if not geojson_path.exists():
-        return {}, {}
-
-    try:
-        with open(geojson_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return {}, {}
+    features = _load_navaid_features()
 
     name_to_ident: dict[str, str] = {}
     ident_to_name: dict[str, str] = {}
 
-    for feature in data.get("features", []):
+    for feature in features:
         props = feature.get("properties", {})
         ident = props.get("IDENT", "")
         name = props.get("NAME_TXT", "")
@@ -108,3 +208,84 @@ def resolve_navaid_alias(chart_name: str) -> str:
         return name
 
     return chart_name
+
+
+def search_navaids(query: str) -> NavaidSearchResult:
+    """
+    Search for navaids by identifier or name.
+
+    Searches both the navaid identifier (e.g., "FMG") and the name
+    (e.g., "MUSTANG"). Exact matches on identifier are prioritized,
+    followed by partial matches on name. When multiple results are found,
+    they are sorted by distance from OAK VOR.
+
+    Args:
+        query: Search query (identifier or name)
+
+    Returns:
+        NavaidSearchResult with matching navaids.
+    """
+    features = _load_navaid_features()
+    query_upper = query.upper().strip()
+    results: list[NavaidInfo] = []
+
+    # First pass: exact identifier match
+    for feature in features:
+        props = feature.get("properties", {})
+        ident = props.get("IDENT", "").upper()
+
+        if ident == query_upper:
+            coords = feature.get("geometry", {}).get("coordinates", [0, 0])
+            results.append(
+                NavaidInfo(
+                    ident=ident,
+                    name=props.get("NAME_TXT", ""),
+                    navaid_type=_parse_navaid_type(props.get("CLASS_TXT", "")),
+                    city=props.get("CITY", ""),
+                    state=props.get("STATE", "") or "",
+                    latitude=coords[1] if len(coords) > 1 else 0,
+                    longitude=coords[0] if len(coords) > 0 else 0,
+                )
+            )
+
+    # If exact identifier match found, return it (sorted by distance if multiple)
+    if results:
+        if len(results) > 1:
+            results.sort(key=_distance_from_oak)
+        return NavaidSearchResult(query=query, results=results)
+
+    # Second pass: exact name match or partial matches
+    exact_name_matches: list[NavaidInfo] = []
+    partial_matches: list[NavaidInfo] = []
+
+    for feature in features:
+        props = feature.get("properties", {})
+        ident = props.get("IDENT", "").upper()
+        name = props.get("NAME_TXT", "").upper()
+
+        coords = feature.get("geometry", {}).get("coordinates", [0, 0])
+        navaid = NavaidInfo(
+            ident=ident,
+            name=props.get("NAME_TXT", ""),
+            navaid_type=_parse_navaid_type(props.get("CLASS_TXT", "")),
+            city=props.get("CITY", ""),
+            state=props.get("STATE", "") or "",
+            latitude=coords[1] if len(coords) > 1 else 0,
+            longitude=coords[0] if len(coords) > 0 else 0,
+        )
+
+        if name == query_upper:
+            exact_name_matches.append(navaid)
+        elif query_upper in name or query_upper in ident:
+            partial_matches.append(navaid)
+
+    # Prioritize exact name matches, then partial matches
+    # Sort by distance from OAK VOR when multiple results
+    if exact_name_matches:
+        if len(exact_name_matches) > 1:
+            exact_name_matches.sort(key=_distance_from_oak)
+        return NavaidSearchResult(query=query, results=exact_name_matches)
+
+    if len(partial_matches) > 1:
+        partial_matches.sort(key=_distance_from_oak)
+    return NavaidSearchResult(query=query, results=partial_matches)

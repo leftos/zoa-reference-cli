@@ -30,6 +30,7 @@ from .display import (
     display_aircraft,
     display_atis,
     display_chart_matches,
+    display_navaids,
     display_procedure_matches,
     display_positions,
     display_scratchpads,
@@ -43,6 +44,7 @@ from .icao import (
     CodesPage,
 )
 from .input import prompt_single_choice
+from .navaids import search_navaids
 from .positions import search_positions, open_positions_browser
 from .procedures import (
     ProcedureQuery,
@@ -976,6 +978,16 @@ def do_scratchpad_lookup(
             display_scratchpads(result)
         else:
             click.echo("Failed to retrieve scratchpads.", err=True)
+
+
+def do_navaid_lookup(query: str) -> None:
+    """Handle navaid lookup.
+
+    Args:
+        query: Search query (identifier like "FMG" or name like "MUSTANG")
+    """
+    result = search_navaids(query)
+    display_navaids(result)
 
 
 # Chart type aliases for list command

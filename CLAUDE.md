@@ -20,13 +20,15 @@ uv venv && uv pip install -e .
 .venv/Scripts/zoa list OAK DP           # List departure procedures (aliases: SID)
 .venv/Scripts/zoa list OAK STAR         # List arrivals (also: IAP/APP, APD/TAXI)
 
-# Routes, ATIS, ICAO
+# Routes, ATIS, ICAO, Navaids
 .venv/Scripts/zoa route SFO LAX         # Route lookup
 .venv/Scripts/zoa atis SFO              # Single airport ATIS
 .venv/Scripts/zoa atis --all            # All airports ATIS
 .venv/Scripts/zoa airline UAL           # Airline code lookup
 .venv/Scripts/zoa airport KSFO          # Airport code lookup
 .venv/Scripts/zoa aircraft B738         # Aircraft type lookup
+.venv/Scripts/zoa navaid FMG            # Navaid lookup by identifier
+.venv/Scripts/zoa navaid MUSTANG        # Navaid lookup by name
 
 # SOPs/Procedures
 .venv/Scripts/zoa sop OAK               # Open OAK SOP
@@ -51,6 +53,7 @@ Modules in `src/zoa_ref/`:
 - **routes.py**: TEC/AAR/ADR routes, LOA rules, real-world routes scraping
 - **atis.py**: ATIS for SFO/SJC/RNO/OAK/SMF (no caching - time-sensitive)
 - **icao.py**: Airline/airport/aircraft lookups with cache (`~/.zoa-ref/cache/`, 7-day TTL). `CodesPage` for persistent page reuse
+- **navaids.py**: Navaid lookup from local GeoJSON (`NAVAID_System.geojson`). Also provides navaid aliasing for chart lookup (e.g., "FMG1" → "MUSTANG1")
 - **display.py**: Output formatting for all result types
 - **input.py**: Prompt session with history, disambiguation prompts
 - **cli_utils.py**: Help text, argument parsing utilities, `InteractiveContext`

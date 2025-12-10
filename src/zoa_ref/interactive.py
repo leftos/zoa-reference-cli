@@ -13,6 +13,7 @@ from .cli_utils import (
 )
 from .commands import (
     do_icao_lookup,
+    do_navaid_lookup,
     do_route_lookup,
     do_atis_lookup,
     do_chart_lookup,
@@ -321,6 +322,18 @@ def _handle_scratchpad_interactive(args: str, ctx: InteractiveContext) -> None:
     )
 
 
+def _handle_navaid_interactive(args: str) -> None:
+    """Handle 'navaid <query>' command in interactive mode."""
+    parsed = parse_interactive_args(args)
+    if parsed.show_help or not parsed.positional:
+        from .cli import main
+
+        print_command_help("navaid", main)
+        return
+
+    do_navaid_lookup(" ".join(parsed.positional))
+
+
 # Command registry: maps command prefix to (handler, prefix_length, needs_context)
 # needs_context indicates whether the handler requires InteractiveContext
 INTERACTIVE_COMMANDS: dict[str, tuple] = {
@@ -333,6 +346,7 @@ INTERACTIVE_COMMANDS: dict[str, tuple] = {
     "airline ": (_handle_airline_interactive, 8, True),
     "airport ": (_handle_airport_interactive, 8, True),
     "aircraft ": (_handle_aircraft_interactive, 9, True),
+    "navaid ": (_handle_navaid_interactive, 7, False),
     "position ": (_handle_position_interactive, 9, True),
     "pos ": (_handle_position_interactive, 4, True),
     "scratchpad ": (_handle_scratchpad_interactive, 11, True),

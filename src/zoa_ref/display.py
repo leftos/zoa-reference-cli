@@ -5,6 +5,7 @@ import click
 from .atis import AtisInfo
 from .charts import ChartMatch
 from .icao import AirlineSearchResult, AirportSearchResult, AircraftSearchResult
+from .navaids import NavaidSearchResult
 from .positions import PositionSearchResult
 from .procedures import ProcedureMatch
 from .routes import RouteSearchResult
@@ -294,3 +295,24 @@ def display_scratchpad_facilities(facilities: list[ScratchpadFacility]) -> None:
     # Display as comma-separated list
     values = [fac.value for fac in facilities]
     click.echo(f"  {', '.join(values)}")
+
+
+def display_navaids(result: NavaidSearchResult) -> None:
+    """Display navaid search results in compact CLI output."""
+    if not result.results:
+        click.echo(f"\nNo navaids found for '{result.query}'.")
+        return
+
+    for navaid in result.results:
+        # Format: FMG - MUSTANG VORTAC (Las Vegas, NV) [36.0228, -115.0033]
+        location_parts = []
+        if navaid.city:
+            location_parts.append(navaid.city)
+        if navaid.state:
+            location_parts.append(navaid.state)
+        location = ", ".join(location_parts) if location_parts else "Unknown"
+
+        click.echo(
+            f"{navaid.ident} - {navaid.name} {navaid.navaid_type} "
+            f"({location}) [{navaid.latitude:.4f}, {navaid.longitude:.4f}]"
+        )

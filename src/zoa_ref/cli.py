@@ -8,6 +8,7 @@ from .charts import ZOA_AIRPORTS
 from .cli_utils import COMMAND_HELP, ImplicitChartGroup, set_console_title, print_interactive_help
 from .commands import (
     do_icao_lookup,
+    do_navaid_lookup,
     do_route_lookup,
     do_atis_lookup,
     do_chart_lookup,
@@ -177,6 +178,12 @@ def airport(query: tuple[str, ...], browser: bool, no_cache: bool):
 @click.option("--no-cache", is_flag=True, help="Bypass cache and fetch fresh data")
 def aircraft(query: tuple[str, ...], browser: bool, no_cache: bool):
     do_icao_lookup("aircraft", " ".join(query), browser=browser, no_cache=no_cache)
+
+
+@main.command(help=COMMAND_HELP["navaid"].strip())
+@click.argument("query", nargs=-1, required=True)
+def navaid(query: tuple[str, ...]):
+    do_navaid_lookup(" ".join(query))
 
 
 # --- Procedure/SOP Commands ---

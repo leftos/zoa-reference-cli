@@ -85,6 +85,8 @@ INTERACTIVE_HELP_COMMANDS = [
     "  airline <query>           - Look up airline codes (e.g., airline UAL)",
     "  airport <query>           - Look up airport codes (e.g., airport KSFO)",
     "  aircraft <query>          - Look up aircraft types (e.g., aircraft B738)",
+    "Navaids:",
+    "  navaid <query>            - Look up navaid (e.g., navaid FMG)",
     "Positions:",
     "  position|pos <query>      - Look up ATC positions (e.g., pos NCT)",
     "Procedures:",
@@ -235,6 +237,19 @@ Examples:
   aircraft boeing        - Search by manufacturer
   aircraft "737-800"     - Search by model
   aircraft B738 --browser - Open codes page in browser
+""",
+    "navaid": """
+navaid - Look up navaid information
+
+Searches for navaids (VORs, VORTACs, TACANs, NDBs, etc.) by
+identifier or name. Shows type, location, and coordinates.
+
+\b
+Examples:
+  navaid FMG             - Search by identifier (MUSTANG VORTAC)
+  navaid MUSTANG         - Search by name
+  navaid SFO             - Search for San Francisco VOR
+  navaid OAKLAND         - Search by city/name (partial match)
 """,
     "vis": """
 vis - Open ZOA airspace visualizer
