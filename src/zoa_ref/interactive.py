@@ -28,7 +28,7 @@ from .input import create_prompt_session, prompt_with_history
 
 
 def _handle_list_interactive(args: str) -> None:
-    """Handle 'list <airport> [chart_type]' command in interactive mode."""
+    """Handle 'list <airport> [chart_type] [search_term]' command in interactive mode."""
     parsed = parse_interactive_args(args)
     if parsed.show_help or not parsed.positional:
         # Import here to avoid circular import
@@ -39,7 +39,8 @@ def _handle_list_interactive(args: str) -> None:
 
     airport = parsed.positional[0]
     chart_type = parsed.positional[1] if len(parsed.positional) > 1 else None
-    do_list_charts(airport, chart_type)
+    search_term = parsed.positional[2] if len(parsed.positional) > 2 else None
+    do_list_charts(airport, chart_type, search_term)
 
 
 def _handle_charts_interactive(args: str, ctx: InteractiveContext) -> None:

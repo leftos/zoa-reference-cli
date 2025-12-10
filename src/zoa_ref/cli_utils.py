@@ -80,7 +80,7 @@ INTERACTIVE_HELP_COMMANDS = [
     "  <airport> <chart>         - Look up a chart (e.g., OAK CNDEL5)",
     "  chart <query>             - Same as above (explicit)",
     "  charts <query>            - Browse charts in browser",
-    "  list <airport>            - List charts for an airport",
+    "  list <airport> [type] [search] - List/search charts for an airport",
     "ICAO Codes:",
     "  airline <query>           - Look up airline codes (e.g., airline UAL)",
     "  airport <query>           - Look up airport codes (e.g., airport KSFO)",
@@ -132,7 +132,8 @@ Examples:
 list - List charts for an airport
 
 Shows available charts for the specified airport. Optionally filter
-by chart type. Type aliases: SID=DP, APP=IAP, TAXI=APD.
+by chart type, and/or search for charts containing specific text.
+Type aliases: SID=DP, APP=IAP, TAXI=APD.
 
 \b
 Examples:
@@ -144,6 +145,8 @@ Examples:
   list SJC APP           - Same as above (APP is alias for IAP)
   list RNO APD           - List RNO airport diagrams
   list RNO TAXI          - Same as above (TAXI is alias for APD)
+  list SMF APP TENCO     - Search SMF approaches for 'TENCO'
+  list OAK DP PORTE      - Search OAK departures for 'PORTE'
 """,
     "route": """
 route - Look up routes between two airports

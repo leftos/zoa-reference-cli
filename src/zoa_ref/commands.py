@@ -23,6 +23,7 @@ from .charts import (
     detect_pdf_view_mode,
     download_pdf,
     find_airport_page_in_min_chart,
+    search_chart_content,
 )
 from .cli_utils import open_in_browser, wait_for_input_or_close
 from .display import (
@@ -1040,12 +1041,15 @@ CHART_TYPE_ALIASES = {
 VALID_CHART_TYPES = {"DP", "STAR", "IAP", "APD"}
 
 
-def do_list_charts(airport: str, chart_type: str | None = None) -> None:
-    """List charts for an airport, optionally filtered by type.
+def do_list_charts(
+    airport: str, chart_type: str | None = None, search_term: str | None = None
+) -> None:
+    """List charts for an airport, optionally filtered by type and/or content.
 
     Args:
         airport: Airport code (e.g., "SFO", "OAK")
         chart_type: Optional chart type filter (DP, STAR, IAP, APD or aliases)
+        search_term: Optional text to search for in chart PDF content
     """
     airport = airport.upper()
 
@@ -1062,8 +1066,16 @@ def do_list_charts(airport: str, chart_type: str | None = None) -> None:
             )
             return
 
-    if filter_type:
+    # Build status message
+    if filter_type and search_term:
+        click.echo(
+            f"Searching {filter_type} charts for {airport} "
+            f"containing '{search_term}'..."
+        )
+    elif filter_type:
         click.echo(f"Fetching {filter_type} charts for {airport}...")
+    elif search_term:
+        click.echo(f"Searching charts for {airport} containing '{search_term}'...")
     else:
         click.echo(f"Fetching charts for {airport}...")
 
@@ -1073,21 +1085,38 @@ def do_list_charts(airport: str, chart_type: str | None = None) -> None:
     if filter_type and charts_list:
         charts_list = [c for c in charts_list if c.chart_code == filter_type]
 
+    # Filter by content search if specified
+    if search_term and charts_list:
+        matching_charts = []
+        for chart in charts_list:
+            if search_chart_content(chart, search_term):
+                matching_charts.append(chart)
+        charts_list = matching_charts
+
     if charts_list:
-        if filter_type:
+        if search_term:
+            click.echo(f"\nCharts containing '{search_term}':")
+        elif filter_type:
             click.echo(f"\n{filter_type} charts for {airport}:")
         else:
             click.echo(f"\nAvailable charts for {airport}:")
         click.echo("-" * 40)
         for chart_info in charts_list:
             if filter_type:
-                # When filtered, don't show the type prefix
+                # When filtered by type, don't show the type prefix
                 click.echo(f"  {chart_info.chart_name}")
             else:
                 type_str = chart_info.chart_code if chart_info.chart_code else "?"
                 click.echo(f"  [{type_str:<4}] {chart_info.chart_name}")
     else:
-        if filter_type:
+        if search_term and filter_type:
+            click.echo(
+                f"No {filter_type} charts containing '{search_term}' "
+                f"found for {airport}"
+            )
+        elif search_term:
+            click.echo(f"No charts containing '{search_term}' found for {airport}")
+        elif filter_type:
             click.echo(f"No {filter_type} charts found for {airport}")
         else:
             click.echo(f"No charts found for {airport}")

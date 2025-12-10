@@ -98,8 +98,9 @@ def charts(query: tuple[str, ...]):
 @main.command("list", help=COMMAND_HELP["list"].strip())
 @click.argument("airport")
 @click.argument("chart_type", required=False, default=None)
-def list_cmd(airport: str, chart_type: str | None):
-    do_list_charts(airport, chart_type)
+@click.argument("search_term", required=False, default=None)
+def list_cmd(airport: str, chart_type: str | None, search_term: str | None):
+    do_list_charts(airport, chart_type, search_term)
 
 
 @main.command()

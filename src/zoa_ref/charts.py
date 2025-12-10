@@ -1,5 +1,6 @@
 """Chart lookup functionality for ZOA Reference Tool."""
 
+import io
 import json
 import re
 import urllib.request
@@ -214,6 +215,44 @@ def fetch_charts_from_api(airport: str) -> list[ChartInfo]:
             )
 
     return charts
+
+
+def search_chart_content(chart: ChartInfo, search_term: str) -> bool:
+    """
+    Search a chart's PDF content for a specific term.
+
+    Downloads the PDF and extracts text to search for the term.
+    Returns True if the term is found (case-insensitive).
+
+    Args:
+        chart: ChartInfo object with pdf_path
+        search_term: Text to search for in the PDF
+
+    Returns:
+        True if search_term found in PDF text, False otherwise
+    """
+    try:
+        from pypdf import PdfReader
+    except ImportError:
+        return False
+
+    try:
+        # Download PDF
+        with urllib.request.urlopen(chart.pdf_path, timeout=10) as response:
+            pdf_data = response.read()
+
+        # Extract text and search
+        reader = PdfReader(io.BytesIO(pdf_data))
+        search_upper = search_term.upper()
+
+        for page in reader.pages:
+            text = page.extract_text() or ""
+            if search_upper in text.upper():
+                return True
+
+        return False
+    except Exception:
+        return False
 
 
 @dataclass
