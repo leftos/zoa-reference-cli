@@ -21,6 +21,8 @@ from .charts import (
     download_and_merge_pdfs,
     download_and_rotate_pdf,
     detect_pdf_view_mode,
+    download_pdf,
+    find_airport_page_in_min_chart,
 )
 from .cli_utils import open_in_browser, wait_for_input_or_close
 from .display import (
@@ -215,6 +217,7 @@ def open_chart_pdf(
     chart_name: str,
     rotation: int | None = None,
     session: "BrowserSession | None" = None,
+    page_num: int | None = None,
 ) -> str | None:
     """Open chart PDF(s) in browser.
 
@@ -228,6 +231,7 @@ def open_chart_pdf(
         rotation: Rotation angle in degrees (0, 90, 180, 270).
                   If None, auto-detects from text orientation.
         session: If provided, use Playwright browser session; otherwise use system browser
+        page_num: Optional page number to open at (1-based). Used for MIN charts.
 
     Returns:
         Path to opened file/URL, or None on failure.
@@ -239,12 +243,17 @@ def open_chart_pdf(
 
         if session is not None:
             # Playwright mode: check if already open (tab reuse)
-            page, was_existing = session.get_or_create_page(pdf_url)
+            pw_page, was_existing = session.get_or_create_page(pdf_url)
             if was_existing:
                 click.echo(f"Chart already open: {chart_name}")
             else:
-                page.goto(f"{pdf_url}#view=FitV")
+                fragment = f"view=FitV"
+                if page_num:
+                    fragment = f"page={page_num}&{fragment}"
+                pw_page.goto(f"{pdf_url}#{fragment}")
                 click.echo(f"Chart found: {chart_name}")
+                if page_num:
+                    click.echo(f"  Page: {page_num}")
             return pdf_url
 
         # System browser mode: download, optionally rotate, and open
@@ -254,12 +263,17 @@ def open_chart_pdf(
         if download_and_rotate_pdf(pdf_url, temp_path, rotation):
             view_mode = detect_pdf_view_mode(temp_path)
             click.echo(f"Opening chart: {chart_name}")
-            open_in_browser(temp_path, view=view_mode)
+            if page_num:
+                click.echo(f"  Page: {page_num}")
+            open_in_browser(temp_path, view=view_mode, page=page_num)
             return temp_path
         else:
             click.echo("Failed to download chart", err=True)
             # Fall back to opening URL directly (no rotation)
-            webbrowser.open(f"{pdf_url}#view=FitV")
+            fragment = f"view=FitV"
+            if page_num:
+                fragment = f"page={page_num}&{fragment}"
+            webbrowser.open(f"{pdf_url}#{fragment}")
             return pdf_url
     else:
         # Multi-page chart - merge pages
@@ -755,6 +769,18 @@ def do_chart_lookup(
 
     if pdf_urls and matched_chart:
         chart_name = matched_chart.chart_name
+        page_num = None
+
+        # For MIN charts (TAKEOFF MINIMUMS, ALTERNATE MINIMUMS), find the airport page
+        if matched_chart.chart_code == "MIN":
+            click.echo("  Searching for airport in document...")
+            pdf_data = download_pdf(pdf_urls[0])
+            if pdf_data:
+                page_num = find_airport_page_in_min_chart(pdf_data, parsed.airport)
+                if page_num:
+                    click.echo(f"  Found {parsed.airport} at page {page_num}")
+                else:
+                    click.echo(f"  {parsed.airport} not found in document")
 
         if headless:
             # In headless mode, just output URL(s)
@@ -769,6 +795,7 @@ def do_chart_lookup(
             chart_name=chart_name,
             rotation=rotation,
             session=visible_session,
+            page_num=page_num,
         )
 
     # No unambiguous match found
@@ -781,6 +808,18 @@ def do_chart_lookup(
             charts = fetch_charts_from_api(parsed.airport)
             all_pages = find_all_chart_pages(charts, choice)
             pdf_urls = [page.pdf_path for page in all_pages]
+            page_num = None
+
+            # For MIN charts, find the airport page
+            if choice.chart_code == "MIN":
+                click.echo("  Searching for airport in document...")
+                pdf_data = download_pdf(pdf_urls[0])
+                if pdf_data:
+                    page_num = find_airport_page_in_min_chart(pdf_data, parsed.airport)
+                    if page_num:
+                        click.echo(f"  Found {parsed.airport} at page {page_num}")
+                    else:
+                        click.echo(f"  {parsed.airport} not found in document")
 
             if headless:
                 for url in pdf_urls:
@@ -793,6 +832,7 @@ def do_chart_lookup(
                 chart_name=choice.chart_name,
                 rotation=rotation,
                 session=visible_session,
+                page_num=page_num,
             )
     else:
         click.echo(f"No charts found for {parsed.airport}", err=True)

@@ -596,6 +596,67 @@ def download_and_rotate_pdf(
             pass
 
 
+def download_pdf(pdf_url: str, timeout: int = 30) -> bytes | None:
+    """Download a PDF from a URL.
+
+    Args:
+        pdf_url: URL of the PDF to download
+        timeout: Request timeout in seconds
+
+    Returns:
+        PDF bytes if successful, None otherwise.
+    """
+    try:
+        with urllib.request.urlopen(pdf_url, timeout=timeout) as response:
+            return response.read()
+    except urllib.error.URLError:
+        return None
+
+
+def find_airport_page_in_min_chart(pdf_data: bytes, airport_code: str) -> int | None:
+    """
+    Find the page number for a specific airport in a MIN (minimums) chart.
+
+    MIN charts (TAKEOFF MINIMUMS, ALTERNATE MINIMUMS) contain data for multiple
+    airports. Each airport entry starts with a header like:
+        CITY, STATE
+        AIRPORT NAME (CODE)
+
+    Args:
+        pdf_data: Raw PDF bytes
+        airport_code: FAA airport identifier (e.g., "CXP", "OAK")
+
+    Returns:
+        1-based page number if found, None otherwise.
+    """
+    from pypdf import PdfReader
+    import io
+
+    try:
+        reader = PdfReader(io.BytesIO(pdf_data))
+    except Exception:
+        return None
+
+    airport_upper = airport_code.upper()
+
+    # Pattern to match airport code in parentheses, e.g., "(CXP)" or "(KOAK)"
+    # This is the most reliable identifier in MIN charts
+    code_pattern = re.compile(
+        rf"\({airport_upper}\)|\(K{airport_upper}\)",
+        re.IGNORECASE,
+    )
+
+    for page_num, page in enumerate(reader.pages, start=1):
+        try:
+            text = page.extract_text() or ""
+            if code_pattern.search(text):
+                return page_num
+        except Exception:
+            continue
+
+    return None
+
+
 def lookup_chart_with_pages(
     query: ChartQuery,
 ) -> tuple[list[str] | None, ChartInfo | None, list[ChartMatch]]:
