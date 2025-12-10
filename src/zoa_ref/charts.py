@@ -116,7 +116,10 @@ def _normalize_chart_name(name: str) -> str:
         HUSSH2 -> HUSSH TWO
         ILS28R -> ILS RWY 28R (left as-is, no number word conversion)
         TAXI -> AIRPORT DIAGRAM (alias)
+        FMG1 -> MUSTANG ONE (navaid alias: identifier to name)
     """
+    from zoa_ref.navaids import resolve_navaid_alias
+
     # Alias mapping
     aliases = {
         "TAXI": "AIRPORT DIAGRAM",
@@ -125,6 +128,9 @@ def _normalize_chart_name(name: str) -> str:
     # Check for exact alias match
     if name in aliases:
         return aliases[name]
+
+    # Resolve navaid name aliases (e.g., MUSTANG1 -> FMG1)
+    name = resolve_navaid_alias(name)
 
     # Number word mapping
     number_words = {
