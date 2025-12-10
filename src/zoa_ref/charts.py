@@ -115,7 +115,17 @@ def _normalize_chart_name(name: str) -> str:
         CNDEL5 -> CNDEL FIVE
         HUSSH2 -> HUSSH TWO
         ILS28R -> ILS RWY 28R (left as-is, no number word conversion)
+        TAXI -> AIRPORT DIAGRAM (alias)
     """
+    # Alias mapping
+    aliases = {
+        "TAXI": "AIRPORT DIAGRAM",
+    }
+
+    # Check for exact alias match
+    if name in aliases:
+        return aliases[name]
+
     # Number word mapping
     number_words = {
         "1": "ONE",
