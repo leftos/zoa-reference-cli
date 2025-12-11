@@ -17,9 +17,8 @@ PROCEDURES_URL = f"{BASE_URL}/procedures"
 # Cache configuration
 CACHE_DIR = Path.home() / ".zoa-ref" / "cache"
 PROCEDURES_CACHE_FILE = CACHE_DIR / "procedures" / "procedures_list.json"
-HEADINGS_CACHE_DIR = CACHE_DIR / "procedures" / "headings"
 CACHE_TTL_PROCEDURES = 7 * 24 * 60 * 60  # 7 days for procedure list
-CACHE_TTL_HEADINGS = 30 * 24 * 60 * 60  # 30 days for heading mappings
+# Note: Headings cache uses AIRAC-based invalidation via cache module
 
 
 # --- Data Structures ---
@@ -267,43 +266,31 @@ def _save_procedures_cache(procedures: list[ProcedureInfo]) -> None:
         pass
 
 
-def _get_headings_cache_path(uuid: str) -> Path:
-    """Get cache file path for procedure headings."""
-    safe_uuid = uuid.replace("/", "_").replace("\\", "_")
-    return HEADINGS_CACHE_DIR / f"{safe_uuid}.json"
-
-
 def _load_headings_cache(uuid: str) -> list[HeadingInfo] | None:
-    """Load cached headings for a procedure."""
-    cache_path = _get_headings_cache_path(uuid)
-    if not cache_path.exists():
-        return None
+    """Load cached headings for a procedure.
 
-    try:
-        with open(cache_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+    Headings are cached per AIRAC cycle and automatically invalidate
+    when a new cycle begins.
+    """
+    from zoa_ref import cache
 
-        # Check TTL
-        if time.time() - data.get("timestamp", 0) > CACHE_TTL_HEADINGS:
-            return None
-
-        return [HeadingInfo(**h) for h in data.get("headings", [])]
-    except (json.JSONDecodeError, OSError, TypeError):
-        return None
+    airac, _, _ = cache.get_current_airac_cycle()
+    cached = cache.get_cached_headings(uuid, airac)
+    if cached:
+        return [HeadingInfo(**h) for h in cached]
+    return None
 
 
 def _save_headings_cache(uuid: str, headings: list[HeadingInfo]) -> None:
-    """Save headings to cache."""
-    cache_path = _get_headings_cache_path(uuid)
-    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    """Save headings to cache.
 
-    data = {"timestamp": time.time(), "headings": [asdict(h) for h in headings]}
+    Headings are cached per AIRAC cycle and automatically invalidate
+    when a new cycle begins.
+    """
+    from zoa_ref import cache
 
-    try:
-        with open(cache_path, "w", encoding="utf-8") as f:
-            json.dump(data, f)
-    except OSError:
-        pass
+    airac, _, _ = cache.get_current_airac_cycle()
+    cache.cache_headings(uuid, [asdict(h) for h in headings], airac)
 
 
 # --- Similarity Matching ---

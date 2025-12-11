@@ -214,6 +214,12 @@ def fetch_charts_from_api(airport: str) -> list[ChartInfo]:
                 )
             )
 
+    # Cleanup old AIRAC caches (runs periodically, low overhead)
+    if charts:
+        from zoa_ref import cache
+
+        cache.cleanup_old_airac_caches(keep_cycles=2)
+
     return charts
 
 
@@ -532,15 +538,13 @@ def download_and_merge_pdfs(
     pdf_data_list = []
 
     try:
-        # Download all PDFs first
+        # Download all PDFs first (using cache)
         for url in pdf_urls:
-            try:
-                with urllib.request.urlopen(url, timeout=30) as response:
-                    pdf_data = response.read()
-                    pdf_data_list.append(pdf_data)
-            except urllib.error.URLError as e:
-                print(f"Error downloading {url}: {e}")
+            pdf_data = download_pdf(url)
+            if not pdf_data:
+                print(f"Error downloading {url}")
                 return False
+            pdf_data_list.append(pdf_data)
 
         # Auto-detect rotation from first PDF if not specified
         if rotation is None and pdf_data_list:
@@ -595,11 +599,10 @@ def download_and_rotate_pdf(
     import tempfile
     import os
 
-    try:
-        with urllib.request.urlopen(pdf_url, timeout=30) as response:
-            pdf_data = response.read()
-    except urllib.error.URLError as e:
-        print(f"Error downloading {pdf_url}: {e}")
+    # Use cached download
+    pdf_data = download_pdf(pdf_url)
+    if not pdf_data:
+        print(f"Error downloading {pdf_url}")
         return False
 
     # Auto-detect rotation if not specified
@@ -635,21 +638,40 @@ def download_and_rotate_pdf(
             pass
 
 
-def download_pdf(pdf_url: str, timeout: int = 30) -> bytes | None:
-    """Download a PDF from a URL.
+def download_pdf(pdf_url: str, timeout: int = 30, use_cache: bool = True) -> bytes | None:
+    """Download a PDF from a URL, with optional caching.
+
+    PDFs are cached based on AIRAC cycle (extracted from URL) and automatically
+    invalidate when a new cycle begins.
 
     Args:
         pdf_url: URL of the PDF to download
         timeout: Request timeout in seconds
+        use_cache: Whether to use cached data (default: True)
 
     Returns:
         PDF bytes if successful, None otherwise.
     """
+    from zoa_ref import cache
+
+    # Try cache first
+    if use_cache:
+        cached = cache.get_cached_chart_pdf_by_url(pdf_url)
+        if cached:
+            return cached
+
+    # Download fresh
     try:
         with urllib.request.urlopen(pdf_url, timeout=timeout) as response:
-            return response.read()
+            pdf_data = response.read()
     except urllib.error.URLError:
         return None
+
+    # Cache the result
+    if use_cache and pdf_data:
+        cache.cache_chart_pdf_by_url(pdf_url, pdf_data)
+
+    return pdf_data
 
 
 def find_airport_page_in_min_chart(pdf_data: bytes, airport_code: str) -> int | None:

@@ -153,7 +153,27 @@ def extract_runway_from_name(chart_name: str) -> str | None:
 
 
 def analyze_star(chart: ChartInfo) -> StarAnalysis | None:
-    """Analyze a STAR chart to extract waypoints and landing runways."""
+    """Analyze a STAR chart to extract waypoints and landing runways.
+
+    Results are cached per AIRAC cycle for fast repeated lookups.
+    """
+    from zoa_ref import cache
+
+    airac = cache.extract_airac_from_url(chart.pdf_path)
+
+    # Try cache first
+    if airac:
+        cached = cache.get_cached_analysis(
+            chart.faa_ident, chart.chart_name, "star", airac
+        )
+        if cached:
+            return StarAnalysis(
+                name=cached["name"],
+                waypoints=cached["waypoints"],
+                landing_runways=cached["landing_runways"],
+            )
+
+    # Download and analyze
     pdf_data = download_pdf(chart.pdf_path)
     if not pdf_data:
         return None
@@ -162,15 +182,52 @@ def analyze_star(chart: ChartInfo) -> StarAnalysis | None:
     waypoints = extract_waypoints(text)
     landing_runways = extract_landing_runways(text)
 
-    return StarAnalysis(
+    result = StarAnalysis(
         name=chart.chart_name,
         waypoints=waypoints,
         landing_runways=landing_runways,
     )
 
+    # Cache result
+    if airac:
+        cache.cache_analysis(
+            chart.faa_ident,
+            chart.chart_name,
+            "star",
+            {
+                "name": result.name,
+                "waypoints": result.waypoints,
+                "landing_runways": result.landing_runways,
+            },
+            airac,
+        )
+
+    return result
+
 
 def analyze_approach(chart: ChartInfo) -> ApproachAnalysis | None:
-    """Analyze an approach chart to extract entry fix waypoints (IAFs, IFs)."""
+    """Analyze an approach chart to extract entry fix waypoints (IAFs, IFs).
+
+    Results are cached per AIRAC cycle for fast repeated lookups.
+    """
+    from zoa_ref import cache
+
+    airac = cache.extract_airac_from_url(chart.pdf_path)
+
+    # Try cache first
+    if airac:
+        cached = cache.get_cached_analysis(
+            chart.faa_ident, chart.chart_name, "iap", airac
+        )
+        if cached:
+            return ApproachAnalysis(
+                name=cached["name"],
+                runway=cached.get("runway"),
+                iaf_waypoints=cached["iaf_waypoints"],
+                if_waypoints=cached["if_waypoints"],
+            )
+
+    # Download and analyze
     pdf_data = download_pdf(chart.pdf_path)
     if not pdf_data:
         return None
@@ -179,12 +236,29 @@ def analyze_approach(chart: ChartInfo) -> ApproachAnalysis | None:
     iaf_waypoints, if_waypoints = extract_approach_entry_fixes(text)
     runway = extract_runway_from_name(chart.chart_name)
 
-    return ApproachAnalysis(
+    result = ApproachAnalysis(
         name=chart.chart_name,
         runway=runway,
         iaf_waypoints=iaf_waypoints,
         if_waypoints=if_waypoints,
     )
+
+    # Cache result
+    if airac:
+        cache.cache_analysis(
+            chart.faa_ident,
+            chart.chart_name,
+            "iap",
+            {
+                "name": result.name,
+                "runway": result.runway,
+                "iaf_waypoints": result.iaf_waypoints,
+                "if_waypoints": result.if_waypoints,
+            },
+            airac,
+        )
+
+    return result
 
 
 def find_star_chart(charts: list[ChartInfo], star_name: str) -> ChartInfo | None:
