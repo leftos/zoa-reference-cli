@@ -17,6 +17,7 @@ from .commands import (
     handle_sop_command,
     do_position_lookup,
     do_scratchpad_lookup,
+    do_approaches_lookup,
 )
 from .interactive import interactive_mode
 
@@ -185,6 +186,20 @@ def aircraft(query: tuple[str, ...], browser: bool, no_cache: bool):
 @click.argument("query", nargs=-1, required=True)
 def navaid(query: tuple[str, ...]):
     do_navaid_lookup(" ".join(query))
+
+
+@main.command(help=COMMAND_HELP["approaches"].strip())
+@click.argument("airport")
+@click.argument("star_or_fix")
+def approaches(airport: str, star_or_fix: str):
+    do_approaches_lookup(airport, star_or_fix)
+
+
+@main.command("apps", help=COMMAND_HELP["apps"].strip())
+@click.argument("airport")
+@click.argument("star_or_fix")
+def apps(airport: str, star_or_fix: str):
+    do_approaches_lookup(airport, star_or_fix)
 
 
 # --- Procedure/SOP Commands ---

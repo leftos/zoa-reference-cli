@@ -1120,3 +1120,55 @@ def do_list_charts(
             click.echo(f"No {filter_type} charts found for {airport}")
         else:
             click.echo(f"No charts found for {airport}")
+
+
+def do_approaches_lookup(airport: str, star_or_fix: str) -> None:
+    """
+    Look up approaches that connect to a STAR or use a specific fix.
+
+    If star_or_fix ends with a digit (e.g., SCOLA1), it's treated as a STAR.
+    Otherwise (e.g., FMG, KLOCK), it's treated as a fix/waypoint.
+
+    Args:
+        airport: Airport code (e.g., "RNO")
+        star_or_fix: STAR name (e.g., "SCOLA1") or fix name (e.g., "FMG")
+    """
+    from .approaches import (
+        find_connected_approaches,
+        format_connections,
+        is_star_name,
+        find_approaches_by_fix,
+        format_fix_approaches,
+    )
+
+    if is_star_name(star_or_fix):
+        # STAR lookup mode
+        click.echo(f"Analyzing STAR {star_or_fix} for {airport}...")
+
+        star_analysis, connections = find_connected_approaches(airport, star_or_fix)
+
+        if star_analysis is None:
+            click.echo(f"\nCould not find STAR '{star_or_fix}' for {airport}")
+            # Show available STARs
+            charts = fetch_charts_from_api(airport)
+            stars = [c for c in charts if c.chart_code == "STAR" and "CONT." not in c.chart_name]
+            if stars:
+                click.echo("\nAvailable STARs:")
+                for star in stars:
+                    click.echo(f"  - {star.chart_name}")
+            return
+
+        click.echo()
+        click.echo(format_connections(star_analysis, connections))
+    else:
+        # Fix/waypoint lookup mode
+        click.echo(f"Finding approaches via {star_or_fix.upper()} for {airport}...")
+
+        result = find_approaches_by_fix(airport, star_or_fix)
+
+        if result is None:
+            click.echo(f"\nNo charts found for {airport}")
+            return
+
+        click.echo()
+        click.echo(format_fix_approaches(result))

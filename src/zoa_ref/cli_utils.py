@@ -334,6 +334,32 @@ scratch - Alias for 'scratchpad' command
 
 See 'scratchpad --help' for full documentation.
 """,
+    "approaches": """
+approaches - Find approaches connected to a STAR or fix
+
+Analyzes charts to find approach procedures that connect directly via
+shared waypoints. Supports two modes:
+
+1. STAR mode (name ends with digit): Find approaches from a STAR
+2. Fix mode (no trailing digit): Find approaches using a specific fix
+
+When a STAR endpoint or fix matches an IAF/IF on an approach, aircraft
+can fly directly to the approach without vectors.
+
+\b
+Examples:
+  approaches RNO SCOLA1        - Find approaches for SCOLA ONE STAR
+  approaches OAK EMZOH4        - Find approaches for EMZOH FOUR STAR
+  approaches RNO KLOCK         - Find approaches via KLOCK fix
+  approaches OAK MYSHN         - Find approaches via MYSHN fix
+
+Alias: 'apps' is a shorthand for 'approaches'
+""",
+    "apps": """
+apps - Alias for 'approaches' command
+
+See 'approaches --help' for full documentation.
+""",
 }
 
 

@@ -22,6 +22,7 @@ from .commands import (
     handle_sop_command,
     do_position_lookup,
     do_scratchpad_lookup,
+    do_approaches_lookup,
 )
 from .icao import CodesPage
 from .input import create_prompt_session, prompt_with_history
@@ -335,6 +336,18 @@ def _handle_navaid_interactive(args: str) -> None:
     do_navaid_lookup(" ".join(parsed.positional))
 
 
+def _handle_approaches_interactive(args: str) -> None:
+    """Handle 'approaches <airport> <star_or_fix>' command in interactive mode."""
+    parsed = parse_interactive_args(args)
+    if parsed.show_help or len(parsed.positional) < 2:
+        from .cli import main
+
+        print_command_help("approaches", main)
+        return
+
+    do_approaches_lookup(parsed.positional[0], parsed.positional[1])
+
+
 # Command registry: maps command prefix to (handler, prefix_length, needs_context)
 # needs_context indicates whether the handler requires InteractiveContext
 INTERACTIVE_COMMANDS: dict[str, tuple] = {
@@ -348,6 +361,8 @@ INTERACTIVE_COMMANDS: dict[str, tuple] = {
     "airport ": (_handle_airport_interactive, 8, True),
     "aircraft ": (_handle_aircraft_interactive, 9, True),
     "navaid ": (_handle_navaid_interactive, 7, False),
+    "approaches ": (_handle_approaches_interactive, 11, False),
+    "apps ": (_handle_approaches_interactive, 5, False),
     "position ": (_handle_position_interactive, 9, True),
     "pos ": (_handle_position_interactive, 4, True),
     "scratchpad ": (_handle_scratchpad_interactive, 11, True),
