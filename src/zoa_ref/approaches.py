@@ -4,6 +4,10 @@ This module finds approach procedures (IAPs) that connect directly to a given
 STAR via shared waypoints. When a STAR's waypoint matches an IAF (Initial
 Approach Fix) on an approach, aircraft can fly directly from the STAR to the
 approach without requiring radar vectors.
+
+Uses a hybrid approach:
+- STAR waypoints: Fetched from navdata API (reliable, structured data)
+- Approach IAF/IFs: Extracted via OCR from PDF charts (until API available)
 """
 
 import io
@@ -11,6 +15,7 @@ import re
 from dataclasses import dataclass
 
 from zoa_ref.charts import ChartInfo, fetch_charts_from_api, download_pdf
+from zoa_ref.navdata import get_star_data
 
 
 # Noise words that appear in airport names or common text, not actual waypoints
@@ -152,10 +157,40 @@ def extract_runway_from_name(chart_name: str) -> str | None:
     return None
 
 
-def analyze_star(chart: ChartInfo) -> StarAnalysis | None:
-    """Analyze a STAR chart to extract waypoints and landing runways.
+def analyze_star_from_navdata(airport: str, star_name: str) -> StarAnalysis | None:
+    """Analyze a STAR using the navdata API.
 
+    This is the preferred method as it provides reliable, structured data.
+
+    Args:
+        airport: Airport code (e.g., "RNO")
+        star_name: STAR name (e.g., "SCOLA1", "SCOLA ONE")
+
+    Returns:
+        StarAnalysis with waypoints, or None if not found in API
+    """
+    star_data = get_star_data(airport, star_name)
+    if not star_data:
+        return None
+
+    return StarAnalysis(
+        name=star_data.identifier,
+        waypoints=star_data.waypoints,
+        landing_runways=[],  # Not available from navdata API
+    )
+
+
+def analyze_star_from_chart(chart: ChartInfo) -> StarAnalysis | None:
+    """Analyze a STAR chart via OCR to extract waypoints and landing runways.
+
+    This is the fallback method when navdata API doesn't have the STAR.
     Results are cached per AIRAC cycle for fast repeated lookups.
+
+    Args:
+        chart: ChartInfo for the STAR chart
+
+    Returns:
+        StarAnalysis with waypoints and landing runways, or None if failed
     """
     from zoa_ref import cache
 
@@ -173,7 +208,7 @@ def analyze_star(chart: ChartInfo) -> StarAnalysis | None:
                 landing_runways=cached["landing_runways"],
             )
 
-    # Download and analyze
+    # Download and analyze via OCR
     pdf_data = download_pdf(chart.pdf_path)
     if not pdf_data:
         return None
@@ -203,6 +238,30 @@ def analyze_star(chart: ChartInfo) -> StarAnalysis | None:
         )
 
     return result
+
+
+def analyze_star(chart: ChartInfo, airport: str | None = None) -> StarAnalysis | None:
+    """Analyze a STAR to extract waypoints.
+
+    Uses a hybrid approach:
+    1. Try navdata API first (reliable, structured data)
+    2. Fall back to OCR from PDF chart if API doesn't have the data
+
+    Args:
+        chart: ChartInfo for the STAR chart
+        airport: Airport code (required for navdata API lookup)
+
+    Returns:
+        StarAnalysis with waypoints, or None if analysis failed
+    """
+    # Try navdata API first if we have the airport code
+    if airport:
+        navdata_result = analyze_star_from_navdata(airport, chart.chart_name)
+        if navdata_result:
+            return navdata_result
+
+    # Fall back to OCR
+    return analyze_star_from_chart(chart)
 
 
 def analyze_approach(chart: ChartInfo) -> ApproachAnalysis | None:
@@ -307,6 +366,10 @@ def find_connected_approaches(
     """
     Find approaches that connect directly to a given STAR.
 
+    Uses a hybrid approach for STAR analysis:
+    - Primary: navdata API (reliable, structured data)
+    - Fallback: OCR from PDF chart
+
     Args:
         airport: Airport code (e.g., "RNO")
         star_name: STAR name or abbreviation (e.g., "SCOLA1", "SCOLA ONE")
@@ -321,13 +384,13 @@ def find_connected_approaches(
     if not charts:
         return None, []
 
-    # Find the specified STAR
+    # Find the specified STAR chart (needed for fallback OCR)
     star_chart = find_star_chart(charts, star_name)
     if not star_chart:
         return None, []
 
-    # Analyze the STAR
-    star_analysis = analyze_star(star_chart)
+    # Analyze the STAR (tries navdata API first, falls back to OCR)
+    star_analysis = analyze_star(star_chart, airport=airport)
     if not star_analysis:
         return None, []
 
