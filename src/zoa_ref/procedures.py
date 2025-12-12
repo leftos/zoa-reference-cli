@@ -298,7 +298,7 @@ def _save_headings_cache(uuid: str, headings: list[HeadingInfo]) -> None:
 # Airport code to city name aliases for better matching
 AIRPORT_ALIASES = {
     "SFO": "SAN FRANCISCO",
-    "OAK": "OAKLAND",
+    "OAK": "OAKLAND ATCT",
     "SJC": "SAN JOSE",
     "SMF": "SACRAMENTO",
     "RNO": "RENO",
@@ -515,7 +515,6 @@ PROCEDURE_ALIASES: dict[str, list[str]] = {
     "NCT": ["NORCAL TRACON", "NORTHERN CALIFORNIA TRACON"],
     "NORCAL": ["NCT", "NORTHERN CALIFORNIA TRACON"],
     "ZOA": ["OAKLAND CENTER"],
-    "OAKLAND": ["ZOA"],
 }
 
 
