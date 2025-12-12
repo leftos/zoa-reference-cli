@@ -496,15 +496,19 @@ def detect_rotation_needed(pdf_data: bytes) -> int:
     if total == 0:
         return 0
 
-    # Check for 90° rotation need (text is rotated CCW, needs CW page rotation)
+    # Group angles into orientation buckets
     rotated_90 = sum(angles.get(a, 0) for a in [80, 90, 100])
-    if rotated_90 / total > 0.50:
-        return 90  # Rotate page clockwise
-
-    # Check for -90° rotation need (text is rotated CW, needs CCW page rotation)
     rotated_neg90 = sum(angles.get(a, 0) for a in [-80, -90, -100])
-    if rotated_neg90 / total > 0.50:
-        return -90  # Rotate page counter-clockwise
+    upright = sum(angles.get(a, 0) for a in [-10, 0, 10])
+
+    # Check for 90° rotation need: ~90° is the dominant orientation
+    # (more text at 90° than at 0°, indicating chart needs clockwise rotation)
+    if rotated_90 > upright and rotated_90 >= rotated_neg90:
+        return 90
+
+    # Check for -90° rotation need: ~-90° is the dominant orientation
+    if rotated_neg90 > upright and rotated_neg90 > rotated_90:
+        return -90
 
     return 0
 
