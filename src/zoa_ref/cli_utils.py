@@ -81,6 +81,8 @@ INTERACTIVE_HELP_COMMANDS = [
     "  chart <query>             - Same as above (explicit)",
     "  charts <query>            - Browse charts in browser",
     "  list <airport> [type] [search] - List/search charts for an airport",
+    "Approaches:",
+    "  approaches|apps <apt> <star_or_fix> - Find approaches for a STAR/fix",
     "ICAO Codes:",
     "  airline <query>           - Look up airline codes (e.g., airline UAL)",
     "  airport <query>           - Look up airport codes (e.g., airport KSFO)",
