@@ -321,42 +321,35 @@ def analyze_approach(chart: ChartInfo) -> ApproachAnalysis | None:
 
 
 def find_star_chart(charts: list[ChartInfo], star_name: str) -> ChartInfo | None:
-    """Find a STAR chart by name (fuzzy match)."""
-    star_name_upper = star_name.upper()
+    """Find a STAR chart by name using the same fuzzy matching as chart lookup.
 
-    # Filter to only STAR charts
+    This uses ChartQuery.parse to normalize the name (e.g., CCR2 -> CCR TWO)
+    and find_chart_by_name for fuzzy matching (e.g., CCR TWO -> CONCORD TWO).
+    """
+    from zoa_ref.charts import ChartQuery, ChartType, find_chart_by_name
+
+    # Filter to only STAR charts (excluding continuation pages)
     stars = [c for c in charts if c.chart_code == "STAR" and "CONT." not in c.chart_name]
 
-    # Exact match first
-    for star in stars:
-        if star_name_upper == star.chart_name.upper():
-            return star
+    if not stars:
+        return None
 
-    # Partial match (e.g., "SCOLA1" matches "SCOLA ONE (RNAV)")
-    # Normalize digits to words for matching
-    number_words = {
-        "1": "ONE", "2": "TWO", "3": "THREE", "4": "FOUR", "5": "FIVE",
-        "6": "SIX", "7": "SEVEN", "8": "EIGHT", "9": "NINE",
-    }
+    # Create a query with the STAR name - use a dummy airport since we already have charts
+    # The ChartQuery.parse normalizes the name (e.g., "CCR2" -> "CCR TWO")
+    try:
+        query = ChartQuery.parse(f"XXX {star_name}")
+        # Force the chart type to STAR for proper matching
+        query = ChartQuery(
+            airport=query.airport,
+            chart_name=query.chart_name,
+            chart_type=ChartType.STAR,
+        )
+    except ValueError:
+        return None
 
-    # Convert "SCOLA1" to "SCOLA ONE"
-    normalized = star_name_upper
-    match = re.match(r"^([A-Z]+)(\d)$", star_name_upper)
-    if match:
-        base = match.group(1)
-        digit = match.group(2)
-        normalized = f"{base} {number_words.get(digit, digit)}"
-
-    for star in stars:
-        chart_upper = star.chart_name.upper()
-        # Check if normalized name is a prefix of the chart name
-        if chart_upper.startswith(normalized):
-            return star
-        # Also check if the base name matches
-        if normalized.split()[0] in chart_upper:
-            return star
-
-    return None
+    # Use the same fuzzy matching as chart lookup
+    matched_star, _ = find_chart_by_name(stars, query)
+    return matched_star
 
 
 def find_connected_approaches(
