@@ -742,7 +742,7 @@ def do_atis_lookup(
 
 def do_chart_lookup(
     query_str: str,
-    headless: bool = False,
+    link_only: bool = False,
     rotation: int | None = None,
     visible_session: "BrowserSession | None" = None,
 ) -> str | None:
@@ -750,7 +750,7 @@ def do_chart_lookup(
 
     Args:
         query_str: The chart query string (e.g., "OAK CNDEL5")
-        headless: If True, just output the PDF URL; otherwise open in browser
+        link_only: If True, just output the PDF URL; otherwise open in browser
         rotation: Rotation angle in degrees (0, 90, 180, 270).
                   If None, auto-detects from text orientation.
         visible_session: Playwright session for tab management (interactive mode)
@@ -783,8 +783,8 @@ def do_chart_lookup(
                 else:
                     click.echo(f"  {parsed.airport} not found in document")
 
-        if headless:
-            # In headless mode, just output URL(s)
+        if link_only:
+            # Just output URL(s), don't open
             for url in pdf_urls:
                 click.echo(url)
             return pdf_urls[0]
@@ -822,7 +822,7 @@ def do_chart_lookup(
                     else:
                         click.echo(f"  {parsed.airport} not found in document")
 
-            if headless:
+            if link_only:
                 for url in pdf_urls:
                     click.echo(url)
                 return pdf_urls[0]

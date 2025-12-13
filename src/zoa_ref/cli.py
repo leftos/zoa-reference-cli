@@ -62,7 +62,7 @@ def main(ctx, playwright: bool):
 @main.command(help=COMMAND_HELP["chart"].strip())
 @click.argument("query", nargs=-1, required=True)
 @click.option(
-    "--headless", is_flag=True, help="Run browser in headless mode (outputs PDF URL)"
+    "--link", "-l", "link_only", is_flag=True, help="Output PDF URL only (don't open)"
 )
 @click.option("-r", "rotate_flag", is_flag=True, help="Rotate chart 90")
 @click.option(
@@ -74,7 +74,7 @@ def main(ctx, playwright: bool):
 @click.option("--no-rotate", is_flag=True, help="Disable auto-rotation")
 def chart(
     query: tuple[str, ...],
-    headless: bool,
+    link_only: bool,
     rotate_flag: bool,
     rotate: str | None,
     no_rotate: bool,
@@ -87,7 +87,7 @@ def chart(
         rotation = 0
     else:
         rotation = None  # Auto-detect
-    do_chart_lookup(" ".join(query), headless=headless, rotation=rotation)
+    do_chart_lookup(" ".join(query), link_only=link_only, rotation=rotation)
 
 
 @main.command(help=COMMAND_HELP["charts"].strip())

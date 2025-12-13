@@ -190,11 +190,15 @@ def _handle_aircraft_interactive(args: str, ctx: InteractiveContext) -> None:
 def _handle_chart_interactive(query: str, ctx: InteractiveContext) -> None:
     """Handle implicit chart lookup in interactive mode.
 
-    Supports flags: -r (rotate 90), --rotate 90/180/270, --no-rotate
+    Supports flags: -r (rotate 90), --rotate 90/180/270, --no-rotate, --link/-l
     """
     parsed = parse_interactive_args(
         query,
-        flag_defs={"rotate_flag": ("-r",), "no_rotate": ("--no-rotate",)},
+        flag_defs={
+            "rotate_flag": ("-r",),
+            "no_rotate": ("--no-rotate",),
+            "link_only": ("--link", "-l"),
+        },
         option_defs={"rotate": ("--rotate",)},
     )
 
@@ -214,13 +218,18 @@ def _handle_chart_interactive(query: str, ctx: InteractiveContext) -> None:
     else:
         rotation = None  # Auto-detect
 
-    # Get session if in playwright mode
+    link_only = parsed.flags.get("link_only", False)
+
+    # Get session if in playwright mode (not needed if link_only)
     visible_session = (
-        ctx.get_or_create_visible_session() if ctx.use_playwright else None
+        ctx.get_or_create_visible_session()
+        if ctx.use_playwright and not link_only
+        else None
     )
 
     do_chart_lookup(
         " ".join(parsed.positional),
+        link_only=link_only,
         rotation=rotation,
         visible_session=visible_session,
     )
