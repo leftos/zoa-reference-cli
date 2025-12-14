@@ -545,13 +545,11 @@ def do_icao_lookup(
 
     if browser:
         # Browser mode: open codes page in visible browser
-        own_session = headless_session is None
-        if own_session:
+        if headless_session is None:
             session = BrowserSession(headless=False)
             session.start()
         else:
             # Create visible child session from headless
-            assert headless_session is not None
             session = headless_session.create_child_session(headless=False)
 
         try:
@@ -568,8 +566,8 @@ def do_icao_lookup(
                     page,
                 )
         finally:
-            if own_session:
-                session.stop()
+            # Always stop the session - it was created specifically for this command
+            session.stop()
     else:
         # CLI mode: search and display
         if codes_page is not None:
@@ -630,13 +628,11 @@ def do_route_lookup(
 
     if browser:
         # Browser mode: open routes page in visible browser
-        own_session = headless_session is None
-        if own_session:
+        if headless_session is None:
             session = BrowserSession(headless=False)
             session.start()
         else:
             # Create visible child session from headless
-            assert headless_session is not None
             session = headless_session.create_child_session(headless=False)
 
         try:
@@ -653,8 +649,8 @@ def do_route_lookup(
                     page,
                 )
         finally:
-            if own_session:
-                session.stop()
+            # Always stop the session - it was created specifically for this command
+            session.stop()
     else:
         # CLI mode: scrape and display
         own_session = headless_session is None
@@ -911,12 +907,10 @@ def do_position_lookup(
 
     if browser:
         # Browser mode: open positions page in visible browser
-        own_session = headless_session is None
-        if own_session:
+        if headless_session is None:
             session = BrowserSession(headless=False)
             session.start()
         else:
-            assert headless_session is not None
             session = headless_session.create_child_session(headless=False)
 
         try:
@@ -933,8 +927,8 @@ def do_position_lookup(
                     page,
                 )
         finally:
-            if own_session:
-                session.stop()
+            # Always stop the session - it was created specifically for this command
+            session.stop()
     else:
         # CLI mode: search and display
         own_session = headless_session is None

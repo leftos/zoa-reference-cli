@@ -5,13 +5,16 @@ import io
 import os
 import shlex
 import subprocess
-import threading
+import sys
 import time
 import webbrowser
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import click
+
+if sys.platform == "win32":
+    import msvcrt
 
 from .browser import BrowserSession
 from .icao import CodesPage
@@ -593,6 +596,31 @@ def is_page_alive(page) -> bool:
         return False
 
 
+def _has_input_ready() -> bool:
+    """Check if input is available without blocking.
+
+    Returns True if there's input ready to read (user pressed a key).
+    """
+    if sys.platform == "win32":
+        return msvcrt.kbhit()
+    else:
+        import select
+
+        return bool(select.select([sys.stdin], [], [], 0)[0])
+
+
+def _consume_line() -> None:
+    """Consume a line of input (after detecting input is ready)."""
+    if sys.platform == "win32":
+        # Read characters until we get Enter
+        while True:
+            ch = msvcrt.getwch()
+            if ch in "\r\n":
+                break
+    else:
+        sys.stdin.readline()
+
+
 def wait_for_input_or_close(
     session: BrowserSession,
     prompt: str = "Press Enter to close browser...",
@@ -600,20 +628,13 @@ def wait_for_input_or_close(
 ) -> bool:
     """Wait for user input or browser/page close.
 
+    Uses non-blocking input polling to avoid leaving a blocking input() call
+    in a background thread, which can interfere with prompt_toolkit when
+    returning to interactive mode.
+
     Returns True if browser/page was closed by user, False if Enter was pressed.
     """
-    input_received = threading.Event()
-
-    def wait_for_input():
-        try:
-            input()
-            input_received.set()
-        except EOFError:
-            input_received.set()
-
     click.echo(prompt)
-    input_thread = threading.Thread(target=wait_for_input, daemon=True)
-    input_thread.start()
 
     while True:
         # Check if browser disconnected or page was closed
@@ -623,8 +644,12 @@ def wait_for_input_or_close(
         if page is not None and not is_page_alive(page):
             click.echo("\nBrowser closed.")
             return True
-        if input_received.is_set():
+
+        # Check for keyboard input (non-blocking)
+        if _has_input_ready():
+            _consume_line()
             return False
+
         time.sleep(0.1)
 
 
