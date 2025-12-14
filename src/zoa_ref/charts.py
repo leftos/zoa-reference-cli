@@ -339,11 +339,13 @@ def find_chart_by_name(
             # Only one match has all query tokens - auto-select it
             return full_matches[0].chart, matches
         elif len(full_matches) > 1:
-            # Multiple matches have all tokens - check ambiguity among them
-            full_matches.sort(key=lambda m: m.score, reverse=True)
-            if full_matches[0].score - full_matches[1].score >= ambiguity_threshold:
-                return full_matches[0].chart, matches
-            # Ambiguous among full matches
+            # Multiple matches have all tokens
+            # Check for exact match first
+            for m in full_matches:
+                if m.chart.chart_name.upper() == chart_name_upper:
+                    return m.chart, matches
+            # No exact match - treat as ambiguous
+            # (score differences often just reflect name length, not match quality)
             return None, full_matches
 
     # Check for ambiguity
