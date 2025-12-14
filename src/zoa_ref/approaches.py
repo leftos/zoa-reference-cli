@@ -31,6 +31,18 @@ NOISE_WORDS = {
     "ROUTE",
 }
 
+# Short noise words that appear near IAF/IF markers but aren't navaids
+# These are common 2-4 letter words that could be false positives
+SHORT_NOISE_WORDS = {
+    "IAF", "IAP", "IF", "DME", "NM", "RWY", "CAT", "VOR", "NDB",
+    "ILS", "LOC", "GS", "GPS", "LPV", "LNAV", "VNAV", "MDA", "DA",
+    "HAT", "HAA", "TCH", "TDZ", "TDZE", "MSA", "TAA", "MIN", "ALT",
+    "MAX", "ADF", "VGSI", "PAPI", "VASI", "REIL", "HIRL", "MIRL",
+    "MALSR", "ALSF", "APT", "ARPT", "TWR", "ATIS", "CTAF", "ASOS",
+    "AND", "THE", "FOR", "ALL", "NOT", "USE", "SEE", "MAP",
+    "ELEV", "INT", "FT", "KT", "HDG", "CRS", "DEG", "FAF", "MAP",
+}
+
 
 @dataclass
 class ApproachConnection:
@@ -134,7 +146,10 @@ def extract_approach_entry_fixes(text: str) -> tuple[list[str], list[str]]:
 
 
 def _extract_nearby_waypoints(lines: list[str], index: int, waypoint_list: list[str]) -> None:
-    """Extract 5-letter waypoints from lines adjacent to the given index."""
+    """Extract waypoints from lines adjacent to the given index.
+
+    Looks for both 5-letter RNAV waypoints and 2-4 letter navaid identifiers.
+    """
     check_lines = []
     if index > 0:
         check_lines.append(lines[index - 1])
@@ -143,10 +158,17 @@ def _extract_nearby_waypoints(lines: list[str], index: int, waypoint_list: list[
         check_lines.append(lines[index + 1])
 
     for check_line in check_lines:
+        # Match 5-letter waypoints (RNAV fixes)
         waypoints_nearby = re.findall(r'\b([A-Z]{5})\b', check_line)
         for wp in waypoints_nearby:
             if wp not in NOISE_WORDS and wp not in waypoint_list:
                 waypoint_list.append(wp)
+
+        # Match 2-4 letter identifiers (navaids like VORs, NDBs)
+        navaids_nearby = re.findall(r'\b([A-Z]{2,4})\b', check_line)
+        for nav in navaids_nearby:
+            if nav not in SHORT_NOISE_WORDS and nav not in waypoint_list:
+                waypoint_list.append(nav)
 
 
 def extract_runway_from_name(chart_name: str) -> str | None:
