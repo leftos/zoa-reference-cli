@@ -165,7 +165,8 @@ def _extract_nearby_waypoints(lines: list[str], index: int, waypoint_list: list[
                 waypoint_list.append(wp)
 
         # Match 2-4 letter identifiers (navaids like VORs, NDBs)
-        navaids_nearby = re.findall(r'\b([A-Z]{2,4})\b', check_line)
+        # Exclude identifiers followed by numbers (DME distances like "FMG 19")
+        navaids_nearby = re.findall(r'\b([A-Z]{2,4})\b(?!\s*\d)', check_line)
         for nav in navaids_nearby:
             if nav not in SHORT_NOISE_WORDS and nav not in waypoint_list:
                 waypoint_list.append(nav)
