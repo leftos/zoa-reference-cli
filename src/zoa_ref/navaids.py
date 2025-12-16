@@ -157,6 +157,35 @@ def get_navaid_identifier(name: str) -> str | None:
     return name_to_ident.get(name.upper())
 
 
+def get_all_navaid_identifiers(name: str) -> list[str]:
+    """
+    Look up all navaid identifiers that have a given name.
+
+    Since multiple navaids can share the same name (e.g., "CONCORD" exists
+    as both CCR and CON in different locations), this returns all matching
+    identifiers.
+
+    Args:
+        name: Navaid name (e.g., "CONCORD")
+
+    Returns:
+        List of navaid identifiers (e.g., ["CCR", "CON"]).
+    """
+    features = _load_navaid_features()
+    name_upper = name.upper()
+    identifiers = []
+
+    for feature in features:
+        props = feature.get("properties", {})
+        ident = props.get("IDENT", "")
+        navaid_name = props.get("NAME_TXT", "")
+
+        if ident and navaid_name and navaid_name.upper() == name_upper:
+            identifiers.append(ident.upper())
+
+    return identifiers
+
+
 def get_navaid_name(ident: str) -> str | None:
     """
     Look up a navaid name by its identifier.

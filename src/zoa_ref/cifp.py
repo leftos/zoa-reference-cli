@@ -490,6 +490,7 @@ def get_star_data(airport: str, star_name: str) -> CifpSTAR | None:
     # Normalize STAR name - extract base name and number
     # "SCOLA1" -> base="SCOLA", num="1"
     # "SCOLA ONE" -> base="SCOLA", num="1"
+    # "CONCORD TWO" -> base="CONCORD", num="2" -> also try "CCR2" (navaid identifier)
     star_match = re.match(r"^([A-Z]+)\s*(\d|ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE)$", star_name)
     if star_match:
         base_name = star_match.group(1)
@@ -502,8 +503,18 @@ def get_star_data(airport: str, star_name: str) -> CifpSTAR | None:
         if num_part in word_to_digit:
             num_part = word_to_digit[num_part]
         star_id_prefix = f"{base_name}{num_part}"
+
+        # Also try navaid identifiers if base_name is a navaid name
+        # e.g., "CONCORD" -> ["CCR", "CON"] so "CONCORD2" -> try "CCR2", "CON2"
+        from zoa_ref.navaids import get_all_navaid_identifiers
+        navaid_idents = get_all_navaid_identifiers(base_name)
+        star_id_prefixes = [star_id_prefix]
+        for navaid_ident in navaid_idents:
+            if navaid_ident != base_name:
+                star_id_prefixes.append(f"{navaid_ident}{num_part}")
     else:
         star_id_prefix = star_name
+        star_id_prefixes = [star_id_prefix]
 
     search_prefix = f"SUSAP K{airport}"
 
@@ -522,7 +533,7 @@ def get_star_data(airport: str, star_name: str) -> CifpSTAR | None:
             star_id, transition, fix_id, sequence = result
 
             # Check if this matches our STAR (e.g., "SCOLA14" or "SCOLA15" for SCOLA1)
-            if not star_id.startswith(star_id_prefix):
+            if not any(star_id.startswith(prefix) for prefix in star_id_prefixes):
                 continue
 
             if transition not in star_records:
