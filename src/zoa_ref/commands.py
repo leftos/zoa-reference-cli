@@ -1075,6 +1075,10 @@ def do_list_charts(
 
     charts_list = fetch_charts_from_api(airport)
 
+    # Filter out continuation pages (CONT.1, CONT.2, etc.) - they are merged automatically
+    if charts_list:
+        charts_list = [c for c in charts_list if ", CONT." not in c.chart_name]
+
     # Filter by chart type if specified
     if filter_type and charts_list:
         charts_list = [c for c in charts_list if c.chart_code == filter_type]
