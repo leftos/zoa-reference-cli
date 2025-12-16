@@ -20,7 +20,7 @@ uv venv && uv pip install -e .
 .venv/Scripts/zoa list OAK DP           # List departure procedures (aliases: SID)
 .venv/Scripts/zoa list OAK STAR         # List arrivals (also: IAP/APP, APD/TAXI)
 
-# Routes, ATIS, ICAO, Navaids
+# Routes, ATIS, ICAO, Navaids, Positions
 .venv/Scripts/zoa route SFO LAX         # Route lookup
 .venv/Scripts/zoa atis SFO              # Single airport ATIS
 .venv/Scripts/zoa atis --all            # All airports ATIS
@@ -29,6 +29,19 @@ uv venv && uv pip install -e .
 .venv/Scripts/zoa aircraft B738         # Aircraft type lookup
 .venv/Scripts/zoa navaid FMG            # Navaid lookup by identifier
 .venv/Scripts/zoa navaid MUSTANG        # Navaid lookup by name
+.venv/Scripts/zoa position NCT          # ATC position lookup
+.venv/Scripts/zoa scratchpad OAK        # Scratchpad codes lookup
+
+# Approaches and Tools
+.venv/Scripts/zoa approaches RNO SCOLA1 # Find approaches for STAR
+.venv/Scripts/zoa apps RNO KLOCK        # Find approaches via fix
+.venv/Scripts/zoa descent 100 020       # Descent calc: 10,000 to 2,000
+.venv/Scripts/zoa des 100 12.5          # Altitude at 12.5nm from FL100
+
+# External Tools
+.venv/Scripts/zoa vis                   # Open airspace visualizer
+.venv/Scripts/zoa tdls RNO              # Open TDLS for facility
+.venv/Scripts/zoa strips NCT            # Open flight strips
 
 # SOPs/Procedures
 .venv/Scripts/zoa sop OAK               # Open OAK SOP
@@ -54,9 +67,14 @@ Modules in `src/zoa_ref/`:
 - **atis.py**: ATIS for SFO/SJC/RNO/OAK/SMF (no caching - time-sensitive)
 - **icao.py**: Airline/airport/aircraft lookups with cache (`~/.zoa-ref/cache/`, 7-day TTL). `CodesPage` for persistent page reuse
 - **navaids.py**: Navaid lookup from local GeoJSON (`NAVAID_System.geojson`). Also provides navaid aliasing for chart lookup (e.g., "FMG1" → "MUSTANG1")
+- **positions.py**: ATC position lookup (name, TCP, callsign, frequency). Cached.
+- **scratchpads.py**: STARS scratchpad code lookup per facility. Cached.
+- **approaches.py**: Analyzes STAR endpoints and approach IAFs/IFs to find connections
+- **descent.py**: 3-degree glideslope calculator (~318 ft/nm)
 - **display.py**: Output formatting for all result types
 - **input.py**: Prompt session with history, disambiguation prompts
 - **cli_utils.py**: Help text, argument parsing utilities, `InteractiveContext`
+- **config.py**: Centralized constants (cache dir, TTL, base URLs, external tool URLs)
 
 ## Key Patterns
 
@@ -69,12 +87,16 @@ Modules in `src/zoa_ref/`:
 - `chart` uses API (fast); `charts` uses browser (browsing)
 - Interactive mode: headless session for ICAO, visible for charts
 - SOP section lookup: extracts PDF text, matches headings, opens at page
+- Approaches: detects STAR vs fix by trailing digit; parses chart PDFs for waypoints
+- Descent: FL-style altitudes (100 = 10,000), mode determined by second arg format
 
 ## Data Sources
 
 - Charts API: `charts-api.oakartcc.org/v1/charts?apt=<airport>`
-- Reference Tool: `reference.oakartcc.org/{charts,routes,atis,codes}`
+- Reference Tool: `reference.oakartcc.org/{charts,routes,atis,codes,positions,scratchpads}`
 - SOP PDFs: Linked from Reference Tool procedures page
+- Navaids: Local GeoJSON (`data/NAVAID_System.geojson`)
+- External tools: `airspace.oakartcc.org`, `tdls.virtualnas.net`, `strips.virtualnas.net`
 
 ## Workflow
 

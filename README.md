@@ -48,7 +48,7 @@ zoa OAK CNDEL5            # Implicit chart lookup (no 'chart' needed)
 zoa chart OAK CNDEL5      # CNDEL FIVE departure - opens PDF directly
 zoa chart SFO ILS 28L     # ILS RWY 28L approach at SFO
 zoa chart SJC RNAV 30L    # RNAV approach to runway 30L
-zoa chart OAK ILS 28R --headless  # Output PDF URL only
+zoa chart OAK ILS 28R -l  # Output PDF URL only (--link)
 ```
 
 The tool automatically:
@@ -78,11 +78,16 @@ Unlike `chart`, this keeps you on the Reference Tool page to explore other chart
 
 ### List Charts
 
-List all available charts for an airport:
+List all available charts for an airport, optionally filtered by type or content:
 
 ```bash
-zoa list OAK
-zoa list SFO
+zoa list OAK               # List all OAK charts
+zoa list SFO DP            # List departure procedures (aliases: SID)
+zoa list OAK STAR          # List arrivals
+zoa list SJC IAP           # List instrument approaches (aliases: APP)
+zoa list RNO APD           # List airport diagrams (aliases: TAXI)
+zoa list SMF APP TENCO     # Search approaches for 'TENCO' text
+zoa list OAK DP PORTE      # Search departures for 'PORTE' text
 ```
 
 ### Route Lookup
@@ -173,6 +178,85 @@ zoa aircraft B738 --no-cache # Bypass cache
 
 Results include type designator, manufacturer, model, engine type, FAA weight class, CWT, SRS, and LAHSO category.
 
+### Navaid Lookup
+
+Search for navaids by identifier or name:
+
+```bash
+zoa navaid FMG            # Search by identifier (MUSTANG VORTAC)
+zoa navaid MUSTANG        # Search by name
+zoa navaid SFO            # Search for San Francisco VOR
+zoa navaid OAKLAND        # Search by city/name (partial match)
+```
+
+Results include type (VOR, VORTAC, TACAN, NDB), location, and coordinates.
+
+### Position Lookup
+
+Search for ATC positions by name, TCP code, callsign, or frequency:
+
+```bash
+zoa position NCT           # Search by TCP code
+zoa position 125.35        # Search by frequency
+zoa position "NorCal"      # Search by callsign/name
+zoa position OAK           # Search for Oakland positions
+zoa pos NCT                # 'pos' is an alias for 'position'
+zoa position --browser     # Open positions page in browser
+```
+
+Results include position name, TCP code, callsign, and frequencies.
+
+### Scratchpad Lookup
+
+Look up STARS scratchpad codes for a facility:
+
+```bash
+zoa scratchpad OAK         # Show OAK scratchpads
+zoa scratchpad NCT         # Show NorCal TRACON scratchpads
+zoa scratch OAK            # 'scratch' is an alias for 'scratchpad'
+zoa scratchpad --list      # List available facilities
+```
+
+### Approaches Lookup
+
+Find approaches connected to a STAR or fix:
+
+```bash
+zoa approaches RNO SCOLA1  # Find approaches for SCOLA ONE STAR
+zoa approaches OAK EMZOH4  # Find approaches for EMZOH FOUR STAR
+zoa approaches RNO KLOCK   # Find approaches via KLOCK fix
+zoa apps OAK MYSHN         # 'apps' is an alias for 'approaches'
+```
+
+When a STAR endpoint or fix matches an IAF/IF on an approach, aircraft can fly directly to the approach without vectors.
+
+### Descent Calculator
+
+Calculate descent parameters for a 3-degree glideslope:
+
+```bash
+zoa descent 100 020        # Distance needed: 10,000 ft to 2,000 ft
+zoa des 100 12.5           # Altitude at 12.5 nm from 10,000 ft
+zoa des 100 5              # Altitude at 5 nm from 10,000 ft
+zoa des 080 040            # Distance needed: 8,000 ft to 4,000 ft
+```
+
+Altitudes use FL-style notation (100 = 10,000 ft). The second argument determines mode:
+- 3 digits: target altitude - calculates distance needed
+- 1-2 digits or decimal: distance - calculates altitude at that point
+
+### External Tools
+
+Open ZOA external tools in your browser:
+
+```bash
+zoa vis                    # Open ZOA airspace visualizer
+zoa tdls                   # Open TDLS (Pre-Departure Clearances)
+zoa tdls RNO               # Open TDLS for specific facility
+zoa strips                 # Open flight strips
+zoa strips NCT             # Open flight strips for specific facility
+```
+
 ### Interactive Mode
 
 Run without arguments to enter interactive mode:
@@ -192,7 +276,7 @@ Available interactive commands:
 - `<airport> <chart>` - Look up a chart (e.g., `OAK CNDEL5`)
 - `chart <query>` - Same as above (e.g., `chart OAK CNDEL5`)
 - `charts <query>` - Browse charts in browser (e.g., `charts OAK CNDEL5`)
-- `list <airport>` - List charts for an airport
+- `list <airport> [type] [search]` - List/search charts for an airport
 - `route <dep> <arr>` - Look up routes
 - `atis <airport>` - Look up ATIS (e.g., `atis SFO` or `atis all`)
 - `sop <query>` - Look up SOP/procedure (e.g., `sop OAK IFR`)
@@ -200,13 +284,21 @@ Available interactive commands:
 - `airline <query>` - Look up airline codes
 - `airport <query>` - Look up airport codes
 - `aircraft <query>` - Look up aircraft types
+- `navaid <query>` - Look up navaid (e.g., `navaid FMG`)
+- `position <query>` / `pos <query>` - Look up ATC positions
+- `scratchpad <facility>` / `scratch <facility>` - Look up scratchpads
+- `approaches <airport> <star|fix>` / `apps` - Find approaches for STAR/fix
+- `descent <alt> <alt|nm>` / `des` - Descent calculator
+- `vis` - Open airspace visualizer
+- `tdls [facility]` - Open TDLS
+- `strips [facility]` - Open flight strips
 - `help [command]` - Show help (e.g., `help sop`)
 - `quit` / `exit` / `q` - Exit
 
 ## Options
 
 ### Chart Commands
-- `--headless` - Run browser in headless mode (outputs PDF URL)
+- `-l, --link` - Output PDF URL only (don't open)
 - `-r` - Rotate chart 90°
 - `--rotate 90|180|270` - Rotate chart by specific degrees
 - `--no-rotate` - Disable auto-rotation
@@ -228,6 +320,14 @@ Available interactive commands:
 - `--browser` - Open browser instead of CLI display
 - `--no-cache` - Bypass cache and fetch fresh data
 
+### Position Command
+- `--browser` - Open browser instead of CLI display
+- `--no-cache` - Bypass cache and fetch fresh data
+
+### Scratchpad Command
+- `--list` - List available facilities
+- `--no-cache` - Bypass cache and fetch fresh data
+
 ## Caching
 
-ICAO code lookups (airline, airport, aircraft) are cached locally for 7 days to provide instant lookups. Cache is stored in `~/.zoa-ref/cache/`. Use `--no-cache` to bypass the cache and fetch fresh data.
+ICAO code lookups (airline, airport, aircraft), positions, and scratchpads are cached locally for 7 days to provide instant lookups. Cache is stored in `~/.zoa-ref/cache/`. Use `--no-cache` to bypass the cache and fetch fresh data.
