@@ -78,9 +78,27 @@ def check_python_version() -> bool:
     return True
 
 
+def get_uv_path() -> Path | None:
+    """Get the path to the uv executable, checking PATH and common install locations."""
+    # Check PATH first
+    uv_in_path = shutil.which("uv")
+    if uv_in_path:
+        return Path(uv_in_path)
+
+    # Check common install locations
+    system = platform.system().lower()
+    if system != "windows":
+        # Unix: uv installer puts it in ~/.local/bin
+        local_bin_uv = Path.home() / ".local" / "bin" / "uv"
+        if local_bin_uv.exists():
+            return local_bin_uv
+
+    return None
+
+
 def is_uv_installed() -> bool:
     """Check if uv is installed and accessible."""
-    return shutil.which("uv") is not None
+    return get_uv_path() is not None
 
 
 def install_uv() -> bool:
@@ -134,13 +152,8 @@ def install_uv() -> bool:
             print_success("uv installed successfully")
             return True
 
-        # If uv still not found, it might be installed but not in PATH yet
-        # Try using pip as fallback
-        print_info("uv not in PATH, installing via pip as fallback...")
-        run_command([sys.executable, "-m", "pip", "install", "uv"])
-
-        print_success("uv installed via pip")
-        return True
+        print_error("uv installation completed but executable not found")
+        return False
 
     except Exception as e:
         print_error(f"Failed to install uv: {e}")
@@ -150,9 +163,10 @@ def install_uv() -> bool:
 
 def get_uv_command() -> list[str]:
     """Get the command to run uv."""
-    if shutil.which("uv"):
-        return ["uv"]
-    # Fallback to running as Python module
+    uv_path = get_uv_path()
+    if uv_path:
+        return [str(uv_path)]
+    # Fallback to running as Python module (if installed via pip)
     return [sys.executable, "-m", "uv"]
 
 
