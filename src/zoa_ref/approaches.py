@@ -6,8 +6,8 @@ Approach Fix) on an approach, aircraft can fly directly from the STAR to the
 approach without requiring radar vectors.
 
 Uses a hybrid approach:
-- STAR waypoints: Fetched from navdata API (reliable, structured data)
-- Approach IAF/IFs: Extracted via OCR from PDF charts (until API available)
+- STAR waypoints: Fetched from CIFP data (reliable, structured FAA data)
+- Approach IAF/IFs: Fetched from CIFP data, with PDF fallback
 """
 
 import io
@@ -15,7 +15,6 @@ import re
 from dataclasses import dataclass
 
 from zoa_ref.charts import ChartInfo, fetch_charts_from_api, download_pdf
-from zoa_ref.navdata import get_star_data
 
 
 # Noise words that appear in airport names or common text, not actual waypoints
@@ -72,6 +71,14 @@ class ApproachAnalysis:
     runway: str | None
     iaf_waypoints: list[str]
     if_waypoints: list[str]
+    feeder_waypoints: list[str] | None = None  # Transition entry fixes (feeder routes)
+    feeder_paths: dict[str, str] | None = None  # Feeder fix -> destination IAF/IF
+
+    def __post_init__(self):
+        if self.feeder_waypoints is None:
+            self.feeder_waypoints = []
+        if self.feeder_paths is None:
+            self.feeder_paths = {}
 
     @property
     def entry_fixes(self) -> list[str]:
@@ -180,18 +187,21 @@ def extract_runway_from_name(chart_name: str) -> str | None:
     return None
 
 
-def analyze_star_from_navdata(airport: str, star_name: str) -> StarAnalysis | None:
-    """Analyze a STAR using the navdata API.
+def analyze_star_from_cifp(airport: str, star_name: str) -> StarAnalysis | None:
+    """Analyze a STAR using CIFP data.
 
-    This is the preferred method as it provides reliable, structured data.
+    This is the preferred method as it provides reliable, structured FAA data.
+    CIFP is automatically downloaded once per AIRAC cycle.
 
     Args:
         airport: Airport code (e.g., "RNO")
         star_name: STAR name (e.g., "SCOLA1", "SCOLA ONE")
 
     Returns:
-        StarAnalysis with waypoints, or None if not found in API
+        StarAnalysis with waypoints, or None if not found in CIFP
     """
+    from zoa_ref.cifp import get_star_data
+
     star_data = get_star_data(airport, star_name)
     if not star_data:
         return None
@@ -199,7 +209,7 @@ def analyze_star_from_navdata(airport: str, star_name: str) -> StarAnalysis | No
     return StarAnalysis(
         name=star_data.identifier,
         waypoints=star_data.waypoints,
-        landing_runways=[],  # Not available from navdata API
+        landing_runways=[],  # Not available from CIFP
     )
 
 
@@ -267,30 +277,137 @@ def analyze_star(chart: ChartInfo, airport: str | None = None) -> StarAnalysis |
     """Analyze a STAR to extract waypoints.
 
     Uses a hybrid approach:
-    1. Try navdata API first (reliable, structured data)
-    2. Fall back to OCR from PDF chart if API doesn't have the data
+    1. Try CIFP data first (reliable, structured FAA data)
+    2. Fall back to OCR from PDF chart if CIFP doesn't have the data
 
     Args:
         chart: ChartInfo for the STAR chart
-        airport: Airport code (required for navdata API lookup)
+        airport: Airport code (required for CIFP lookup)
 
     Returns:
         StarAnalysis with waypoints, or None if analysis failed
     """
-    # Try navdata API first if we have the airport code
+    # Try CIFP first if we have the airport code
     if airport:
-        navdata_result = analyze_star_from_navdata(airport, chart.chart_name)
-        if navdata_result:
-            return navdata_result
+        cifp_result = analyze_star_from_cifp(airport, chart.chart_name)
+        if cifp_result:
+            return cifp_result
 
     # Fall back to OCR
     return analyze_star_from_chart(chart)
 
 
-def analyze_approach(chart: ChartInfo) -> ApproachAnalysis | None:
-    """Analyze an approach chart to extract entry fix waypoints (IAFs, IFs).
+def analyze_approach_from_cifp(airport: str, chart_name: str) -> ApproachAnalysis | None:
+    """Analyze an approach using CIFP data.
 
+    This is the preferred method as it provides reliable, structured FAA data.
+    CIFP is automatically downloaded once per AIRAC cycle.
+
+    Args:
+        airport: Airport code (e.g., "RNO", "OAK")
+        chart_name: Chart name (e.g., "ILS OR LOC RWY 28R", "RNAV (GPS) Z RWY 17L")
+
+    Returns:
+        ApproachAnalysis with IAF/IF waypoints, or None if not found in CIFP
+    """
+    from zoa_ref.cifp import get_approaches_for_airport
+
+    approaches = get_approaches_for_airport(airport)
+    if not approaches:
+        return None
+
+    # Try to match chart_name to a CIFP approach
+    # Chart names: "ILS OR LOC RWY 28R", "RNAV (GPS) Z RWY 17L"
+    # CIFP approach_id: "I28R", "H17LZ"
+
+    # Extract runway from chart name
+    runway = extract_runway_from_name(chart_name)
+    if not runway:
+        return None
+
+    chart_name_upper = chart_name.upper()
+
+    # Determine expected approach type prefixes (may have multiple)
+    # CIFP uses 'H' for RNAV/GPS and 'R' for RNAV, but charts may be named inconsistently
+    type_prefixes: list[str] = []
+    if "RNAV" in chart_name_upper or "GPS" in chart_name_upper or "RNP" in chart_name_upper:
+        type_prefixes = ["H", "R"]  # Try both RNAV variants
+    elif "ILS" in chart_name_upper:
+        type_prefixes = ["I"]
+    elif "LOC" in chart_name_upper:
+        type_prefixes = ["L"]
+    elif "VOR/DME" in chart_name_upper:
+        type_prefixes = ["D"]
+    elif "VOR" in chart_name_upper:
+        type_prefixes = ["V"]
+    elif "NDB" in chart_name_upper:
+        type_prefixes = ["N"]
+
+    # Extract variant letter from chart name (X, Y, Z, W)
+    chart_variant = None
+    for v in "XYZW":
+        if f" {v} " in chart_name_upper or chart_name_upper.endswith(f" {v}"):
+            chart_variant = v
+            break
+
+    # Find matching approach
+    matched_approach = None
+    for approach_id, approach in approaches.items():
+        # Check runway match
+        if approach.runway != runway:
+            continue
+
+        # Check type match if we have type prefixes
+        if type_prefixes and not any(approach_id.startswith(p) for p in type_prefixes):
+            continue
+
+        # Check variant match
+        approach_variant = None
+        if approach_id[-1] in "XYZW":
+            approach_variant = approach_id[-1]
+
+        if chart_variant:
+            # Chart has a variant, approach must match
+            if approach_variant != chart_variant:
+                continue
+            # Exact variant match found
+            matched_approach = approach
+            break
+        else:
+            # No variant in chart name, any matching approach works
+            if matched_approach is None:
+                matched_approach = approach
+
+    if not matched_approach:
+        return None
+
+    # Extract IAF, IF, and feeder fixes
+    iaf_waypoints = list(set(matched_approach.iaf_fixes))
+    if_waypoints = list(set(matched_approach.if_fixes))
+    feeder_waypoints = list(set(matched_approach.feeder_fixes))
+    feeder_paths = matched_approach.feeder_paths
+
+    return ApproachAnalysis(
+        name=chart_name,
+        runway=runway,
+        iaf_waypoints=sorted(iaf_waypoints),
+        if_waypoints=sorted(if_waypoints),
+        feeder_waypoints=sorted(feeder_waypoints),
+        feeder_paths=feeder_paths,
+    )
+
+
+def analyze_approach_from_chart(chart: ChartInfo) -> ApproachAnalysis | None:
+    """Analyze an approach chart via PDF text extraction.
+
+    This is the fallback method when CIFP doesn't have the approach.
     Results are cached per AIRAC cycle for fast repeated lookups.
+
+    Args:
+        chart: ChartInfo for the approach chart
+
+    Returns:
+        ApproachAnalysis with waypoints, or None if failed
     """
     from zoa_ref import cache
 
@@ -341,6 +458,28 @@ def analyze_approach(chart: ChartInfo) -> ApproachAnalysis | None:
         )
 
     return result
+
+
+def analyze_approach(chart: ChartInfo) -> ApproachAnalysis | None:
+    """Analyze an approach chart to extract entry fix waypoints (IAFs, IFs).
+
+    Uses a hybrid approach:
+    1. Try CIFP data first (reliable, structured FAA data)
+    2. Fall back to PDF text extraction if CIFP doesn't have the data
+
+    Args:
+        chart: ChartInfo for the approach chart
+
+    Returns:
+        ApproachAnalysis with waypoints, or None if analysis failed
+    """
+    # Try CIFP first
+    cifp_result = analyze_approach_from_cifp(chart.faa_ident, chart.chart_name)
+    if cifp_result:
+        return cifp_result
+
+    # Fall back to PDF extraction
+    return analyze_approach_from_chart(chart)
 
 
 def find_star_chart(charts: list[ChartInfo], star_name: str) -> ChartInfo | None:
@@ -513,7 +652,7 @@ class FixApproachResult:
     """Result of looking up approaches by fix/waypoint."""
 
     fix_name: str
-    approaches: list[tuple[str, str]]  # List of (approach_name, fix_type)
+    approaches: list[tuple[str, str, str | None]]  # List of (approach_name, fix_type, dest_fix)
 
 
 def find_approaches_by_fix(
@@ -549,10 +688,14 @@ def find_approaches_by_fix(
 
         # Check if fix is an IAF
         if fix_upper in iap_analysis.iaf_waypoints:
-            approaches.append((iap_analysis.name, "IAF"))
+            approaches.append((iap_analysis.name, "IAF", None))
         # Check if fix is an IF (but not already added as IAF)
         elif fix_upper in iap_analysis.if_waypoints:
-            approaches.append((iap_analysis.name, "IF"))
+            approaches.append((iap_analysis.name, "IF", None))
+        # Check if fix is a feeder (transition entry point)
+        elif iap_analysis.feeder_waypoints and fix_upper in iap_analysis.feeder_waypoints:
+            dest_fix = iap_analysis.feeder_paths.get(fix_upper) if iap_analysis.feeder_paths else None
+            approaches.append((iap_analysis.name, "Feeder", dest_fix))
 
     # Sort by approach name
     approaches.sort(key=lambda x: x[0])
@@ -572,19 +715,30 @@ def format_fix_approaches(result: FixApproachResult) -> str:
         lines.append(f"No approaches found using {result.fix_name} as an entry fix.")
     else:
         # Group by fix type
-        iafs = [(name, ft) for name, ft in result.approaches if ft == "IAF"]
-        ifs = [(name, ft) for name, ft in result.approaches if ft == "IF"]
+        iafs = [(name, ft, dest) for name, ft, dest in result.approaches if ft == "IAF"]
+        ifs = [(name, ft, dest) for name, ft, dest in result.approaches if ft == "IF"]
+        feeders = [(name, ft, dest) for name, ft, dest in result.approaches if ft == "Feeder"]
 
         if iafs:
             lines.append(f"As IAF ({len(iafs)}):")
-            for name, _ in iafs:
+            for name, _, _ in iafs:
                 lines.append(f"  - {name}")
 
         if ifs:
             if iafs:
                 lines.append("")
             lines.append(f"As IF ({len(ifs)}):")
-            for name, _ in ifs:
+            for name, _, _ in ifs:
                 lines.append(f"  - {name}")
+
+        if feeders:
+            if iafs or ifs:
+                lines.append("")
+            lines.append(f"As Feeder ({len(feeders)}):")
+            for name, _, dest in feeders:
+                if dest:
+                    lines.append(f"  - {name} (to {dest})")
+                else:
+                    lines.append(f"  - {name}")
 
     return "\n".join(lines)

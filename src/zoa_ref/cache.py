@@ -415,6 +415,28 @@ def cleanup_old_airac_caches(keep_cycles: int = 2) -> int:
             except (ValueError, OSError):
                 continue
 
+    # Clean up old CIFP data files
+    cifp_base = CACHE_DIR / "cifp"
+    if cifp_base.exists():
+        for cifp_file in cifp_base.iterdir():
+            if not cifp_file.is_file():
+                continue
+
+            # CIFP files are named like "FAACIFP18-2512"
+            match = re.match(r"^FAACIFP\d+-(\d{4})$", cifp_file.name)
+            if not match:
+                continue
+
+            try:
+                cycle_num = int(match.group(1))
+                current_num = int(current_cycle)
+
+                if current_num - cycle_num > keep_cycles:
+                    cifp_file.unlink()
+                    removed += 1
+            except (ValueError, OSError):
+                continue
+
     return removed
 
 
@@ -428,7 +450,7 @@ def clear_all_airac_cache() -> int:
     """
     removed = 0
 
-    for cache_type in ["charts", "analysis"]:
+    for cache_type in ["charts", "analysis", "cifp"]:
         cache_base = CACHE_DIR / cache_type
         if cache_base.exists():
             try:
