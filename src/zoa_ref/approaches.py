@@ -289,6 +289,21 @@ def find_connected_approaches(
                 approach_runway=iap_analysis.runway,
             ))
 
+        # Find shared waypoints that are feeder fixes (transition entry points)
+        # These lead to an IAF/IF via a charted transition
+        if iap_analysis.feeder_waypoints:
+            feeder_set = set(iap_analysis.feeder_waypoints)
+            feeder_connections = (star_waypoints & feeder_set) - iaf_connections - if_connections
+
+            for fix in feeder_connections:
+                connections.append(ApproachConnection(
+                    star_name=star_analysis.name,
+                    approach_name=iap_analysis.name,
+                    connecting_fix=fix,
+                    fix_type="Feeder",
+                    approach_runway=iap_analysis.runway,
+                ))
+
     # Sort by runway, then by approach name
     connections.sort(key=lambda c: (c.approach_runway or "", c.approach_name))
 
