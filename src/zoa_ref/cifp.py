@@ -532,17 +532,35 @@ def get_star_data(airport: str, star_name: str) -> CifpSTAR | None:
     if not star_records:
         return None
 
-    # Extract waypoints from "ALL" (common route) and transitions from others
+    # Extract waypoints from common route and runway transitions
+    # Common route may be named "ALL" or have empty transition name ""
+    # Runway transitions start with "RW" (e.g., "RW28B", "RW28L")
     all_waypoints = []
-    if "ALL" in star_records:
-        # Sort by sequence and extract waypoints
-        sorted_fixes = sorted(star_records["ALL"], key=lambda x: x[1])
-        all_waypoints = [fix for fix, _ in sorted_fixes]
-        # Filter out airport reference (ends with airport code)
-        all_waypoints = [w for w in all_waypoints if not w.endswith(airport)]
+    seen_waypoints = set()
 
-    # Get transition names (excluding "ALL")
-    transitions = [t for t in star_records.keys() if t != "ALL" and t]
+    # First add common route waypoints (may be "ALL" or "")
+    common_route_key = "ALL" if "ALL" in star_records else "" if "" in star_records else None
+    if common_route_key is not None:
+        sorted_fixes = sorted(star_records[common_route_key], key=lambda x: x[1])
+        for fix, _ in sorted_fixes:
+            if fix not in seen_waypoints:
+                all_waypoints.append(fix)
+                seen_waypoints.add(fix)
+
+    # Then add runway transition waypoints (these contain the final fixes like ARCHI)
+    for trans_name, fixes in star_records.items():
+        if trans_name.startswith("RW"):
+            sorted_fixes = sorted(fixes, key=lambda x: x[1])
+            for fix, _ in sorted_fixes:
+                if fix not in seen_waypoints:
+                    all_waypoints.append(fix)
+                    seen_waypoints.add(fix)
+
+    # Filter out airport/runway references (e.g., "RW28L", "KSFO")
+    all_waypoints = [w for w in all_waypoints if not w.startswith("RW") and not w.endswith(airport)]
+
+    # Get enroute transition names (excluding common route and runway transitions)
+    transitions = [t for t in star_records.keys() if t and t != "ALL" and not t.startswith("RW")]
 
     return CifpSTAR(
         identifier=star_id_prefix,
