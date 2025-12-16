@@ -14,6 +14,25 @@ from zoa_ref.config import REFERENCE_BASE_URL
 CHARTS_URL = f"{REFERENCE_BASE_URL}/charts"
 CHARTS_API_URL = "https://charts-api.oakartcc.org/v1/charts"
 
+# Airport code to city/airport name mapping for procedure name expansion
+# Used to match queries like "RNO1" to "RENO ONE" at RNO airport
+AIRPORT_NAMES = {
+    "RNO": "RENO",
+    "OAK": "OAKLAND",
+    "SFO": "SANFRAN",  # Partial match for San Francisco
+    "SJC": "SANJOSE",
+    "SMF": "SACRAMENTO",
+    "FAT": "FRESNO",
+    "MRY": "MONTEREY",
+    "SAC": "SACRAMENTO",
+    "MOD": "MODESTO",
+    "SCK": "STOCKTON",
+    "RDD": "REDDING",
+    "CIC": "CHICO",
+    "STS": "SANTAROSA",
+    "TRK": "TRUCKEE",
+}
+
 # Known airport codes in ZOA
 ZOA_AIRPORTS = [
     "SFO",
@@ -77,7 +96,8 @@ class ChartQuery:
         chart_name = " ".join(parts[1:])
 
         # Normalize chart name: "CNDEL5" -> "CNDEL FIVE"
-        chart_name = _normalize_chart_name(chart_name)
+        # Pass airport for airport code expansion (e.g., "RNO1" at RNO -> "RENO ONE")
+        chart_name = _normalize_chart_name(chart_name, airport)
 
         # Try to infer chart type from naming conventions
         chart_type = cls._infer_chart_type(chart_name)
@@ -108,7 +128,7 @@ class ChartQuery:
         return ChartType.UNKNOWN
 
 
-def _normalize_chart_name(name: str) -> str:
+def _normalize_chart_name(name: str, airport: str | None = None) -> str:
     """
     Normalize chart name for matching.
 
@@ -118,6 +138,7 @@ def _normalize_chart_name(name: str) -> str:
         ILS28R -> ILS RWY 28R (left as-is, no number word conversion)
         TAXI -> AIRPORT DIAGRAM (alias)
         FMG1 -> MUSTANG ONE (navaid alias: identifier to name)
+        RNO1 (at RNO) -> RENO ONE (airport code expansion)
     """
     from zoa_ref.navaids import resolve_navaid_alias
 
@@ -151,6 +172,12 @@ def _normalize_chart_name(name: str) -> str:
     if match:
         base = match.group(1)
         digit = match.group(2)
+
+        # Expand airport code to airport name if at matching airport
+        # e.g., "RNO1" at RNO -> "RENO ONE"
+        if airport and base == airport.upper() and airport.upper() in AIRPORT_NAMES:
+            base = AIRPORT_NAMES[airport.upper()]
+
         return f"{base} {number_words.get(digit, digit)}"
 
     return name
