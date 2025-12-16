@@ -14,6 +14,7 @@ import urllib.request
 import urllib.error
 import zipfile
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 
 from zoa_ref.cache import get_current_airac_cycle, CACHE_DIR
@@ -420,6 +421,7 @@ def parse_star_record(line: str) -> tuple[str, str, str, int] | None:
 # --- High-Level API ---
 
 
+@lru_cache(maxsize=32)
 def get_approaches_for_airport(airport: str) -> dict[str, CifpApproach]:
     """Get all approach procedures for an airport.
 
