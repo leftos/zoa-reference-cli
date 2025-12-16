@@ -589,7 +589,7 @@ def download_and_merge_pdfs(
         pdf_urls: List of PDF URLs to download and merge
         output_path: Path to save the merged PDF
         rotation: Rotation angle in degrees (0, 90, 180, 270).
-                  If None, auto-detects from text orientation.
+                  If None, auto-detects from text orientation for each PDF.
 
     Returns:
         True if successful, False otherwise.
@@ -604,6 +604,7 @@ def download_and_merge_pdfs(
     writer = PdfWriter()
     temp_files = []
     pdf_data_list = []
+    auto_detect = rotation is None
 
     try:
         # Download all PDFs first (using cache)
@@ -614,12 +615,14 @@ def download_and_merge_pdfs(
                 return False
             pdf_data_list.append(pdf_data)
 
-        # Auto-detect rotation from first PDF if not specified
-        if rotation is None and pdf_data_list:
-            rotation = detect_rotation_needed(pdf_data_list[0])
-
         # Process each PDF
         for pdf_data in pdf_data_list:
+            # Auto-detect rotation for each PDF individually
+            if auto_detect:
+                page_rotation = detect_rotation_needed(pdf_data)
+            else:
+                page_rotation = rotation
+
             # Write to temp file (pypdf needs a file, not bytes)
             temp_fd, temp_path = tempfile.mkstemp(suffix=".pdf")
             temp_files.append(temp_path)
@@ -629,8 +632,8 @@ def download_and_merge_pdfs(
             # Read and append pages with optional rotation
             reader = PdfReader(temp_path)
             for page in reader.pages:
-                if rotation:
-                    page.rotate(rotation)
+                if page_rotation:
+                    page.rotate(page_rotation)
                 writer.add_page(page)
 
         # Write merged PDF
