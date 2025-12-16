@@ -261,6 +261,68 @@ def search_chart_content(chart: ChartInfo, search_term: str) -> bool:
         return False
 
 
+def is_runway_pattern(term: str) -> bool:
+    """Check if term looks like a runway (e.g., 17L, 28R, 07)."""
+    return bool(re.match(r"^\d{1,2}[LRC]?$", term))
+
+
+def search_chart_cifp(chart: ChartInfo, search_term: str, airport: str) -> bool:
+    """
+    Search chart using CIFP data instead of PDF text extraction.
+
+    For IAP charts:
+    - If search_term is a runway (e.g., "17L"), filter by runway
+    - Otherwise, search for fix in IAF/IF/feeder fixes
+
+    For STAR/DP charts:
+    - Search for fix in waypoints
+
+    APD charts are skipped (no waypoint data in CIFP).
+
+    Args:
+        chart: ChartInfo object to search
+        search_term: Text to search for (fix name or runway)
+        airport: Airport code (e.g., "RNO")
+
+    Returns:
+        True if search_term found in CIFP data, False otherwise
+    """
+    search_term = search_term.upper()
+
+    if chart.chart_code == "IAP":
+        from zoa_ref.approaches import analyze_approach
+
+        analysis = analyze_approach(airport, chart.chart_name)
+        if analysis:
+            # Runway filtering: list RNO IAP 17L
+            if is_runway_pattern(search_term):
+                return analysis.runway == search_term
+            # Fix search: list RNO IAP KLOCK
+            all_fixes = (
+                analysis.iaf_waypoints
+                + analysis.if_waypoints
+                + (analysis.feeder_waypoints or [])
+            )
+            return search_term in all_fixes
+
+    elif chart.chart_code == "STAR":
+        from zoa_ref.cifp import get_star_data
+
+        star_data = get_star_data(airport, chart.chart_name)
+        if star_data:
+            return search_term in star_data.waypoints
+
+    elif chart.chart_code == "DP":
+        from zoa_ref.cifp import get_dp_data
+
+        dp_data = get_dp_data(airport, chart.chart_name)
+        if dp_data:
+            return search_term in dp_data.waypoints
+
+    # APD charts: skip (return False)
+    return False
+
+
 @dataclass
 class ChartMatch:
     """A chart match with similarity score."""

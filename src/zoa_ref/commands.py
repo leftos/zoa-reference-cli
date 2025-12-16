@@ -24,6 +24,7 @@ from .charts import (
     download_pdf,
     find_airport_page_in_min_chart,
     search_chart_content,
+    search_chart_cifp,
 )
 from .cli_utils import open_in_browser, wait_for_input_or_close
 from .descent import calculate_descent
@@ -1099,11 +1100,11 @@ def do_list_charts(
     if filter_type and charts_list:
         charts_list = [c for c in charts_list if c.chart_code == filter_type]
 
-    # Filter by content search if specified
+    # Filter by content search if specified (using CIFP data)
     if search_term and charts_list:
         matching_charts = []
         for chart in charts_list:
-            if search_chart_content(chart, search_term):
+            if search_chart_cifp(chart, search_term, airport):
                 matching_charts.append(chart)
         charts_list = matching_charts
 

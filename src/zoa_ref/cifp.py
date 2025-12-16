@@ -122,6 +122,15 @@ class CifpSTAR:
     transitions: list[str]  # Entry transition names (e.g., "KENNO", "MVA")
 
 
+@dataclass
+class CifpDP:
+    """A departure procedure (SID) with waypoints."""
+
+    identifier: str  # e.g., "CNDEL5"
+    waypoints: list[str]  # All waypoints in the common route
+    transitions: list[str]  # Exit transition names (e.g., "MOD", "SAC")
+
+
 # --- CIFP Download and Management ---
 
 
@@ -621,3 +630,213 @@ def get_all_stars(airport: str) -> dict[str, CifpSTAR]:
             stars[star_id] = star
 
     return stars
+
+
+def parse_dp_record(line: str) -> tuple[str, str, str, int] | None:
+    """Parse a single CIFP DP (departure procedure) record.
+
+    ARINC 424 DP records (subsection D):
+    - Position 7-10: Airport ICAO
+    - Position 13: Subsection (D = SID/DP)
+    - Position 14-19: DP identifier (e.g., "CNDEL5")
+    - Position 20: Route variant
+    - Position 21-25: Transition name (or "ALL" for common route)
+    - Position 27-29: Sequence number
+    - Position 30-34: Fix identifier
+
+    Args:
+        line: Raw CIFP record line
+
+    Returns:
+        Tuple of (dp_id, transition, fix_identifier, sequence) or None
+    """
+    if len(line) < 35:
+        return None
+
+    # Check record type and subsection
+    if not line.startswith("SUSAP"):
+        return None
+
+    # Position 13 (0-indexed: 12) = Subsection
+    if len(line) < 13 or line[12] != "D":
+        return None
+
+    # Extract fields
+    dp_id = line[13:19].strip()  # Position 14-19 (includes variant digit)
+    transition = line[20:25].strip()  # Position 21-25
+    sequence_str = line[26:29].strip()  # Position 27-29
+    fix_identifier = line[29:34].strip()  # Position 30-34
+
+    try:
+        sequence = int(sequence_str)
+    except ValueError:
+        sequence = 0
+
+    if not fix_identifier or not dp_id:
+        return None
+
+    return (dp_id, transition, fix_identifier, sequence)
+
+
+def get_dp_data(airport: str, dp_name: str) -> CifpDP | None:
+    """Get DP (departure procedure) data from CIFP.
+
+    Args:
+        airport: Airport code (e.g., "OAK")
+        dp_name: DP name (e.g., "CNDEL5", "CNDEL FIVE")
+
+    Returns:
+        CifpDP with waypoints and transitions, or None if not found
+    """
+    cifp_path = ensure_cifp_data()
+    if not cifp_path:
+        return None
+
+    # Normalize inputs
+    airport = airport.upper().lstrip("K")
+    dp_name = dp_name.upper().strip()
+
+    # Strip off common suffixes like "(RNAV)" from chart names
+    dp_name = re.sub(r"\s*\(RNAV\)$", "", dp_name)
+
+    # Normalize DP name - extract base name and number
+    # "CNDEL5" -> base="CNDEL", num="5"
+    # "CNDEL FIVE" -> base="CNDEL", num="5"
+    dp_match = re.match(r"^([A-Z]+)\s*(\d|ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE)$", dp_name)
+    if dp_match:
+        base_name = dp_match.group(1)
+        num_part = dp_match.group(2)
+        # Convert word to digit if needed
+        word_to_digit = {
+            "ONE": "1", "TWO": "2", "THREE": "3", "FOUR": "4", "FIVE": "5",
+            "SIX": "6", "SEVEN": "7", "EIGHT": "8", "NINE": "9",
+        }
+        if num_part in word_to_digit:
+            num_part = word_to_digit[num_part]
+        dp_id_prefix = f"{base_name}{num_part}"
+
+        # Also try navaid identifiers if base_name is a navaid name
+        from zoa_ref.navaids import get_all_navaid_identifiers
+        navaid_idents = get_all_navaid_identifiers(base_name)
+        dp_id_prefixes = [dp_id_prefix]
+        for navaid_ident in navaid_idents:
+            if navaid_ident != base_name:
+                dp_id_prefixes.append(f"{navaid_ident}{num_part}")
+    else:
+        dp_id_prefix = dp_name
+        dp_id_prefixes = [dp_id_prefix]
+
+    search_prefix = f"SUSAP K{airport}"
+
+    # Collect all records for this DP
+    dp_records: dict[str, list[tuple[str, int]]] = {}  # transition -> [(fix, sequence)]
+
+    with open(cifp_path, "r", encoding="latin-1") as f:
+        for line in f:
+            if not line.startswith(search_prefix):
+                continue
+
+            result = parse_dp_record(line)
+            if not result:
+                continue
+
+            dp_id, transition, fix_id, sequence = result
+
+            # Check if this matches our DP (e.g., "CNDEL54" or "CNDEL55" for CNDEL5)
+            if not any(dp_id.startswith(prefix) for prefix in dp_id_prefixes):
+                continue
+
+            if transition not in dp_records:
+                dp_records[transition] = []
+            dp_records[transition].append((fix_id, sequence))
+
+    if not dp_records:
+        return None
+
+    # Extract waypoints from common route and enroute transitions
+    # Common route may be named "ALL" or have empty transition name ""
+    # Runway transitions start with "RW" (e.g., "RW28B", "RW28L")
+    all_waypoints = []
+    seen_waypoints = set()
+
+    # First add runway transition waypoints (these are the initial fixes)
+    for trans_name, fixes in dp_records.items():
+        if trans_name.startswith("RW"):
+            sorted_fixes = sorted(fixes, key=lambda x: x[1])
+            for fix, _ in sorted_fixes:
+                if fix not in seen_waypoints:
+                    all_waypoints.append(fix)
+                    seen_waypoints.add(fix)
+
+    # Then add common route waypoints (may be "ALL" or "")
+    common_route_key = "ALL" if "ALL" in dp_records else "" if "" in dp_records else None
+    if common_route_key is not None:
+        sorted_fixes = sorted(dp_records[common_route_key], key=lambda x: x[1])
+        for fix, _ in sorted_fixes:
+            if fix not in seen_waypoints:
+                all_waypoints.append(fix)
+                seen_waypoints.add(fix)
+
+    # Then add enroute transition waypoints (exit points)
+    for trans_name, fixes in dp_records.items():
+        if trans_name and trans_name != "ALL" and not trans_name.startswith("RW"):
+            sorted_fixes = sorted(fixes, key=lambda x: x[1])
+            for fix, _ in sorted_fixes:
+                if fix not in seen_waypoints:
+                    all_waypoints.append(fix)
+                    seen_waypoints.add(fix)
+
+    # Filter out airport/runway references (e.g., "RW28L", "KOAK")
+    all_waypoints = [w for w in all_waypoints if not w.startswith("RW") and not w.endswith(airport)]
+
+    # Get enroute transition names (excluding common route and runway transitions)
+    transitions = [t for t in dp_records.keys() if t and t != "ALL" and not t.startswith("RW")]
+
+    return CifpDP(
+        identifier=dp_id_prefix,
+        waypoints=all_waypoints,
+        transitions=sorted(transitions),
+    )
+
+
+def get_all_dps(airport: str) -> dict[str, CifpDP]:
+    """Get all DPs (departure procedures) for an airport.
+
+    Args:
+        airport: Airport code (e.g., "OAK")
+
+    Returns:
+        Dict mapping DP identifier to CifpDP
+    """
+    cifp_path = ensure_cifp_data()
+    if not cifp_path:
+        return {}
+
+    airport = airport.upper().lstrip("K")
+    search_prefix = f"SUSAP K{airport}"
+
+    # First pass: collect all unique DP identifiers
+    dp_ids: set[str] = set()
+
+    with open(cifp_path, "r", encoding="latin-1") as f:
+        for line in f:
+            if not line.startswith(search_prefix):
+                continue
+
+            if len(line) > 12 and line[12] == "D":
+                # Extract base DP ID (first 5 chars + digit)
+                dp_id = line[13:19].strip()
+                if dp_id:
+                    # Normalize to base ID (e.g., "CNDEL54" -> "CNDEL5")
+                    match = re.match(r"^([A-Z]+\d)", dp_id)
+                    if match:
+                        dp_ids.add(match.group(1))
+
+    # Get full data for each DP
+    dps = {}
+    for dp_id in dp_ids:
+        dp = get_dp_data(airport, dp_id)
+        if dp:
+            dps[dp_id] = dp
+
+    return dps
