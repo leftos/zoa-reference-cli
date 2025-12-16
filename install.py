@@ -126,6 +126,7 @@ def install_uv() -> bool:
                 ["sh"],
                 input=result.stdout,
                 check=True,
+                text=True,
             )
 
         # Verify installation
