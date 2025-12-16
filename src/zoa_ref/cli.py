@@ -9,6 +9,7 @@ from .cli_utils import COMMAND_HELP, ImplicitChartGroup, set_console_title, prin
 from .commands import (
     do_icao_lookup,
     do_navaid_lookup,
+    do_descent_calc,
     do_route_lookup,
     do_atis_lookup,
     do_chart_lookup,
@@ -186,6 +187,20 @@ def aircraft(query: tuple[str, ...], browser: bool, no_cache: bool):
 @click.argument("query", nargs=-1, required=True)
 def navaid(query: tuple[str, ...]):
     do_navaid_lookup(" ".join(query))
+
+
+@main.command(help=COMMAND_HELP["descent"].strip())
+@click.argument("current_alt")
+@click.argument("target_or_distance")
+def descent(current_alt: str, target_or_distance: str):
+    do_descent_calc(current_alt, target_or_distance)
+
+
+@main.command("des", help=COMMAND_HELP["descent"].strip())
+@click.argument("current_alt")
+@click.argument("target_or_distance")
+def des(current_alt: str, target_or_distance: str):
+    do_descent_calc(current_alt, target_or_distance)
 
 
 @main.command(help=COMMAND_HELP["approaches"].strip())

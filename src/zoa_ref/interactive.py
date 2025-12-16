@@ -14,6 +14,7 @@ from .cli_utils import (
 from .commands import (
     do_icao_lookup,
     do_navaid_lookup,
+    do_descent_calc,
     do_route_lookup,
     do_atis_lookup,
     do_chart_lookup,
@@ -345,6 +346,18 @@ def _handle_navaid_interactive(args: str) -> None:
     do_navaid_lookup(" ".join(parsed.positional))
 
 
+def _handle_descent_interactive(args: str) -> None:
+    """Handle 'descent <current_alt> <target_or_distance>' command in interactive mode."""
+    parsed = parse_interactive_args(args)
+    if parsed.show_help or len(parsed.positional) < 2:
+        from .cli import main
+
+        print_command_help("descent", main)
+        return
+
+    do_descent_calc(parsed.positional[0], parsed.positional[1])
+
+
 def _handle_approaches_interactive(args: str) -> None:
     """Handle 'approaches <airport> <star_or_fix>' command in interactive mode."""
     parsed = parse_interactive_args(args)
@@ -370,6 +383,8 @@ INTERACTIVE_COMMANDS: dict[str, tuple] = {
     "airport ": (_handle_airport_interactive, 8, True),
     "aircraft ": (_handle_aircraft_interactive, 9, True),
     "navaid ": (_handle_navaid_interactive, 7, False),
+    "descent ": (_handle_descent_interactive, 8, False),
+    "des ": (_handle_descent_interactive, 4, False),
     "approaches ": (_handle_approaches_interactive, 11, False),
     "apps ": (_handle_approaches_interactive, 5, False),
     "position ": (_handle_position_interactive, 9, True),

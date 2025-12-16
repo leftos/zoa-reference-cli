@@ -4,6 +4,7 @@ import click
 
 from .atis import AtisInfo
 from .charts import ChartMatch
+from .descent import DescentResult, DescentMode
 from .icao import AirlineSearchResult, AirportSearchResult, AircraftSearchResult
 from .navaids import NavaidSearchResult
 from .positions import PositionSearchResult
@@ -315,4 +316,21 @@ def display_navaids(result: NavaidSearchResult) -> None:
         click.echo(
             f"{navaid.ident} - {navaid.name} {navaid.navaid_type} "
             f"({location}) [{navaid.latitude:.4f}, {navaid.longitude:.4f}]"
+        )
+
+
+def display_descent(result: DescentResult) -> None:
+    """Display descent calculation results."""
+    if result.mode == DescentMode.DISTANCE_NEEDED:
+        assert result.target_alt is not None and result.distance_needed is not None
+        alt_change = result.current_alt - result.target_alt
+        click.echo(
+            f"\n{alt_change:,} ft descent requires {result.distance_needed:.1f} nm"
+        )
+    else:
+        assert result.distance_nm is not None and result.altitude_at is not None
+        assert result.altitude_lost is not None
+        click.echo(
+            f"\nAt {result.distance_nm:.1f} nm: {result.altitude_at:,} ft "
+            f"({result.altitude_lost:,} ft descended)"
         )

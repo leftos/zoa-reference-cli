@@ -26,6 +26,7 @@ from .charts import (
     search_chart_content,
 )
 from .cli_utils import open_in_browser, wait_for_input_or_close
+from .descent import calculate_descent
 from .display import (
     display_routes,
     display_airlines,
@@ -33,6 +34,7 @@ from .display import (
     display_aircraft,
     display_atis,
     display_chart_matches,
+    display_descent,
     display_navaids,
     display_procedure_matches,
     display_positions,
@@ -1023,6 +1025,20 @@ def do_navaid_lookup(query: str) -> None:
     """
     result = search_navaids(query)
     display_navaids(result)
+
+
+def do_descent_calc(current_str: str, second_str: str) -> None:
+    """Calculate descent parameters for 3-degree glideslope.
+
+    Args:
+        current_str: Current altitude in FL-style (e.g., "100" for 10,000 ft)
+        second_str: Target altitude (3 digits) or distance (1-2 digits or decimal)
+    """
+    try:
+        result = calculate_descent(current_str, second_str)
+        display_descent(result)
+    except ValueError as e:
+        click.echo(f"Error: {e}", err=True)
 
 
 # Chart type aliases for list command

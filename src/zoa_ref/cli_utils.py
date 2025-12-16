@@ -102,6 +102,8 @@ INTERACTIVE_HELP_COMMANDS = [
     "  vis                       - Open ZOA airspace visualizer",
     "  tdls [facility]           - Open TDLS (Pre-Departure Clearances)",
     "  strips [facility]         - Open flight strips",
+    "Tools:",
+    "  descent|des <alt> <alt|nm> - Descent calculator (3° glideslope)",
 ]
 
 # Detailed help for individual commands (used by "help <command>")
@@ -258,6 +260,26 @@ Examples:
   navaid MUSTANG         - Search by name
   navaid SFO             - Search for San Francisco VOR
   navaid OAKLAND         - Search by city/name (partial match)
+""",
+    "descent": """
+descent - Calculate descent on a 3-degree glideslope
+
+Calculates descent parameters for a standard 3-degree glideslope
+(~318 ft/nm). Altitudes use FL-style notation (100 = 10,000 ft).
+
+\b
+Two modes based on second argument:
+  - 3 digits: target altitude - calculates distance needed
+  - 1-2 digits or decimal: distance - calculates altitude at that point
+
+\b
+Examples:
+  descent 100 020        - Distance needed: 10,000 ft to 2,000 ft
+  des 100 12.5           - Altitude at 12.5 nm from 10,000 ft
+  des 100 5              - Altitude at 5 nm from 10,000 ft
+  des 080 040            - Distance needed: 8,000 ft to 4,000 ft
+
+Alias: 'des' is an alias for 'descent'
 """,
     "vis": """
 vis - Open ZOA airspace visualizer
