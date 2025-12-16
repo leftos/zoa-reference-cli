@@ -9,9 +9,9 @@ from dataclasses import dataclass
 from enum import Enum
 from playwright.sync_api import Page, TimeoutError as PlaywrightTimeout
 
+from zoa_ref.config import REFERENCE_BASE_URL
 
-BASE_URL = "https://reference.oakartcc.org"
-CHARTS_URL = f"{BASE_URL}/charts"
+CHARTS_URL = f"{REFERENCE_BASE_URL}/charts"
 CHARTS_API_URL = "https://charts-api.oakartcc.org/v1/charts"
 
 # Known airport codes in ZOA

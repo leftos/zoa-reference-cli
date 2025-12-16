@@ -6,12 +6,9 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 from playwright.sync_api import Page, TimeoutError as PlaywrightTimeout
 
+from zoa_ref.config import CACHE_DIR, CACHE_TTL_SECONDS
 
 POSITIONS_URL = "https://reference.oakartcc.org/positions"
-
-# Cache configuration (reuse same directory structure as ICAO)
-CACHE_DIR = Path.home() / ".zoa-ref" / "cache"
-CACHE_TTL_SECONDS = 7 * 24 * 60 * 60  # 7 days - position data rarely changes
 
 
 @dataclass

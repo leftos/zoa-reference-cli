@@ -7,17 +7,14 @@ import time
 import urllib.request
 import urllib.error
 from dataclasses import dataclass, asdict
-from pathlib import Path
 from playwright.sync_api import Page, TimeoutError as PlaywrightTimeout
 
+from zoa_ref.config import CACHE_DIR, CACHE_TTL_SECONDS, REFERENCE_BASE_URL
 
-BASE_URL = "https://reference.oakartcc.org"
-PROCEDURES_URL = f"{BASE_URL}/procedures"
+PROCEDURES_URL = f"{REFERENCE_BASE_URL}/procedures"
 
 # Cache configuration
-CACHE_DIR = Path.home() / ".zoa-ref" / "cache"
 PROCEDURES_CACHE_FILE = CACHE_DIR / "procedures" / "procedures_list.json"
-CACHE_TTL_PROCEDURES = 7 * 24 * 60 * 60  # 7 days for procedure list
 # Note: Headings cache uses AIRAC-based invalidation via cache module
 
 
@@ -43,7 +40,7 @@ class ProcedureInfo:
         """Get full URL to PDF."""
         if self.pdf_url.startswith("http"):
             return self.pdf_url
-        return f"{BASE_URL}/{self.pdf_url}"
+        return f"{REFERENCE_BASE_URL}/{self.pdf_url}"
 
 
 @dataclass
@@ -245,7 +242,7 @@ def _load_procedures_cache() -> list[ProcedureInfo] | None:
             data = json.load(f)
 
         # Check TTL
-        if time.time() - data.get("timestamp", 0) > CACHE_TTL_PROCEDURES:
+        if time.time() - data.get("timestamp", 0) > CACHE_TTL_SECONDS:
             return None
 
         return [ProcedureInfo(**p) for p in data.get("procedures", [])]
@@ -612,7 +609,7 @@ def find_procedure_by_name(
 
 def _download_pdf(url: str, timeout: int = 30) -> bytes | None:
     """Download PDF content from URL."""
-    full_url = url if url.startswith("http") else f"{BASE_URL}/{url}"
+    full_url = url if url.startswith("http") else f"{REFERENCE_BASE_URL}/{url}"
 
     try:
         req = urllib.request.Request(

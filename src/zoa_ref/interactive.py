@@ -11,6 +11,7 @@ from .cli_utils import (
     print_interactive_help,
     print_command_help,
 )
+from .config import AIRSPACE_URL, TDLS_URL, STRIPS_URL
 from .commands import (
     do_icao_lookup,
     do_navaid_lookup,
@@ -263,7 +264,7 @@ def _handle_sop_interactive(args: str, ctx: InteractiveContext) -> None:
 
 def _handle_vis_interactive(args: str) -> None:
     """Handle 'vis' command in interactive mode."""
-    webbrowser.open("https://airspace.oakartcc.org/")
+    webbrowser.open(AIRSPACE_URL)
     click.echo("Opened airspace visualizer")
 
 
@@ -271,11 +272,11 @@ def _handle_tdls_interactive(args: str) -> None:
     """Handle 'tdls' command in interactive mode."""
     facility = args.strip()
     if facility:
-        url = f"https://tdls.virtualnas.net/{facility.upper()}"
+        url = f"{TDLS_URL}{facility.upper()}"
         webbrowser.open(url)
         click.echo(f"Opened TDLS for {facility.upper()}")
     else:
-        webbrowser.open("https://tdls.virtualnas.net/")
+        webbrowser.open(TDLS_URL)
         click.echo("Opened TDLS")
 
 
@@ -283,11 +284,11 @@ def _handle_strips_interactive(args: str) -> None:
     """Handle 'strips' command in interactive mode."""
     facility = args.strip()
     if facility:
-        url = f"https://strips.virtualnas.net/{facility.upper()}"
+        url = f"{STRIPS_URL}{facility.upper()}"
         webbrowser.open(url)
         click.echo(f"Opened flight strips for {facility.upper()}")
     else:
-        webbrowser.open("https://strips.virtualnas.net/")
+        webbrowser.open(STRIPS_URL)
         click.echo("Opened flight strips")
 
 

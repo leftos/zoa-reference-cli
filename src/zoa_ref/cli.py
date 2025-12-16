@@ -6,6 +6,7 @@ import click
 
 from .charts import ZOA_AIRPORTS
 from .cli_utils import COMMAND_HELP, ImplicitChartGroup, set_console_title, print_interactive_help
+from .config import AIRSPACE_URL, TDLS_URL, STRIPS_URL
 from .commands import (
     do_icao_lookup,
     do_navaid_lookup,
@@ -248,7 +249,7 @@ def atis(airport: str | None, show_all: bool):
 @main.command(help=COMMAND_HELP["vis"].strip())
 def vis():
     """Open ZOA airspace visualizer."""
-    webbrowser.open("https://airspace.oakartcc.org/")
+    webbrowser.open(AIRSPACE_URL)
     click.echo("Opened airspace visualizer")
 
 
@@ -257,11 +258,11 @@ def vis():
 def tdls(facility: str | None):
     """Open TDLS (Pre-Departure Clearances)."""
     if facility:
-        url = f"https://tdls.virtualnas.net/{facility.upper()}"
+        url = f"{TDLS_URL}{facility.upper()}"
         webbrowser.open(url)
         click.echo(f"Opened TDLS for {facility.upper()}")
     else:
-        webbrowser.open("https://tdls.virtualnas.net/")
+        webbrowser.open(TDLS_URL)
         click.echo("Opened TDLS")
 
 
@@ -270,11 +271,11 @@ def tdls(facility: str | None):
 def strips(facility: str | None):
     """Open flight strips."""
     if facility:
-        url = f"https://strips.virtualnas.net/{facility.upper()}"
+        url = f"{STRIPS_URL}{facility.upper()}"
         webbrowser.open(url)
         click.echo(f"Opened flight strips for {facility.upper()}")
     else:
-        webbrowser.open("https://strips.virtualnas.net/")
+        webbrowser.open(STRIPS_URL)
         click.echo("Opened flight strips")
 
 

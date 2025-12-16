@@ -14,9 +14,7 @@ import shutil
 from datetime import date, timedelta
 from pathlib import Path
 
-
-# Cache directory
-CACHE_DIR = Path.home() / ".zoa-ref" / "cache"
+from zoa_ref.config import CACHE_DIR
 
 # AIRAC epoch: Cycle 2501 effective date
 # All AIRAC cycles can be calculated from this reference point
