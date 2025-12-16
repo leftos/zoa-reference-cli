@@ -482,6 +482,9 @@ def get_star_data(airport: str, star_name: str) -> CifpSTAR | None:
     airport = airport.upper().lstrip("K")
     star_name = star_name.upper().strip()
 
+    # Strip off common suffixes like "(RNAV)" from chart names
+    star_name = re.sub(r"\s*\(RNAV\)$", "", star_name)
+
     # Normalize STAR name - extract base name and number
     # "SCOLA1" -> base="SCOLA", num="1"
     # "SCOLA ONE" -> base="SCOLA", num="1"
