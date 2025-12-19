@@ -1019,13 +1019,23 @@ def do_scratchpad_lookup(
 
 
 def do_navaid_lookup(query: str) -> None:
-    """Handle navaid lookup.
+    """Handle navaid lookup for one or more navaids.
 
     Args:
-        query: Search query (identifier like "FMG" or name like "MUSTANG")
+        query: Space-separated search queries (e.g., "LLC SWR BVL BAM")
     """
-    result = search_navaids(query)
-    display_navaids(result)
+    # Split query into individual identifiers
+    identifiers = query.split()
+
+    if len(identifiers) == 1:
+        # Single navaid - use existing behavior
+        result = search_navaids(query)
+        display_navaids(result)
+    else:
+        # Multiple navaids - look up each one
+        for ident in identifiers:
+            result = search_navaids(ident)
+            display_navaids(result)
 
 
 def do_descent_calc(current_str: str, second_str: str) -> None:
