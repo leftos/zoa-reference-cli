@@ -145,6 +145,7 @@ def _normalize_chart_name(name: str, airport: str | None = None) -> str:
     # Alias mapping
     aliases = {
         "TAXI": "AIRPORT DIAGRAM",
+        "DVA": "DIVERSE VECTOR AREA",
     }
 
     # Check for exact alias match
