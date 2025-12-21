@@ -25,6 +25,7 @@ from .commands import (
     do_position_lookup,
     do_scratchpad_lookup,
     do_approaches_lookup,
+    do_setbrowser,
 )
 from .icao import CodesPage
 from .input import create_prompt_session, prompt_with_history
@@ -371,6 +372,19 @@ def _handle_approaches_interactive(args: str) -> None:
     do_approaches_lookup(parsed.positional[0], parsed.positional[1])
 
 
+def _handle_setbrowser_interactive(args: str) -> None:
+    """Handle 'setbrowser [browser]' command in interactive mode."""
+    parsed = parse_interactive_args(args)
+    if parsed.show_help:
+        from .cli import main
+
+        print_command_help("setbrowser", main)
+        return
+
+    browser = parsed.positional[0] if parsed.positional else None
+    do_setbrowser(browser)
+
+
 # Command registry: maps command prefix to (handler, prefix_length, needs_context)
 # needs_context indicates whether the handler requires InteractiveContext
 INTERACTIVE_COMMANDS: dict[str, tuple] = {
@@ -395,6 +409,7 @@ INTERACTIVE_COMMANDS: dict[str, tuple] = {
     "vis": (_handle_vis_interactive, 3, False),
     "tdls": (_handle_tdls_interactive, 4, False),
     "strips": (_handle_strips_interactive, 6, False),
+    "setbrowser": (_handle_setbrowser_interactive, 10, False),
 }
 
 

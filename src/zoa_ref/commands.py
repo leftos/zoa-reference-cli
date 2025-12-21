@@ -1052,6 +1052,57 @@ def do_descent_calc(current_str: str, second_str: str) -> None:
         click.echo(f"Error: {e}", err=True)
 
 
+def do_setbrowser(browser: str | None = None) -> None:
+    """Set or display the preferred browser for opening charts.
+
+    Args:
+        browser: Browser name to set (chrome, firefox, msedge, brave, opera),
+                 or None to display current setting, or "clear"/"auto" to clear preference
+    """
+    from .cli_utils import (
+        get_browser_preference,
+        set_browser_preference,
+        clear_browser_preference,
+        VALID_BROWSERS,
+    )
+
+    if not browser:
+        # Display current setting
+        current = get_browser_preference()
+        if current:
+            click.echo(f"Current browser preference: {current}")
+            click.echo("To change: setbrowser <browser>")
+            click.echo("To clear (use auto-detect): setbrowser clear")
+        else:
+            click.echo("No browser preference set (using auto-detect)")
+            click.echo(f"Valid browsers: {', '.join(VALID_BROWSERS)}")
+            click.echo("To set: setbrowser <browser>")
+        return
+
+    browser_lower = browser.lower()
+
+    # Handle clearing preference
+    if browser_lower in ("clear", "auto", "none"):
+        if clear_browser_preference():
+            click.echo("Browser preference cleared - will auto-detect running browser")
+        else:
+            click.echo("Failed to clear browser preference", err=True)
+        return
+
+    # Set new preference
+    if browser_lower not in VALID_BROWSERS:
+        click.echo(
+            f"Invalid browser: {browser}. Valid choices: {', '.join(VALID_BROWSERS)}",
+            err=True,
+        )
+        return
+
+    if set_browser_preference(browser_lower):
+        click.echo(f"Browser preference set to: {browser_lower}")
+    else:
+        click.echo("Failed to save browser preference", err=True)
+
+
 # Chart type aliases for list command
 CHART_TYPE_ALIASES = {
     "SID": "DP",

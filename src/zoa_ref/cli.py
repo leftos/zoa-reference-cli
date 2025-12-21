@@ -20,6 +20,7 @@ from .commands import (
     do_position_lookup,
     do_scratchpad_lookup,
     do_approaches_lookup,
+    do_setbrowser,
 )
 from .interactive import interactive_mode
 
@@ -338,6 +339,13 @@ def scratchpad(facility: str | None, list_facs: bool, no_cache: bool):
 @click.option("--no-cache", is_flag=True, help="Bypass cache and fetch fresh data")
 def scratch(facility: str | None, list_facs: bool, no_cache: bool):
     do_scratchpad_lookup(facility, list_facs=list_facs, no_cache=no_cache)
+
+
+@main.command(help=COMMAND_HELP["setbrowser"].strip())
+@click.argument("browser", required=False)
+def setbrowser(browser: str | None):
+    """Set preferred browser for opening charts."""
+    do_setbrowser(browser)
 
 
 if __name__ == "__main__":

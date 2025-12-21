@@ -29,6 +29,9 @@ BROWSERS = {
     "opera.exe": "opera",
 }
 
+# Valid browser choices for setbrowser command
+VALID_BROWSERS = ["chrome", "msedge", "firefox", "brave", "opera"]
+
 
 def _get_descendant_pids() -> set[int]:
     """Get all PIDs that are descendants of the current process.
@@ -73,6 +76,64 @@ def _get_descendant_pids() -> set[int]:
     except Exception:
         return set()
 
+
+def get_browser_preference() -> str | None:
+    """Get the user's preferred browser from config file.
+
+    Returns:
+        Browser command name (e.g., "firefox") or None if not set.
+    """
+    from .config import BROWSER_PREF_FILE
+
+    try:
+        if BROWSER_PREF_FILE.exists():
+            browser = BROWSER_PREF_FILE.read_text().strip()
+            if browser in VALID_BROWSERS:
+                return browser
+    except Exception:
+        pass
+    return None
+
+
+def set_browser_preference(browser: str) -> bool:
+    """Set the user's preferred browser.
+
+    Args:
+        browser: Browser command name (e.g., "firefox", "chrome")
+
+    Returns:
+        True if preference was saved successfully.
+    """
+    from .config import BROWSER_PREF_FILE
+
+    if browser.lower() not in VALID_BROWSERS:
+        return False
+
+    try:
+        # Ensure parent directory exists
+        BROWSER_PREF_FILE.parent.mkdir(parents=True, exist_ok=True)
+        BROWSER_PREF_FILE.write_text(browser.lower())
+        return True
+    except Exception:
+        return False
+
+
+def clear_browser_preference() -> bool:
+    """Clear the user's browser preference (revert to auto-detect).
+
+    Returns:
+        True if preference was cleared successfully.
+    """
+    from .config import BROWSER_PREF_FILE
+
+    try:
+        if BROWSER_PREF_FILE.exists():
+            BROWSER_PREF_FILE.unlink()
+        return True
+    except Exception:
+        return False
+
+
 # Interactive mode command help lines (ordered like website nav bar)
 INTERACTIVE_HELP_COMMANDS = [
     "ATIS:",
@@ -104,6 +165,8 @@ INTERACTIVE_HELP_COMMANDS = [
     "  strips [facility]         - Open flight strips",
     "Tools:",
     "  descent|des <alt> <alt|nm> - Descent calculator (3° glideslope)",
+    "Settings:",
+    "  setbrowser [browser]      - Set preferred browser (e.g., setbrowser firefox)",
 ]
 
 # Detailed help for individual commands (used by "help <command>")
@@ -387,6 +450,24 @@ apps - Alias for 'approaches' command
 
 See 'approaches --help' for full documentation.
 """,
+    "setbrowser": """
+setbrowser - Set preferred browser for opening charts
+
+Sets which browser to use when opening chart PDFs and other local files.
+Without this setting, the tool auto-detects which browser is currently running.
+
+Valid browsers: chrome, firefox, msedge, brave, opera
+
+\b
+Examples:
+  setbrowser              - Show current browser preference
+  setbrowser firefox      - Set Firefox as preferred browser
+  setbrowser chrome       - Set Chrome as preferred browser
+  setbrowser clear        - Clear preference (use auto-detect)
+  setbrowser auto         - Same as clear
+
+The preference is saved to ~/.zoa-ref/browser_pref.txt
+""",
 }
 
 
@@ -471,39 +552,61 @@ def print_command_help(command: str, main_group: click.Group) -> bool:
 def get_running_browser() -> str | None:
     """Check if any known browser is running and return its command name.
 
+    If multiple browsers are running, returns the one that was started most recently.
     Excludes browser processes that are descendants of the current process
     (e.g., Playwright's Chromium instances).
     """
     try:
+        # Get process list with creation time using WMIC
         result = subprocess.run(
-            ["tasklist", "/FO", "CSV", "/NH"],
+            ["wmic", "process", "get", "Name,ProcessId,CreationDate", "/FORMAT:CSV"],
             capture_output=True,
             text=True,
             timeout=5,
         )
 
+        if result.returncode != 0:
+            return None
+
         # Get PIDs to exclude (Playwright browsers spawned by this process)
         exclude_pids = _get_descendant_pids()
 
-        # Parse CSV output to get process names and PIDs
-        reader = csv.reader(io.StringIO(result.stdout))
+        # Track browsers found with their creation times
+        browsers_found: list[tuple[str, str]] = []  # (browser_cmd, creation_date)
+
+        # Parse CSV output
+        reader = csv.DictReader(io.StringIO(result.stdout))
         for row in reader:
-            if len(row) < 2:
-                continue
-            process_name = row[0].lower()
             try:
-                pid = int(row[1])
-            except (ValueError, IndexError):
+                process_name = row.get("Name", "").lower()
+                pid = int(row.get("ProcessId", 0))
+                creation_date = row.get("CreationDate", "")
+
+                # Skip if this is a descendant of our process
+                if pid in exclude_pids:
+                    continue
+
+                # Check if this is a known browser
+                for browser_name, cmd in BROWSERS.items():
+                    if process_name == browser_name:
+                        browsers_found.append((cmd, creation_date))
+                        break
+            except (ValueError, TypeError, KeyError):
                 continue
 
-            # Skip if this is a descendant of our process
-            if pid in exclude_pids:
-                continue
+        if not browsers_found:
+            return None
 
-            # Check if this is a known browser
-            for browser_name, cmd in BROWSERS.items():
-                if process_name == browser_name:
-                    return cmd
+        # If only one browser found, return it
+        if len(browsers_found) == 1:
+            return browsers_found[0][0]
+
+        # Multiple browsers - return the one with the latest creation date
+        # WMIC creation date format: YYYYMMDDHHMMss.mmmmmm+zzz
+        # Sort by creation date (descending) and return the newest
+        browsers_found.sort(key=lambda x: x[1], reverse=True)
+        return browsers_found[0][0]
+
     except Exception:
         pass
     return None
@@ -512,7 +615,7 @@ def get_running_browser() -> str | None:
 def open_in_browser(
     file_path: str, view: str = "FitV", page: int | None = None
 ) -> bool:
-    """Open a local file in a running browser, or fall back to default handler.
+    """Open a local file in a browser using user's preference or auto-detect.
 
     Args:
         file_path: Path to the local file to open.
@@ -532,8 +635,12 @@ def open_in_browser(
     if fragments:
         file_uri = f"{file_uri}#{'&'.join(fragments)}"
 
-    # Check for a running browser
-    browser_cmd = get_running_browser()
+    # Check for user's preferred browser first
+    browser_cmd = get_browser_preference()
+    if not browser_cmd:
+        # No preference set - auto-detect running browser
+        browser_cmd = get_running_browser()
+
     if browser_cmd:
         try:
             # Use 'start' command on Windows to launch browser by name
