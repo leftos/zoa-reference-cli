@@ -17,6 +17,29 @@ PROCEDURES_URL = f"{REFERENCE_BASE_URL}/procedures"
 PROCEDURES_CACHE_FILE = CACHE_DIR / "procedures" / "procedures_list.json"
 # Note: Headings cache uses AIRAC-based invalidation via cache module
 
+# Class D airports - these share the "Class D Airports SOP"
+# When queried alone, they map to their section in the Class D SOP
+CLASS_D_AIRPORTS = {
+    "APC",
+    "CCR",
+    "CIC",
+    "HWD",
+    "LVK",
+    "MER",
+    "MHR",
+    "MOD",
+    "NUQ",
+    "PAO",
+    "RDD",
+    "RHV",
+    "SAC",
+    "SCK",
+    "SNS",
+    "SQL",
+    "STS",
+    "TRK",
+}
+
 
 # --- Data Structures ---
 
@@ -203,6 +226,21 @@ class ProcedureQuery:
         if not procedure_term:
             raise ValueError("No procedure term found in query")
 
+        # Transform Class D airport queries:
+        # "SAC" -> procedure="Class D Airports", section="KSAC"
+        # "SAC IFR" -> procedure="Class D Airports", section="KSAC", search="IFR"
+        if procedure_term.upper() in CLASS_D_AIRPORTS:
+            airport_code = procedure_term.upper()
+            # Original section_term becomes search_term for finding within the airport section
+            new_search_term = section_term
+            # Section becomes K + airport code (e.g., KSAC)
+            new_section_term = f"K{airport_code}"
+            return cls(
+                procedure_term="Class D Airports",
+                section_term=new_section_term,
+                search_term=new_search_term,
+            )
+
         return cls(
             procedure_term=procedure_term,
             section_term=section_term,
@@ -293,26 +331,34 @@ def _save_headings_cache(uuid: str, headings: list[HeadingInfo]) -> None:
 # --- Similarity Matching ---
 
 # Airport code to city name aliases for better matching
+# These expand airport codes to prefer ATCT SOPs over LOAs/other documents
 AIRPORT_ALIASES = {
-    "SFO": "SAN FRANCISCO",
+    "SFO": "SAN FRANCISCO ATCT",
     "OAK": "OAKLAND ATCT",
-    "SJC": "SAN JOSE",
-    "SMF": "SACRAMENTO",
-    "RNO": "RENO",
-    "FAT": "FRESNO",
-    "MRY": "MONTEREY",
-    "NCT": "NORCAL",
+    "SJC": "SAN JOSE ATCT",
+    "SMF": "SACRAMENTO ATCT",
+    "RNO": "RENO ATCT",
+    "FAT": "FRESNO ATCT TRACON SOP",
+    "MRY": "MONTEREY ATCT",
+    "NCT": "NORCAL TRACON",
     "ZOA": "OAKLAND CENTER",
 }
 
 
 def _expand_airport_aliases(query: str) -> str:
-    """Expand airport codes in query to include city names."""
+    """Expand airport codes in query to include city names.
+
+    Only expands when the query is just the airport code alone.
+    This allows 'SFO' to prefer ATCT SOP, but 'SFO Ramp' to find Ramp Tower.
+    """
     query_upper = query.upper()
-    for code, name in AIRPORT_ALIASES.items():
-        if code in query_upper.split():
-            # Replace the code with both code and name for matching
-            query_upper = query_upper.replace(code, f"{code} {name}")
+    tokens = query_upper.split()
+
+    # Only expand if query is a single airport code
+    if len(tokens) == 1 and tokens[0] in AIRPORT_ALIASES:
+        code = tokens[0]
+        return f"{code} {AIRPORT_ALIASES[code]}"
+
     return query_upper
 
 
