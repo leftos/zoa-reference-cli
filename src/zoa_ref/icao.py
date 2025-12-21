@@ -257,6 +257,54 @@ def _search_aircraft(page: Page, query: str) -> list[AircraftCode]:
         return []
 
 
+def _filter_aircraft_by_terms(
+    aircraft: list[AircraftCode], terms: list[str]
+) -> list[AircraftCode]:
+    """Filter aircraft to only include those matching all search terms (case-insensitive)."""
+    if not terms:
+        return aircraft
+
+    filtered = []
+    for ac in aircraft:
+        # Combine manufacturer and model for searching
+        combined = f"{ac.manufacturer} {ac.model}".lower()
+        # Check if all terms appear in the combined text
+        if all(term.lower() in combined for term in terms):
+            filtered.append(ac)
+
+    return filtered
+
+
+def _search_aircraft_multi_term(page: Page, query: str) -> list[AircraftCode]:
+    """
+    Search aircraft with multi-term support.
+
+    If the query contains multiple words and returns no results, try searching
+    individual terms and filter to matches containing all terms.
+    """
+    # Try the original query first
+    results = _search_aircraft(page, query)
+    if results:
+        return results
+
+    # If no results and query has multiple words, try word-by-word search
+    terms = query.strip().split()
+    if len(terms) <= 1:
+        return []
+
+    # Search with each term and combine results
+    all_results: dict[str, AircraftCode] = {}  # Use dict to deduplicate by type designator
+
+    for term in terms:
+        term_results = _search_aircraft(page, term)
+        for ac in term_results:
+            all_results[ac.type_designator] = ac
+
+    # Filter combined results to only include aircraft matching ALL terms
+    combined = list(all_results.values())
+    return _filter_aircraft_by_terms(combined, terms)
+
+
 # --- Persistent page for interactive mode ---
 
 
@@ -352,7 +400,7 @@ class CodesPage:
         if not self._ready or self._page is None:
             return None
 
-        results = _search_aircraft(self._page, query)
+        results = _search_aircraft_multi_term(self._page, query)
 
         if use_cache and results:
             _save_to_cache("aircraft", query, [asdict(r) for r in results])
@@ -453,6 +501,9 @@ def search_aircraft(
     """
     Search for an aircraft by type designator or manufacturer/model.
 
+    Supports multi-term searches (e.g., "piper comanche") by searching each term
+    individually and filtering results that match all terms.
+
     Args:
         page: Playwright page (can be None if cache hit expected)
         query: Search query
@@ -475,7 +526,7 @@ def search_aircraft(
     if not _navigate_to_codes_page(page, timeout):
         return None
 
-    results = _search_aircraft(page, query)
+    results = _search_aircraft_multi_term(page, query)
 
     # Cache results
     if use_cache and results:
