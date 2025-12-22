@@ -16,6 +16,7 @@ from .commands import (
     do_icao_lookup,
     do_navaid_lookup,
     do_descent_calc,
+    do_fix_descent,
     do_route_lookup,
     do_atis_lookup,
     do_chart_lookup,
@@ -27,6 +28,7 @@ from .commands import (
     do_approaches_lookup,
     do_setbrowser,
 )
+from .descent import is_fix_identifier
 from .icao import CodesPage
 from .input import create_prompt_session, prompt_with_history
 
@@ -357,7 +359,14 @@ def _handle_descent_interactive(args: str) -> None:
         print_command_help("descent", main)
         return
 
-    do_descent_calc(parsed.positional[0], parsed.positional[1])
+    first_arg = parsed.positional[0]
+    second_arg = parsed.positional[1]
+
+    # If both arguments are fix/airport/navaid identifiers, use fix-to-fix mode
+    if is_fix_identifier(first_arg) and is_fix_identifier(second_arg):
+        do_fix_descent(first_arg, second_arg)
+    else:
+        do_descent_calc(first_arg, second_arg)
 
 
 def _handle_approaches_interactive(args: str) -> None:

@@ -27,7 +27,7 @@ from .charts import (
     search_chart_cifp,
 )
 from .cli_utils import open_in_browser, wait_for_input_or_close
-from .descent import calculate_descent
+from .descent import calculate_descent, calculate_fix_descent, is_fix_identifier
 from .display import (
     display_routes,
     display_airlines,
@@ -36,6 +36,7 @@ from .display import (
     display_atis,
     display_chart_matches,
     display_descent,
+    display_fix_descent,
     display_navaids,
     display_procedure_matches,
     display_positions,
@@ -1048,6 +1049,23 @@ def do_descent_calc(current_str: str, second_str: str) -> None:
     try:
         result = calculate_descent(current_str, second_str)
         display_descent(result)
+    except ValueError as e:
+        click.echo(f"Error: {e}", err=True)
+
+
+def do_fix_descent(from_ident: str, to_ident: str) -> None:
+    """Calculate descent available between two fixes, airports, or navaids.
+
+    Uses a 3-degree glideslope (318 ft/nm) to calculate how much altitude
+    can be lost between two geographic points.
+
+    Args:
+        from_ident: Starting point identifier (fix, airport, or navaid)
+        to_ident: Ending point identifier (fix, airport, or navaid)
+    """
+    try:
+        result = calculate_fix_descent(from_ident, to_ident)
+        display_fix_descent(result)
     except ValueError as e:
         click.echo(f"Error: {e}", err=True)
 

@@ -11,6 +11,7 @@ from .commands import (
     do_icao_lookup,
     do_navaid_lookup,
     do_descent_calc,
+    do_fix_descent,
     do_route_lookup,
     do_atis_lookup,
     do_chart_lookup,
@@ -22,6 +23,7 @@ from .commands import (
     do_approaches_lookup,
     do_setbrowser,
 )
+from .descent import is_fix_identifier
 from .interactive import interactive_mode
 
 
@@ -192,17 +194,25 @@ def navaid(query: tuple[str, ...]):
 
 
 @main.command(help=COMMAND_HELP["descent"].strip())
-@click.argument("current_alt")
-@click.argument("target_or_distance")
-def descent(current_alt: str, target_or_distance: str):
-    do_descent_calc(current_alt, target_or_distance)
+@click.argument("first_arg")
+@click.argument("second_arg")
+def descent(first_arg: str, second_arg: str):
+    # If both arguments are fix/airport/navaid identifiers, use fix-to-fix mode
+    if is_fix_identifier(first_arg) and is_fix_identifier(second_arg):
+        do_fix_descent(first_arg, second_arg)
+    else:
+        do_descent_calc(first_arg, second_arg)
 
 
 @main.command("des", help=COMMAND_HELP["descent"].strip())
-@click.argument("current_alt")
-@click.argument("target_or_distance")
-def des(current_alt: str, target_or_distance: str):
-    do_descent_calc(current_alt, target_or_distance)
+@click.argument("first_arg")
+@click.argument("second_arg")
+def des(first_arg: str, second_arg: str):
+    # If both arguments are fix/airport/navaid identifiers, use fix-to-fix mode
+    if is_fix_identifier(first_arg) and is_fix_identifier(second_arg):
+        do_fix_descent(first_arg, second_arg)
+    else:
+        do_descent_calc(first_arg, second_arg)
 
 
 @main.command(help=COMMAND_HELP["approaches"].strip())

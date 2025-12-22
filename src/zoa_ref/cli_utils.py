@@ -164,7 +164,7 @@ INTERACTIVE_HELP_COMMANDS = [
     "  tdls [facility]           - Open TDLS (Pre-Departure Clearances)",
     "  strips [facility]         - Open flight strips",
     "Tools:",
-    "  descent|des <alt> <alt|nm> - Descent calculator (3° glideslope)",
+    "  descent|des <arg1> <arg2>  - Descent calculator (altitudes or fixes)",
     "Settings:",
     "  setbrowser [browser]      - Set preferred browser (e.g., setbrowser firefox)",
 ]
@@ -331,9 +331,10 @@ Calculates descent parameters for a standard 3-degree glideslope
 (~318 ft/nm). Altitudes use FL-style notation (100 = 10,000 ft).
 
 \b
-Two modes based on second argument:
-  - 3 digits: target altitude - calculates distance needed
-  - 1-2 digits or decimal: distance - calculates altitude at that point
+Three modes based on arguments:
+  - 3-digit altitudes: calculates distance needed to descend
+  - 1-2 digit or decimal: calculates altitude at that distance
+  - Two fixes/airports: calculates descent available between points
 
 \b
 Examples:
@@ -341,6 +342,8 @@ Examples:
   des 100 12.5           - Altitude at 12.5 nm from 10,000 ft
   des 100 5              - Altitude at 5 nm from 10,000 ft
   des 080 040            - Distance needed: 8,000 ft to 4,000 ft
+  des TUDOR KSMF         - Descent available between TUDOR and SMF
+  des FMG RNO            - Descent available from MUSTANG VOR to RNO
 
 Alias: 'des' is an alias for 'descent'
 """,

@@ -4,7 +4,7 @@ import click
 
 from .atis import AtisInfo
 from .charts import ChartMatch
-from .descent import DescentResult, DescentMode
+from .descent import DescentResult, DescentMode, FixDescentResult
 from .icao import AirlineSearchResult, AirportSearchResult, AircraftSearchResult
 from .navaids import NavaidSearchResult
 from .positions import PositionSearchResult
@@ -334,3 +334,11 @@ def display_descent(result: DescentResult) -> None:
             f"\nAt {result.distance_nm:.1f} nm: {result.altitude_at:,} ft "
             f"({result.altitude_lost:,} ft descended)"
         )
+
+
+def display_fix_descent(result: FixDescentResult) -> None:
+    """Display fix-to-fix descent calculation results."""
+    click.echo(
+        f"\n{result.from_point} -> {result.to_point}: "
+        f"{result.distance_nm:.1f} nm, {result.altitude_available:,} ft descent available"
+    )

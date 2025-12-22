@@ -12,6 +12,7 @@ class DescentMode(Enum):
 
     DISTANCE_NEEDED = "distance_needed"  # Calculate NM to reach target altitude
     ALTITUDE_AT_DISTANCE = "altitude_at_distance"  # Calculate altitude after X nm
+    FIX_TO_FIX = "fix_to_fix"  # Calculate descent available between two points
 
 
 @dataclass
@@ -27,6 +28,16 @@ class DescentResult:
     distance_nm: float | None = None  # Distance traveled
     altitude_at: int | None = None  # Resulting altitude
     altitude_lost: int | None = None  # Feet descended
+
+
+@dataclass
+class FixDescentResult:
+    """Result of a fix-to-fix descent calculation."""
+
+    from_point: str  # Starting point identifier
+    to_point: str  # Ending point identifier
+    distance_nm: float  # Distance in nautical miles
+    altitude_available: int  # Feet that can be descended on 3-degree glideslope
 
 
 def parse_altitude(s: str) -> int:
@@ -100,3 +111,54 @@ def calculate_descent(current_str: str, second_str: str) -> DescentResult:
             target_alt=target_alt,
             distance_needed=distance_needed,
         )
+
+
+def is_fix_identifier(s: str) -> bool:
+    """Check if string looks like a fix/airport/navaid identifier.
+
+    Fix identifiers are alphabetic strings. This is used to distinguish
+    fix-to-fix mode from altitude-based mode. The actual validity of the
+    identifier is checked during the lookup.
+
+    Args:
+        s: The input string to check
+
+    Returns:
+        True if this looks like a fix/airport/navaid identifier (alphabetic)
+    """
+    s = s.upper().strip()
+    if not s:
+        return False
+
+    # Must be all alphabetic to be treated as a fix identifier
+    # Length and validity are checked during the actual lookup
+    return s.isalpha()
+
+
+def calculate_fix_descent(from_ident: str, to_ident: str) -> FixDescentResult:
+    """Calculate descent available between two geographic points.
+
+    Uses a 3-degree glideslope calculation (318 ft/nm) to determine
+    how much altitude can be lost between two fixes, airports, or navaids.
+
+    Args:
+        from_ident: Starting point identifier (fix, airport, or navaid)
+        to_ident: Ending point identifier (fix, airport, or navaid)
+
+    Returns:
+        FixDescentResult with distance and available descent
+
+    Raises:
+        ValueError: If either identifier is not found
+    """
+    from zoa_ref.waypoints import calculate_distance_nm
+
+    distance_nm, _, _ = calculate_distance_nm(from_ident, to_ident)
+    altitude_available = int(distance_nm * FEET_PER_NM)
+
+    return FixDescentResult(
+        from_point=from_ident.upper(),
+        to_point=to_ident.upper(),
+        distance_nm=distance_nm,
+        altitude_available=altitude_available,
+    )
