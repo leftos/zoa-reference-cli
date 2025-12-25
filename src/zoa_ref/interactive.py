@@ -370,7 +370,7 @@ def _handle_descent_interactive(args: str) -> None:
 
 
 def _handle_approaches_interactive(args: str) -> None:
-    """Handle 'approaches <airport> <star_or_fix>' command in interactive mode."""
+    """Handle 'approaches <airport> <star_or_fix> [runways...]' command in interactive mode."""
     parsed = parse_interactive_args(args)
     if parsed.show_help or len(parsed.positional) < 2:
         from .cli import main
@@ -378,7 +378,9 @@ def _handle_approaches_interactive(args: str) -> None:
         print_command_help("approaches", main)
         return
 
-    do_approaches_lookup(parsed.positional[0], parsed.positional[1])
+    # Remaining positional args after airport and star_or_fix are runway filters
+    runways = parsed.positional[2:] if len(parsed.positional) > 2 else None
+    do_approaches_lookup(parsed.positional[0], parsed.positional[1], runways)
 
 
 def _handle_setbrowser_interactive(args: str) -> None:

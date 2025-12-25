@@ -146,7 +146,7 @@ INTERACTIVE_HELP_COMMANDS = [
     "  charts <query>            - Browse charts in browser",
     "  list <airport> [type] [search] - List/search charts for an airport",
     "Approaches:",
-    "  approaches|apps <apt> <star_or_fix> - Find approaches for a STAR/fix",
+    "  approaches|apps <apt> <star_or_fix> [rwy...] - Find approaches for a STAR/fix",
     "ICAO Codes:",
     "  airline <query>           - Look up airline codes (e.g., airline UAL)",
     "  airport <query>           - Look up airport codes (e.g., airport KSFO)",
@@ -439,12 +439,17 @@ shared waypoints. Supports two modes:
 When a STAR endpoint or fix matches an IAF/IF on an approach, aircraft
 can fly directly to the approach without vectors.
 
+Optionally filter results by runway number(s). Partial matches work:
+"17" matches 17, 17L, and 17R.
+
 \b
 Examples:
   approaches RNO SCOLA1        - Find approaches for SCOLA ONE STAR
   approaches OAK EMZOH4        - Find approaches for EMZOH FOUR STAR
   approaches RNO KLOCK         - Find approaches via KLOCK fix
   approaches OAK MYSHN         - Find approaches via MYSHN fix
+  approaches SMF SLMMR5 17     - Filter to runway 17 only
+  approaches RNO FMG 17 26     - Filter to runways 17 and 26
 
 Alias: 'apps' is a shorthand for 'approaches'
 """,

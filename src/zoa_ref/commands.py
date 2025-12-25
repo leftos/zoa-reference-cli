@@ -4,6 +4,7 @@ import os
 import re
 import tempfile
 import webbrowser
+from collections.abc import Callable
 from pathlib import Path
 
 import click
@@ -1216,7 +1217,46 @@ def do_list_charts(
             click.echo(f"No charts found for {airport}")
 
 
-def do_approaches_lookup(airport: str, star_or_fix: str) -> None:
+def _filter_by_runways(
+    approaches: list,
+    runways: list[str],
+    get_runway: Callable,
+) -> list:
+    """Filter approaches by runway numbers.
+
+    Supports partial matching: "17" matches "17", "17L", "17R".
+
+    Args:
+        approaches: List of approach items to filter
+        runways: Runway numbers to filter by (e.g., ["17", "26"])
+        get_runway: Function to extract runway from an approach item
+
+    Returns:
+        Filtered list of approaches
+    """
+    if not runways:
+        return approaches
+
+    # Normalize runway filters (strip leading zeros, uppercase)
+    runway_filters = [r.upper().lstrip("0") for r in runways]
+
+    filtered = []
+    for item in approaches:
+        rwy = get_runway(item)
+        if rwy:
+            # Strip leading zeros from runway for comparison
+            rwy_normalized = rwy.lstrip("0")
+            # Check if any filter matches (partial match for L/R/C variants)
+            for rf in runway_filters:
+                if rwy_normalized == rf or rwy_normalized.startswith(rf):
+                    filtered.append(item)
+                    break
+    return filtered
+
+
+def do_approaches_lookup(
+    airport: str, star_or_fix: str, runways: list[str] | None = None
+) -> None:
     """
     Look up approaches that connect to a STAR or use a specific fix.
 
@@ -1226,6 +1266,7 @@ def do_approaches_lookup(airport: str, star_or_fix: str) -> None:
     Args:
         airport: Airport code (e.g., "RNO")
         star_or_fix: STAR name (e.g., "SCOLA1") or fix name (e.g., "FMG")
+        runways: Optional list of runway numbers to filter by (e.g., ["17", "26"])
     """
     from .approaches import (
         find_connected_approaches,
@@ -1235,9 +1276,15 @@ def do_approaches_lookup(airport: str, star_or_fix: str) -> None:
         format_fix_approaches,
     )
 
+    runways = runways or []
+
     if is_star_name(star_or_fix):
         # STAR lookup mode
-        click.echo(f"Analyzing STAR {star_or_fix} for {airport}...")
+        if runways:
+            rwy_str = ", ".join(runways)
+            click.echo(f"Analyzing STAR {star_or_fix} for {airport} (runways: {rwy_str})...")
+        else:
+            click.echo(f"Analyzing STAR {star_or_fix} for {airport}...")
 
         star_analysis, connections = find_connected_approaches(airport, star_or_fix)
 
@@ -1252,17 +1299,39 @@ def do_approaches_lookup(airport: str, star_or_fix: str) -> None:
                     click.echo(f"  - {star.chart_name}")
             return
 
+        # Filter by runways if specified
+        if runways:
+            connections = _filter_by_runways(
+                connections, runways, lambda c: c.approach_runway
+            )
+
         click.echo()
         click.echo(format_connections(star_analysis, connections))
     else:
         # Fix/waypoint lookup mode
-        click.echo(f"Finding approaches via {star_or_fix.upper()} for {airport}...")
+        if runways:
+            rwy_str = ", ".join(runways)
+            click.echo(f"Finding approaches via {star_or_fix.upper()} for {airport} (runways: {rwy_str})...")
+        else:
+            click.echo(f"Finding approaches via {star_or_fix.upper()} for {airport}...")
 
         result = find_approaches_by_fix(airport, star_or_fix)
 
         if result is None:
             click.echo(f"\nNo charts found for {airport}")
             return
+
+        # Filter by runways if specified
+        if runways and result.approaches:
+            from .approaches import extract_runway_from_name
+
+            def get_runway_from_tuple(item: tuple) -> str | None:
+                approach_name = item[0]
+                return extract_runway_from_name(approach_name)
+
+            result.approaches = _filter_by_runways(
+                result.approaches, runways, get_runway_from_tuple
+            )
 
         click.echo()
         click.echo(format_fix_approaches(result))

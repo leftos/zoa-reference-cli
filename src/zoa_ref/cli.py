@@ -218,15 +218,17 @@ def des(first_arg: str, second_arg: str):
 @main.command(help=COMMAND_HELP["approaches"].strip())
 @click.argument("airport")
 @click.argument("star_or_fix")
-def approaches(airport: str, star_or_fix: str):
-    do_approaches_lookup(airport, star_or_fix)
+@click.argument("runways", nargs=-1)
+def approaches(airport: str, star_or_fix: str, runways: tuple[str, ...]):
+    do_approaches_lookup(airport, star_or_fix, list(runways) if runways else None)
 
 
 @main.command("apps", help=COMMAND_HELP["apps"].strip())
 @click.argument("airport")
 @click.argument("star_or_fix")
-def apps(airport: str, star_or_fix: str):
-    do_approaches_lookup(airport, star_or_fix)
+@click.argument("runways", nargs=-1)
+def apps(airport: str, star_or_fix: str, runways: tuple[str, ...]):
+    do_approaches_lookup(airport, star_or_fix, list(runways) if runways else None)
 
 
 # --- Procedure/SOP Commands ---
