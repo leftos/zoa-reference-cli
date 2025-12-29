@@ -799,9 +799,15 @@ class ImplicitChartGroup(click.Group):
         if args and not args[0].startswith("-"):
             cmd_name = args[0]
             if self.get_command(ctx, cmd_name) is None:
-                # Not a known command - treat all args as chart query
-                # Insert 'chart' command before the args
-                args = ["chart"] + list(args)
+                # Not a known command - check for "AIRPORT sop/proc" pattern
+                # If second arg is "sop" or "proc" (case-insensitive), treat as sop command
+                if len(args) >= 2 and args[1].lower() in ("sop", "proc"):
+                    # Rewrite "OAK sop" -> "sop OAK"
+                    args = ["sop", args[0]] + list(args[2:])
+                else:
+                    # Treat all args as chart query
+                    # Insert 'chart' command before the args
+                    args = ["chart"] + list(args)
         return super().parse_args(ctx, args)
 
     def format_help(self, ctx, formatter):

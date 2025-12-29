@@ -534,6 +534,15 @@ def interactive_mode(use_playwright: bool = False):
                     continue
                 # Fall through to chart lookup below
 
+            # Check for "AIRPORT sop/proc" pattern before chart fallback
+            parts = query.split(None, 2)  # Split into max 3 parts
+            if len(parts) >= 2 and parts[1].lower() in ("sop", "proc"):
+                # Rewrite "OAK sop 2-2" -> "OAK 2-2" as args to sop handler
+                sop_args = parts[0] + (" " + parts[2] if len(parts) > 2 else "")
+                _handle_sop_interactive(sop_args, ctx)
+                click.echo()
+                continue
+
             # Treat as chart lookup (default command)
             _handle_chart_interactive(query, ctx)
             click.echo()
