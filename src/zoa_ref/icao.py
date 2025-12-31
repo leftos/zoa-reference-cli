@@ -293,12 +293,15 @@ def _search_aircraft_multi_term(page: Page, query: str) -> list[AircraftCode]:
         return []
 
     # Search with each term and combine results
-    all_results: dict[str, AircraftCode] = {}  # Use dict to deduplicate by type designator
+    # Use composite key (type + manufacturer + model) to avoid losing entries
+    # when the same type has multiple manufacturer/model combinations
+    all_results: dict[tuple[str, str, str], AircraftCode] = {}
 
     for term in terms:
         term_results = _search_aircraft(page, term)
         for ac in term_results:
-            all_results[ac.type_designator] = ac
+            key = (ac.type_designator, ac.manufacturer, ac.model)
+            all_results[key] = ac
 
     # Filter combined results to only include aircraft matching ALL terms
     combined = list(all_results.values())
