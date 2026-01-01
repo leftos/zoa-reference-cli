@@ -1,6 +1,10 @@
 """Browser automation module using Playwright."""
 
 import ctypes
+import os
+import sys
+from pathlib import Path
+
 from playwright.sync_api import (
     sync_playwright,
     Browser,
@@ -14,6 +18,31 @@ from contextlib import contextmanager
 TASKBAR_HEIGHT = 48
 # Aspect ratio for chart viewing (width:height)
 CHART_ASPECT_RATIO = 0.75  # 3:4 ratio, good for PDF viewing
+
+
+def _get_bundled_chromium_path() -> str | None:
+    """Get the path to bundled Chromium when running as a frozen executable."""
+    if not getattr(sys, 'frozen', False):
+        return None
+
+    # When frozen, look for chromium in the bundle directory
+    bundle_dir = Path(sys._MEIPASS)  # type: ignore
+    chromium_dir = bundle_dir / "chromium"
+
+    if not chromium_dir.exists():
+        return None
+
+    # Find chrome.exe in the chromium directory
+    # Structure: chromium/chrome-win/chrome.exe
+    chrome_exe = chromium_dir / "chrome-win" / "chrome.exe"
+    if chrome_exe.exists():
+        return str(chrome_exe)
+
+    # Alternative: search for chrome.exe recursively
+    for exe in chromium_dir.rglob("chrome.exe"):
+        return str(exe)
+
+    return None
 
 
 def _get_screen_size() -> tuple[int, int]:
@@ -65,10 +94,19 @@ class BrowserSession:
         args = []
         if self.window_size:
             args.append(f"--window-size={self.window_size[0]},{self.window_size[1]}")
-        self._browser = self._playwright.chromium.launch(
-            headless=self.headless,
-            args=args if args else None,
-        )
+
+        # Check for bundled browser (when running as frozen exe)
+        bundled_chrome = _get_bundled_chromium_path()
+
+        launch_kwargs: dict = {
+            "headless": self.headless,
+        }
+        if args:
+            launch_kwargs["args"] = args
+        if bundled_chrome:
+            launch_kwargs["executable_path"] = bundled_chrome
+
+        self._browser = self._playwright.chromium.launch(**launch_kwargs)
         self._browser.on("disconnected", self._on_disconnected)
         # Create a single context for all pages (tabs) in this session
         self._context = self._browser.new_context(no_viewport=True)

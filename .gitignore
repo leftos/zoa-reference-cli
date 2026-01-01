@@ -30,6 +30,7 @@ MANIFEST
 # PyInstaller
 *.manifest
 *.spec
+_zoa_entry.py
 
 # Installer logs
 pip-log.txt
