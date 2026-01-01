@@ -4,37 +4,20 @@ A command-line tool for quick lookups to [ZOA's Reference Tool](https://referenc
 
 ## Installation
 
-Requires Python 3.10+.
+Requires [uv](https://docs.astral.sh/uv/getting-started/installation/) to manage Python dependencies.
 
-### Quick Install
-
-Run the installation script which handles everything automatically:
+### First time installation
 
 ```bash
-git clone https://github.com/leftos/zoa-reference-cli.git
-cd zoa-reference-cli
-python install.py
+uv tool install git+https://github.com/leftos/zoa-reference-cli.git
+uvx --from zoa-reference-cli playwright install
 ```
 
-This will:
-- Install uv (if not present)
-- Create a virtual environment
-- Install project dependencies
-- Install Playwright Chromium browser
+This will install project dependencies and install the Playwright Chromium browser.
 
-### Manual Installation
-
+### Upgrading
 ```bash
-# Clone the repository
-git clone https://github.com/leftos/zoa-reference-cli.git
-cd zoa-reference-cli
-
-# Create virtual environment and install
-uv venv
-uv pip install -e .
-
-# Install Playwright browsers (first time only)
-.venv/Scripts/playwright install
+uv tool upgrade zoa-reference-cli
 ```
 
 ## Usage
