@@ -16,6 +16,7 @@ from .config import AIRSPACE_URL, TDLS_URL, STRIPS_URL
 from .commands import (
     do_icao_lookup,
     do_navaid_lookup,
+    do_airway_lookup,
     do_descent_calc,
     do_fix_descent,
     do_route_lookup,
@@ -356,6 +357,20 @@ def _handle_navaid_interactive(args: str) -> None:
     do_navaid_lookup(" ".join(parsed.positional))
 
 
+def _handle_airway_interactive(args: str) -> None:
+    """Handle 'airway <id> [highlight]' command in interactive mode."""
+    parsed = parse_interactive_args(args)
+    if parsed.show_help or not parsed.positional:
+        from .cli import main
+
+        print_command_help("airway", main)
+        return
+
+    airway_id = parsed.positional[0]
+    highlight = parsed.positional[1] if len(parsed.positional) > 1 else None
+    do_airway_lookup(airway_id, highlight)
+
+
 def _handle_descent_interactive(args: str) -> None:
     """Handle 'descent <current_alt> <target_or_distance>' command in interactive mode."""
     parsed = parse_interactive_args(args)
@@ -415,6 +430,8 @@ INTERACTIVE_COMMANDS: dict[str, tuple] = {
     "airport ": (_handle_airport_interactive, 8, True),
     "aircraft ": (_handle_aircraft_interactive, 9, True),
     "navaid ": (_handle_navaid_interactive, 7, False),
+    "airway ": (_handle_airway_interactive, 7, False),
+    "aw ": (_handle_airway_interactive, 3, False),
     "descent ": (_handle_descent_interactive, 8, False),
     "des ": (_handle_descent_interactive, 4, False),
     "approaches ": (_handle_approaches_interactive, 11, False),

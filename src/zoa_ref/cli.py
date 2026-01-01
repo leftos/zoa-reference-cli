@@ -19,6 +19,7 @@ from .config import AIRSPACE_URL, TDLS_URL, STRIPS_URL
 from .commands import (
     do_icao_lookup,
     do_navaid_lookup,
+    do_airway_lookup,
     do_descent_calc,
     do_fix_descent,
     do_route_lookup,
@@ -226,6 +227,20 @@ def aircraft(query: tuple[str, ...], browser: bool, no_cache: bool):
 @click.argument("query", nargs=-1, required=True, shell_complete=complete_navaid)
 def navaid(query: tuple[str, ...]):
     do_navaid_lookup(" ".join(query))
+
+
+@main.command(help=COMMAND_HELP["airway"].strip())
+@click.argument("airway_id", required=True)
+@click.argument("highlight", required=False, default=None)
+def airway(airway_id: str, highlight: str | None):
+    do_airway_lookup(airway_id, highlight)
+
+
+@main.command("aw", help=COMMAND_HELP["airway"].strip())
+@click.argument("airway_id", required=True)
+@click.argument("highlight", required=False, default=None)
+def aw(airway_id: str, highlight: str | None):
+    do_airway_lookup(airway_id, highlight)
 
 
 @main.command(help=COMMAND_HELP["descent"].strip())

@@ -2,6 +2,7 @@
 
 import click
 
+from .airways import AirwaySearchResult
 from .atis import AtisInfo
 from .charts import ChartMatch
 from .descent import DescentResult, DescentMode, FixDescentResult
@@ -342,3 +343,68 @@ def display_fix_descent(result: FixDescentResult) -> None:
         f"\n{result.from_point} -> {result.to_point}: "
         f"{result.distance_nm:.1f} nm, {result.altitude_available:,} ft descent available"
     )
+
+
+def display_airway(result: AirwaySearchResult) -> None:
+    """Display airway information with fixes.
+
+    Shows the airway identifier, direction, and list of fixes.
+    Navaids show their full name in parentheses.
+    If a highlight fix is specified, it's marked with brackets.
+    """
+    from .navaids import get_navaid_name
+
+    if not result.airway:
+        click.echo(f"\nAirway '{result.query}' not found.")
+        return
+
+    airway = result.airway
+
+    # Header with direction
+    direction_str = f" ({airway.direction})" if airway.direction else ""
+    click.echo()
+    click.echo(f"AIRWAY {airway.identifier}{direction_str} - {len(airway.fixes)} fixes")
+    click.echo()
+
+    # Build fix strings
+    fix_parts = []
+    for fix in airway.fixes:
+        # Look up navaid name if it's a navaid
+        if fix.is_navaid:
+            name = get_navaid_name(fix.identifier)
+            fix_str = f"{fix.identifier} ({name})" if name else fix.identifier
+        else:
+            fix_str = fix.identifier
+
+        # Highlight the specified fix in yellow
+        if result.highlight_fix and fix.identifier == result.highlight_fix:
+            fix_str = click.style(f"[{fix_str}]", fg="yellow", bold=True)
+
+        fix_parts.append(fix_str)
+
+    # Join with ".." and wrap to reasonable line length
+    # Use click.unstyle to get visible length (without ANSI codes)
+    max_width = 75
+    lines = []
+    current_line = ""
+    current_visible_len = 0
+
+    for part in fix_parts:
+        separator = ".." if current_line else ""
+        part_visible_len = len(click.unstyle(part))
+        test_visible_len = current_visible_len + len(separator) + part_visible_len
+
+        if test_visible_len > max_width and current_line:
+            lines.append(current_line + "..")
+            current_line = part
+            current_visible_len = part_visible_len
+        else:
+            current_line = current_line + separator + part
+            current_visible_len = test_visible_len
+
+    if current_line:
+        lines.append(current_line)
+
+    for line in lines:
+        click.echo(line)
+    click.echo()

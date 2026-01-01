@@ -324,6 +324,21 @@ Examples:
   navaid SFO             - Search for San Francisco VOR
   navaid OAKLAND         - Search by city/name (partial match)
 """,
+    "airway": """
+airway - Look up airway fixes/waypoints
+
+Displays the sequence of fixes along a Victor, Jet, or RNAV airway.
+Fixes are shown in order (W to E or N to S). Navaids are marked with *.
+Optionally highlight a specific fix in the list.
+
+\b
+Examples:
+  airway V23             - Show V23 fixes (NW to SE)
+  aw V23                 - Same (short alias)
+  airway V23 SAC         - Highlight SAC in the list
+  aw J60                 - Show J60 fixes
+  airway T270            - Show T270 RNAV route
+""",
     "descent": """
 descent - Calculate descent on a 3-degree glideslope
 
