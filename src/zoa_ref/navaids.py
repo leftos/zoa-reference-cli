@@ -143,6 +143,17 @@ def _load_navaid_data() -> tuple[dict[str, str], dict[str, str]]:
     return name_to_ident, ident_to_name
 
 
+def get_all_identifiers() -> list[str]:
+    """
+    Get all navaid identifiers.
+
+    Returns:
+        List of all navaid identifiers (e.g., ["FMG", "SWR", "CCR", ...])
+    """
+    _, ident_to_name = _load_navaid_data()
+    return list(ident_to_name.keys())
+
+
 def get_navaid_identifier(name: str) -> str | None:
     """
     Look up a navaid identifier by its name.

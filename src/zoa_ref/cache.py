@@ -448,7 +448,7 @@ def clear_all_airac_cache() -> int:
     """
     removed = 0
 
-    for cache_type in ["charts", "analysis", "cifp"]:
+    for cache_type in ["charts", "analysis", "cifp", "chart_lists"]:
         cache_base = CACHE_DIR / cache_type
         if cache_base.exists():
             try:
@@ -466,3 +466,63 @@ def clear_all_airac_cache() -> int:
             pass
 
     return removed
+
+
+# --- Chart List Caching (for autocomplete) ---
+
+
+def get_chart_list_cache_path(airport: str, airac: str) -> Path:
+    """Get the cache path for a chart list.
+
+    Args:
+        airport: Airport code (e.g., "OAK")
+        airac: AIRAC cycle (e.g., "2512")
+
+    Returns:
+        Path to the cached JSON file
+    """
+    return CACHE_DIR / "chart_lists" / airac / f"{airport.upper()}.json"
+
+
+def get_cached_chart_list(airport: str) -> list[str] | None:
+    """Retrieve cached chart names for an airport.
+
+    Uses current AIRAC cycle for cache lookup.
+
+    Args:
+        airport: Airport code
+
+    Returns:
+        List of chart names if cached, None otherwise
+    """
+    airac = get_airac_for_caching()
+    cache_path = get_chart_list_cache_path(airport, airac)
+
+    if cache_path.exists():
+        try:
+            with open(cache_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data.get("charts", [])
+        except (OSError, json.JSONDecodeError):
+            return None
+    return None
+
+
+def cache_chart_list(airport: str, chart_names: list[str]) -> None:
+    """Cache chart names for an airport.
+
+    Uses current AIRAC cycle for cache storage.
+
+    Args:
+        airport: Airport code
+        chart_names: List of chart names to cache
+    """
+    airac = get_airac_for_caching()
+    cache_path = get_chart_list_cache_path(airport, airac)
+
+    try:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(cache_path, "w", encoding="utf-8") as f:
+            json.dump({"charts": chart_names}, f)
+    except OSError:
+        pass

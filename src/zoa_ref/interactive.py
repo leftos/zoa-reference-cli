@@ -4,6 +4,7 @@ import webbrowser
 
 import click
 
+from .autocomplete import ChartListCache, ZoaCompleter
 from .browser import BrowserSession
 from .cli_utils import (
     InteractiveContext,
@@ -30,7 +31,12 @@ from .commands import (
 )
 from .descent import is_fix_identifier
 from .icao import CodesPage
-from .input import create_prompt_session, prompt_with_history
+from .input import (
+    create_prompt_session,
+    prompt_with_history,
+    NoDuplicatesFileHistory,
+    HISTORY_FILE,
+)
 
 
 def _handle_list_interactive(args: str) -> None:
@@ -442,6 +448,10 @@ def interactive_mode(use_playwright: bool = False):
     click.echo("=" * 50)
     click.echo()
 
+    # Initialize chart list cache and start background prefetch
+    chart_cache = ChartListCache()
+    chart_cache.prefetch_airports()  # Uses major airports + user's top 10
+
     # Initialize browser sessions and context
     headless_session = BrowserSession(headless=True)
     headless_session.start()
@@ -460,8 +470,13 @@ def interactive_mode(use_playwright: bool = False):
         ),
     )
 
-    # Create prompt session with history
-    prompt_session = create_prompt_session()
+    # Create shared history for both auto-suggest and completion menu
+    HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    history = NoDuplicatesFileHistory(str(HISTORY_FILE))
+
+    # Create prompt session with history and autocomplete
+    completer = ZoaCompleter(chart_cache=chart_cache, history=history)
+    prompt_session = create_prompt_session(completer=completer, history=history)
 
     ctrl_c_exit = False
     try:

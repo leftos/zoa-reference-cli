@@ -5,6 +5,8 @@ from pathlib import Path
 
 import nest_asyncio
 from prompt_toolkit import PromptSession
+from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+from prompt_toolkit.completion import Completer
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
 
@@ -60,8 +62,15 @@ def create_key_bindings() -> KeyBindings:
     return bindings
 
 
-def create_prompt_session() -> PromptSession:
-    """Create a prompt session with history and custom key bindings.
+def create_prompt_session(
+    completer: Completer | None = None,
+    history: FileHistory | None = None,
+) -> PromptSession:
+    """Create a prompt session with history, key bindings, and optional autocomplete.
+
+    Args:
+        completer: Optional prompt_toolkit Completer for tab completion.
+        history: Optional FileHistory instance. If None, creates default history.
 
     Features:
     - Persistent command history across sessions
@@ -69,17 +78,23 @@ def create_prompt_session() -> PromptSession:
     - If text is in buffer when pressing up, it's preserved for return with down
     - Double escape clears the buffer
     - Ctrl+Left/Right moves cursor by word (built-in)
+    - Tab completion (if completer provided)
+    - Inline auto-suggest from history (fish-style, press right arrow to accept)
     """
     # Ensure history directory exists
     HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
 
-    history = NoDuplicatesFileHistory(str(HISTORY_FILE))
+    if history is None:
+        history = NoDuplicatesFileHistory(str(HISTORY_FILE))
     bindings = create_key_bindings()
 
     return PromptSession(
         history=history,
         key_bindings=bindings,
         enable_history_search=True,  # Ctrl+R for reverse history search
+        completer=completer,
+        complete_while_typing=True,
+        auto_suggest=AutoSuggestFromHistory(),
     )
 
 

@@ -6,6 +6,15 @@ import click
 
 from .charts import ZOA_AIRPORTS
 from .cli_utils import COMMAND_HELP, ImplicitChartGroup, set_console_title, print_interactive_help
+from .completers import (
+    complete_airport,
+    complete_atis_airport,
+    complete_chart_query,
+    complete_chart_type,
+    complete_facility,
+    complete_navaid,
+    complete_sop_query,
+)
 from .config import AIRSPACE_URL, TDLS_URL, STRIPS_URL
 from .commands import (
     do_icao_lookup,
@@ -65,7 +74,7 @@ def main(ctx, playwright: bool):
 
 
 @main.command(help=COMMAND_HELP["chart"].strip())
-@click.argument("query", nargs=-1, required=True)
+@click.argument("query", nargs=-1, required=True, shell_complete=complete_chart_query)
 @click.option(
     "--link", "-l", "link_only", is_flag=True, help="Output PDF URL only (don't open)"
 )
@@ -96,14 +105,14 @@ def chart(
 
 
 @main.command(help=COMMAND_HELP["charts"].strip())
-@click.argument("query", nargs=-1, required=True)
+@click.argument("query", nargs=-1, required=True, shell_complete=complete_chart_query)
 def charts(query: tuple[str, ...]):
     do_charts_browse(" ".join(query))
 
 
 @main.command("list", help=COMMAND_HELP["list"].strip())
-@click.argument("airport")
-@click.argument("chart_type", required=False, default=None)
+@click.argument("airport", shell_complete=complete_airport)
+@click.argument("chart_type", required=False, default=None, shell_complete=complete_chart_type)
 @click.argument("search_term", required=False, default=None)
 def list_cmd(airport: str, chart_type: str | None, search_term: str | None):
     do_list_charts(airport, chart_type, search_term)
@@ -126,8 +135,8 @@ def airports():
 
 
 @main.command(help=COMMAND_HELP["route"].strip())
-@click.argument("departure")
-@click.argument("arrival")
+@click.argument("departure", shell_complete=complete_airport)
+@click.argument("arrival", shell_complete=complete_airport)
 @click.option("--browser", is_flag=True, help="Open browser instead of CLI display")
 @click.option(
     "--all-routes",
@@ -145,6 +154,11 @@ def airports():
     default=5,
     help="Number of real world routes to show (default: 5)",
 )
+@click.option(
+    "--export-lc",
+    is_flag=True,
+    help="Export routes to LCTrainer cache format",
+)
 def route(
     departure: str,
     arrival: str,
@@ -152,6 +166,7 @@ def route(
     all_routes: bool,
     flights: bool,
     top: int,
+    export_lc: bool,
 ):
     do_route_lookup(
         departure,
@@ -160,7 +175,27 @@ def route(
         show_all=all_routes,
         show_flights=flights,
         top_n=top,
+        export_lc=export_lc,
     )
+
+
+@main.command("export-routes")
+@click.argument("departure", shell_complete=complete_airport)
+@click.option(
+    "--destinations",
+    "-d",
+    multiple=True,
+    help="Specific destinations (default: common US airports)",
+)
+def export_routes(departure: str, destinations: tuple[str, ...]):
+    """Export routes to LCTrainer cache for multiple destinations.
+
+    Example: zoa export-routes KOAK
+    Example: zoa export-routes KOAK -d KLAX -d KSFO -d KORD
+    """
+    from .commands import do_batch_route_export
+
+    do_batch_route_export(departure, list(destinations) if destinations else None)
 
 
 @main.command(help=COMMAND_HELP["airline"].strip())
@@ -188,7 +223,7 @@ def aircraft(query: tuple[str, ...], browser: bool, no_cache: bool):
 
 
 @main.command(help=COMMAND_HELP["navaid"].strip())
-@click.argument("query", nargs=-1, required=True)
+@click.argument("query", nargs=-1, required=True, shell_complete=complete_navaid)
 def navaid(query: tuple[str, ...]):
     do_navaid_lookup(" ".join(query))
 
@@ -216,7 +251,7 @@ def des(first_arg: str, second_arg: str):
 
 
 @main.command(help=COMMAND_HELP["approaches"].strip())
-@click.argument("airport")
+@click.argument("airport", shell_complete=complete_airport)
 @click.argument("star_or_fix")
 @click.argument("runways", nargs=-1)
 def approaches(airport: str, star_or_fix: str, runways: tuple[str, ...]):
@@ -224,7 +259,7 @@ def approaches(airport: str, star_or_fix: str, runways: tuple[str, ...]):
 
 
 @main.command("apps", help=COMMAND_HELP["apps"].strip())
-@click.argument("airport")
+@click.argument("airport", shell_complete=complete_airport)
 @click.argument("star_or_fix")
 @click.argument("runways", nargs=-1)
 def apps(airport: str, star_or_fix: str, runways: tuple[str, ...]):
@@ -235,7 +270,7 @@ def apps(airport: str, star_or_fix: str, runways: tuple[str, ...]):
 
 
 @main.command(help=COMMAND_HELP["sop"].strip())
-@click.argument("query", nargs=-1, required=False)
+@click.argument("query", nargs=-1, required=False, shell_complete=complete_sop_query)
 @click.option("--list", "list_procs", is_flag=True, help="List available procedures")
 @click.option("--no-cache", is_flag=True, help="Bypass cache and fetch fresh data")
 def sop(query: tuple[str, ...], list_procs: bool, no_cache: bool):
@@ -243,7 +278,7 @@ def sop(query: tuple[str, ...], list_procs: bool, no_cache: bool):
 
 
 @main.command("proc", help=COMMAND_HELP["proc"].strip())
-@click.argument("query", nargs=-1, required=False)
+@click.argument("query", nargs=-1, required=False, shell_complete=complete_sop_query)
 @click.option("--list", "list_procs", is_flag=True, help="List available procedures")
 @click.option("--no-cache", is_flag=True, help="Bypass cache and fetch fresh data")
 def proc(query: tuple[str, ...], list_procs: bool, no_cache: bool):
@@ -251,7 +286,7 @@ def proc(query: tuple[str, ...], list_procs: bool, no_cache: bool):
 
 
 @main.command(help=COMMAND_HELP["atis"].strip())
-@click.argument("airport", required=False)
+@click.argument("airport", required=False, shell_complete=complete_atis_airport)
 @click.option(
     "--all", "-a", "show_all", is_flag=True, help="Show ATIS for all airports"
 )
@@ -267,7 +302,7 @@ def vis():
 
 
 @main.command(help=COMMAND_HELP["tdls"].strip())
-@click.argument("facility", required=False, default=None)
+@click.argument("facility", required=False, default=None, shell_complete=complete_facility)
 def tdls(facility: str | None):
     """Open TDLS (Pre-Departure Clearances)."""
     if facility:
@@ -280,7 +315,7 @@ def tdls(facility: str | None):
 
 
 @main.command(help=COMMAND_HELP["strips"].strip())
-@click.argument("facility", required=False)
+@click.argument("facility", required=False, shell_complete=complete_facility)
 def strips(facility: str | None):
     """Open flight strips."""
     if facility:
@@ -319,7 +354,7 @@ def help_cmd(ctx, command: str | None):
 
 
 @main.command(help=COMMAND_HELP["position"].strip())
-@click.argument("query", nargs=-1, required=True)
+@click.argument("query", nargs=-1, required=True, shell_complete=complete_facility)
 @click.option("--browser", is_flag=True, help="Open browser instead of CLI display")
 @click.option("--no-cache", is_flag=True, help="Bypass cache and fetch fresh data")
 def position(query: tuple[str, ...], browser: bool, no_cache: bool):
@@ -327,7 +362,7 @@ def position(query: tuple[str, ...], browser: bool, no_cache: bool):
 
 
 @main.command("pos", help=COMMAND_HELP["pos"].strip())
-@click.argument("query", nargs=-1, required=True)
+@click.argument("query", nargs=-1, required=True, shell_complete=complete_facility)
 @click.option("--browser", is_flag=True, help="Open browser instead of CLI display")
 @click.option("--no-cache", is_flag=True, help="Bypass cache and fetch fresh data")
 def pos(query: tuple[str, ...], browser: bool, no_cache: bool):
@@ -338,7 +373,7 @@ def pos(query: tuple[str, ...], browser: bool, no_cache: bool):
 
 
 @main.command(help=COMMAND_HELP["scratchpad"].strip())
-@click.argument("facility", required=False)
+@click.argument("facility", required=False, shell_complete=complete_facility)
 @click.option("--list", "list_facs", is_flag=True, help="List available facilities")
 @click.option("--no-cache", is_flag=True, help="Bypass cache and fetch fresh data")
 def scratchpad(facility: str | None, list_facs: bool, no_cache: bool):
@@ -346,7 +381,7 @@ def scratchpad(facility: str | None, list_facs: bool, no_cache: bool):
 
 
 @main.command("scratch", help=COMMAND_HELP["scratch"].strip())
-@click.argument("facility", required=False)
+@click.argument("facility", required=False, shell_complete=complete_facility)
 @click.option("--list", "list_facs", is_flag=True, help="List available facilities")
 @click.option("--no-cache", is_flag=True, help="Bypass cache and fetch fresh data")
 def scratch(facility: str | None, list_facs: bool, no_cache: bool):
