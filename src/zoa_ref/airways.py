@@ -47,7 +47,7 @@ class AirwaySearchResult:
 
     query: str
     airway: AirwayInfo | None
-    highlight_fix: str | None = None  # Fix to highlight in display
+    highlight_fixes: list[str] | None = None  # Fixes to highlight in display
 
 
 def parse_airway_record(line: str) -> tuple[str, str, int, bool] | None:
@@ -253,23 +253,27 @@ def get_airway(airway_id: str) -> AirwayInfo | None:
     return AirwayInfo(identifier=airway_id, fixes=sorted_fixes, direction=direction)
 
 
-def search_airway(query: str, highlight: str | None = None) -> AirwaySearchResult:
-    """Search for an airway and optionally highlight a fix.
+def search_airway(query: str, highlights: list[str] | None = None) -> AirwaySearchResult:
+    """Search for an airway and optionally highlight fixes.
 
     Args:
         query: Airway identifier (e.g., "V23", "J60")
-        highlight: Optional fix identifier to highlight in results
+        highlights: Optional list of fix identifiers to highlight in results
 
     Returns:
         AirwaySearchResult with the airway data and highlight info
     """
     airway = get_airway(query)
 
-    highlight_fix = None
-    if highlight and airway:
-        # Normalize and validate highlight fix
-        highlight = highlight.upper().strip()
-        if highlight in airway.fix_names:
-            highlight_fix = highlight
+    highlight_fixes = None
+    if highlights and airway:
+        # Normalize and validate highlight fixes
+        valid_fixes = []
+        for h in highlights:
+            h_upper = h.upper().strip()
+            if h_upper in airway.fix_names:
+                valid_fixes.append(h_upper)
+        if valid_fixes:
+            highlight_fixes = valid_fixes
 
-    return AirwaySearchResult(query=query, airway=airway, highlight_fix=highlight_fix)
+    return AirwaySearchResult(query=query, airway=airway, highlight_fixes=highlight_fixes)

@@ -358,7 +358,7 @@ def _handle_navaid_interactive(args: str) -> None:
 
 
 def _handle_airway_interactive(args: str) -> None:
-    """Handle 'airway <id> [highlight]' command in interactive mode."""
+    """Handle 'airway <id> [highlight...]' command in interactive mode."""
     parsed = parse_interactive_args(args)
     if parsed.show_help or not parsed.positional:
         from .cli import main
@@ -367,8 +367,8 @@ def _handle_airway_interactive(args: str) -> None:
         return
 
     airway_id = parsed.positional[0]
-    highlight = parsed.positional[1] if len(parsed.positional) > 1 else None
-    do_airway_lookup(airway_id, highlight)
+    highlights = parsed.positional[1:] if len(parsed.positional) > 1 else None
+    do_airway_lookup(airway_id, highlights)
 
 
 def _handle_descent_interactive(args: str) -> None:

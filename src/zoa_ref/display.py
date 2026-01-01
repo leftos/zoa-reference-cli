@@ -376,8 +376,8 @@ def display_airway(result: AirwaySearchResult) -> None:
         else:
             fix_str = fix.identifier
 
-        # Highlight the specified fix in yellow
-        if result.highlight_fix and fix.identifier == result.highlight_fix:
+        # Highlight the specified fixes in yellow
+        if result.highlight_fixes and fix.identifier in result.highlight_fixes:
             fix_str = click.style(f"[{fix_str}]", fg="yellow", bold=True)
 
         fix_parts.append(fix_str)

@@ -1186,17 +1186,17 @@ def do_navaid_lookup(query: str) -> None:
             display_navaids(result)
 
 
-def do_airway_lookup(airway_id: str, highlight: str | None = None) -> None:
+def do_airway_lookup(airway_id: str, highlights: list[str] | None = None) -> None:
     """Look up an airway and display its fixes.
 
     Args:
         airway_id: Airway identifier (e.g., "V23", "J60", "T270")
-        highlight: Optional fix identifier to highlight in the display
+        highlights: Optional list of fix identifiers to highlight in the display
     """
     from .airways import search_airway
     from .display import display_airway
 
-    result = search_airway(airway_id, highlight)
+    result = search_airway(airway_id, highlights)
     display_airway(result)
 
 

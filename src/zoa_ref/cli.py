@@ -231,16 +231,16 @@ def navaid(query: tuple[str, ...]):
 
 @main.command(help=COMMAND_HELP["airway"].strip())
 @click.argument("airway_id", required=True)
-@click.argument("highlight", required=False, default=None)
-def airway(airway_id: str, highlight: str | None):
-    do_airway_lookup(airway_id, highlight)
+@click.argument("highlights", nargs=-1)
+def airway(airway_id: str, highlights: tuple[str, ...]):
+    do_airway_lookup(airway_id, list(highlights) if highlights else None)
 
 
 @main.command("aw", help=COMMAND_HELP["airway"].strip())
 @click.argument("airway_id", required=True)
-@click.argument("highlight", required=False, default=None)
-def aw(airway_id: str, highlight: str | None):
-    do_airway_lookup(airway_id, highlight)
+@click.argument("highlights", nargs=-1)
+def aw(airway_id: str, highlights: tuple[str, ...]):
+    do_airway_lookup(airway_id, list(highlights) if highlights else None)
 
 
 @main.command(help=COMMAND_HELP["descent"].strip())
