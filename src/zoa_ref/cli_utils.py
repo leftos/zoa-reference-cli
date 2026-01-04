@@ -148,9 +148,9 @@ INTERACTIVE_HELP_COMMANDS = [
     "Approaches:",
     "  approaches|apps <apt> <star_or_fix> [rwy...] - Find approaches for a STAR/fix",
     "ICAO Codes:",
-    "  airline <query>           - Look up airline codes (e.g., airline UAL)",
-    "  airport <query>           - Look up airport codes (e.g., airport KSFO)",
-    "  aircraft <query>          - Look up aircraft types (e.g., aircraft B738)",
+    "  airline|al <query>        - Look up airline codes (e.g., al UAL)",
+    "  airport|ap <query>        - Look up airport codes (e.g., ap KSFO)",
+    "  aircraft|ac <query>       - Look up aircraft types (e.g., ac B738)",
     "Navaids & Airways:",
     "  navaid <query>            - Look up navaid (e.g., navaid FMG)",
     "  airway|aw <id> [fix...]   - Look up airway fixes (e.g., aw V23 SAC)",
@@ -272,7 +272,7 @@ proc - Alias for 'sop' command
 See 'sop --help' for full documentation.
 """,
     "airline": """
-airline - Look up airline codes
+airline (alias: al) - Look up airline codes
 
 Searches for airlines by ICAO identifier (e.g., UAL), telephony
 callsign (e.g., UNITED), or airline name. Results are cached for
@@ -281,12 +281,12 @@ faster subsequent lookups.
 \b
 Examples:
   airline UAL            - Search by ICAO code
-  airline united         - Search by telephony/name
+  al united              - Search by telephony/name
   airline "Delta Air"    - Multi-word search
-  airline UAL --browser  - Open codes page in browser
+  al UAL --browser       - Open codes page in browser
 """,
     "airport": """
-airport - Look up airport codes
+airport (alias: ap) - Look up airport codes
 
 Searches for airports by ICAO code (e.g., KSFO), FAA/local
 identifier (e.g., SFO), or airport name. Results are cached.
@@ -294,12 +294,12 @@ identifier (e.g., SFO), or airport name. Results are cached.
 \b
 Examples:
   airport KSFO           - Search by ICAO code
-  airport SFO            - Search by FAA identifier
+  ap SFO                 - Search by FAA identifier
   airport "San Fran"     - Search by name
-  airport SFO --browser  - Open codes page in browser
+  ap SFO --browser       - Open codes page in browser
 """,
     "aircraft": """
-aircraft - Look up aircraft type codes
+aircraft (alias: ac) - Look up aircraft type codes
 
 Searches for aircraft by ICAO type designator (e.g., B738),
 manufacturer (e.g., Boeing), or model name. Shows engine type,
@@ -308,9 +308,9 @@ weight class, and other operational data. Results are cached.
 \b
 Examples:
   aircraft B738          - Search by type designator
-  aircraft boeing        - Search by manufacturer
+  ac boeing              - Search by manufacturer
   aircraft "737-800"     - Search by model
-  aircraft B738 --browser - Open codes page in browser
+  ac B738 --browser      - Open codes page in browser
 """,
     "navaid": """
 navaid - Look up navaid information

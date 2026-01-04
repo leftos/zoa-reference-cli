@@ -207,6 +207,14 @@ def airline(query: tuple[str, ...], browser: bool, no_cache: bool):
     do_icao_lookup("airline", " ".join(query), browser=browser, no_cache=no_cache)
 
 
+@main.command("al", help=COMMAND_HELP["airline"].strip())
+@click.argument("query", nargs=-1, required=True)
+@click.option("--browser", is_flag=True, help="Open browser instead of CLI display")
+@click.option("--no-cache", is_flag=True, help="Bypass cache and fetch fresh data")
+def al(query: tuple[str, ...], browser: bool, no_cache: bool):
+    do_icao_lookup("airline", " ".join(query), browser=browser, no_cache=no_cache)
+
+
 @main.command(help=COMMAND_HELP["airport"].strip())
 @click.argument("query", nargs=-1, required=True)
 @click.option("--browser", is_flag=True, help="Open browser instead of CLI display")
@@ -215,11 +223,27 @@ def airport(query: tuple[str, ...], browser: bool, no_cache: bool):
     do_icao_lookup("airport", " ".join(query), browser=browser, no_cache=no_cache)
 
 
+@main.command("ap", help=COMMAND_HELP["airport"].strip())
+@click.argument("query", nargs=-1, required=True)
+@click.option("--browser", is_flag=True, help="Open browser instead of CLI display")
+@click.option("--no-cache", is_flag=True, help="Bypass cache and fetch fresh data")
+def ap(query: tuple[str, ...], browser: bool, no_cache: bool):
+    do_icao_lookup("airport", " ".join(query), browser=browser, no_cache=no_cache)
+
+
 @main.command(help=COMMAND_HELP["aircraft"].strip())
 @click.argument("query", nargs=-1, required=True)
 @click.option("--browser", is_flag=True, help="Open browser instead of CLI display")
 @click.option("--no-cache", is_flag=True, help="Bypass cache and fetch fresh data")
 def aircraft(query: tuple[str, ...], browser: bool, no_cache: bool):
+    do_icao_lookup("aircraft", " ".join(query), browser=browser, no_cache=no_cache)
+
+
+@main.command("ac", help=COMMAND_HELP["aircraft"].strip())
+@click.argument("query", nargs=-1, required=True)
+@click.option("--browser", is_flag=True, help="Open browser instead of CLI display")
+@click.option("--no-cache", is_flag=True, help="Bypass cache and fetch fresh data")
+def ac(query: tuple[str, ...], browser: bool, no_cache: bool):
     do_icao_lookup("aircraft", " ".join(query), browser=browser, no_cache=no_cache)
 
 

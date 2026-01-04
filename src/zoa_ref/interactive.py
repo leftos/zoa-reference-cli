@@ -427,8 +427,11 @@ INTERACTIVE_COMMANDS: dict[str, tuple] = {
     "sop ": (_handle_sop_interactive, 4, True),
     "proc ": (_handle_sop_interactive, 5, True),
     "airline ": (_handle_airline_interactive, 8, True),
+    "al ": (_handle_airline_interactive, 3, True),
     "airport ": (_handle_airport_interactive, 8, True),
+    "ap ": (_handle_airport_interactive, 3, True),
     "aircraft ": (_handle_aircraft_interactive, 9, True),
+    "ac ": (_handle_aircraft_interactive, 3, True),
     "navaid ": (_handle_navaid_interactive, 7, False),
     "airway ": (_handle_airway_interactive, 7, False),
     "aw ": (_handle_airway_interactive, 3, False),
@@ -528,7 +531,7 @@ def interactive_mode(use_playwright: bool = False):
                     if not print_command_help(cmd_name, main):
                         click.echo(f"Unknown command: {cmd_name}")
                         click.echo(
-                            "Available commands: chart, charts, list, route, atis, sop, proc, airline, airport, aircraft"
+                            "Available commands: chart, charts, list, route, atis, sop, proc, airline (al), airport (ap), aircraft (ac)"
                         )
                 else:
                     print_interactive_help()
