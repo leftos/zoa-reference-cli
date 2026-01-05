@@ -122,8 +122,7 @@ def parse_airway_record(line: str) -> tuple[str, str, int, bool] | None:
 
 
 def _compute_direction_and_should_reverse(
-    first_lat: float, first_lon: float,
-    last_lat: float, last_lon: float
+    first_lat: float, first_lon: float, last_lat: float, last_lon: float
 ) -> tuple[str, bool]:
     """Compute cardinal direction and whether to reverse fix order.
 
@@ -180,8 +179,10 @@ def _compute_direction_and_should_reverse(
         # Recompute direction for reversed order
         end_dir = get_cardinal(-lat_diff, -lon_diff)
 
-    start_dir = get_cardinal(-lat_diff if not should_reverse else lat_diff,
-                             -lon_diff if not should_reverse else lon_diff)
+    start_dir = get_cardinal(
+        -lat_diff if not should_reverse else lat_diff,
+        -lon_diff if not should_reverse else lon_diff,
+    )
 
     return f"{start_dir} to {end_dir}", should_reverse
 
@@ -244,8 +245,7 @@ def get_airway(airway_id: str) -> AirwayInfo | None:
         first = fixes_with_coords[0]
         last = fixes_with_coords[-1]
         direction, should_reverse = _compute_direction_and_should_reverse(
-            first.latitude, first.longitude,
-            last.latitude, last.longitude
+            first.latitude, first.longitude, last.latitude, last.longitude
         )
         if should_reverse:
             sorted_fixes = list(reversed(sorted_fixes))
@@ -253,7 +253,9 @@ def get_airway(airway_id: str) -> AirwayInfo | None:
     return AirwayInfo(identifier=airway_id, fixes=sorted_fixes, direction=direction)
 
 
-def search_airway(query: str, highlights: list[str] | None = None) -> AirwaySearchResult:
+def search_airway(
+    query: str, highlights: list[str] | None = None
+) -> AirwaySearchResult:
     """Search for an airway and optionally highlight fixes.
 
     Args:
@@ -276,4 +278,6 @@ def search_airway(query: str, highlights: list[str] | None = None) -> AirwaySear
         if valid_fixes:
             highlight_fixes = valid_fixes
 
-    return AirwaySearchResult(query=query, airway=airway, highlight_fixes=highlight_fixes)
+    return AirwaySearchResult(
+        query=query, airway=airway, highlight_fixes=highlight_fixes
+    )

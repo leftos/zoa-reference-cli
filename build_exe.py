@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build script to create a standalone zoa.exe with bundled Chromium browser."""
 
+import importlib.util
 import os
 import shutil
 import subprocess
@@ -39,32 +40,33 @@ def main():
 
     # Step 1: Ensure we're in a venv with dependencies
     print("[1/5] Checking dependencies...")
-    try:
-        import click
-        import playwright
-    except ImportError as e:
-        print(f"Missing dependency: {e}")
-        print("Please install dependencies first:")
-        print("  pip install -e .")
-        print("  playwright install chromium")
-        sys.exit(1)
+    for package in ["click", "playwright"]:
+        if importlib.util.find_spec(package) is None:
+            print(f"Missing dependency: {package}")
+            print("Please install dependencies first:")
+            print("  pip install -e .")
+            print("  playwright install chromium")
+            sys.exit(1)
 
-    try:
-        import PyInstaller
-    except ImportError:
+    if importlib.util.find_spec("PyInstaller") is None:
         print("PyInstaller not found. Installing...")
         # Try uv first (faster), fall back to pip
         try:
             subprocess.run(["uv", "pip", "install", "pyinstaller>=6.0.0"], check=True)
         except FileNotFoundError:
-            subprocess.run([sys.executable, "-m", "pip", "install", "pyinstaller>=6.0.0"], check=True)
+            subprocess.run(
+                [sys.executable, "-m", "pip", "install", "pyinstaller>=6.0.0"],
+                check=True,
+            )
 
     # Step 2: Check for Chromium browser
     print("[2/5] Locating Playwright Chromium browser...")
     browser_path = get_playwright_browser_path()
     if not browser_path:
         print("Chromium not found. Installing...")
-        subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=True)
+        subprocess.run(
+            [sys.executable, "-m", "playwright", "install", "chromium"], check=True
+        )
         browser_path = get_playwright_browser_path()
         if not browser_path:
             print("ERROR: Failed to install Chromium")
@@ -99,7 +101,9 @@ if __name__ == "__main__":
 
     # PyInstaller command
     pyinstaller_args = [
-        sys.executable, "-m", "PyInstaller",
+        sys.executable,
+        "-m",
+        "PyInstaller",
         "--name=zoa",
         "--onedir",  # Create a folder (faster startup than onefile)
         "--console",  # Console application
@@ -136,15 +140,17 @@ if __name__ == "__main__":
     exe_path = dist_dir / "zoa" / "zoa.exe"
     if exe_path.exists():
         # Calculate total folder size
-        folder_size = sum(f.stat().st_size for f in (dist_dir / "zoa").rglob("*") if f.is_file())
+        folder_size = sum(
+            f.stat().st_size for f in (dist_dir / "zoa").rglob("*") if f.is_file()
+        )
         folder_size_mb = folder_size / (1024 * 1024)
 
         print(f"\n   Output folder: {dist_dir / 'zoa'}")
         print(f"   Total size: {folder_size_mb:.1f} MB")
-        print(f"\n   To distribute:")
-        print(f"   1. Zip the entire 'dist/zoa' folder")
-        print(f"   2. Users extract and run zoa.exe from the folder")
-        print(f"\n   Test with: dist\\zoa\\zoa.exe --help")
+        print("\n   To distribute:")
+        print("   1. Zip the entire 'dist/zoa' folder")
+        print("   2. Users extract and run zoa.exe from the folder")
+        print("\n   Test with: dist\\zoa\\zoa.exe --help")
     else:
         print("WARNING: Executable not found at expected location")
         print("Check the build output above for errors.")

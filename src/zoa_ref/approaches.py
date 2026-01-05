@@ -119,7 +119,11 @@ def analyze_approach(airport: str, chart_name: str) -> ApproachAnalysis | None:
     # Determine expected approach type prefixes (may have multiple)
     # CIFP uses 'H' for RNAV/GPS and 'R' for RNAV, but charts may be named inconsistently
     type_prefixes: list[str] = []
-    if "RNAV" in chart_name_upper or "GPS" in chart_name_upper or "RNP" in chart_name_upper:
+    if (
+        "RNAV" in chart_name_upper
+        or "GPS" in chart_name_upper
+        or "RNP" in chart_name_upper
+    ):
         type_prefixes = ["H", "R"]  # Try both RNAV variants
     elif "ILS" in chart_name_upper:
         type_prefixes = ["I"]
@@ -197,7 +201,9 @@ def find_star_chart(charts: list[ChartInfo], star_name: str) -> ChartInfo | None
     from zoa_ref.charts import ChartQuery, ChartType, find_chart_by_name
 
     # Filter to only STAR charts (excluding continuation pages)
-    stars = [c for c in charts if c.chart_code == "STAR" and "CONT." not in c.chart_name]
+    stars = [
+        c for c in charts if c.chart_code == "STAR" and "CONT." not in c.chart_name
+    ]
 
     if not stars:
         return None
@@ -252,7 +258,9 @@ def find_connected_approaches(
         return None, []
 
     # Get all approach charts
-    iap_charts = [c for c in charts if c.chart_code == "IAP" and "CONT." not in c.chart_name]
+    iap_charts = [
+        c for c in charts if c.chart_code == "IAP" and "CONT." not in c.chart_name
+    ]
 
     # Analyze each approach and find connections
     connections = []
@@ -268,41 +276,49 @@ def find_connected_approaches(
         iaf_connections = star_waypoints & iaf_set
 
         for fix in iaf_connections:
-            connections.append(ApproachConnection(
-                star_name=star_analysis.name,
-                approach_name=iap_analysis.name,
-                connecting_fix=fix,
-                fix_type="IAF",
-                approach_runway=iap_analysis.runway,
-            ))
+            connections.append(
+                ApproachConnection(
+                    star_name=star_analysis.name,
+                    approach_name=iap_analysis.name,
+                    connecting_fix=fix,
+                    fix_type="IAF",
+                    approach_runway=iap_analysis.runway,
+                )
+            )
 
         # Find shared waypoints that are IFs (but not already added as IAFs)
         if_set = set(iap_analysis.if_waypoints)
         if_connections = (star_waypoints & if_set) - iaf_connections
 
         for fix in if_connections:
-            connections.append(ApproachConnection(
-                star_name=star_analysis.name,
-                approach_name=iap_analysis.name,
-                connecting_fix=fix,
-                fix_type="IF",
-                approach_runway=iap_analysis.runway,
-            ))
+            connections.append(
+                ApproachConnection(
+                    star_name=star_analysis.name,
+                    approach_name=iap_analysis.name,
+                    connecting_fix=fix,
+                    fix_type="IF",
+                    approach_runway=iap_analysis.runway,
+                )
+            )
 
         # Find shared waypoints that are feeder fixes (transition entry points)
         # These lead to an IAF/IF via a charted transition
         if iap_analysis.feeder_waypoints:
             feeder_set = set(iap_analysis.feeder_waypoints)
-            feeder_connections = (star_waypoints & feeder_set) - iaf_connections - if_connections
+            feeder_connections = (
+                (star_waypoints & feeder_set) - iaf_connections - if_connections
+            )
 
             for fix in feeder_connections:
-                connections.append(ApproachConnection(
-                    star_name=star_analysis.name,
-                    approach_name=iap_analysis.name,
-                    connecting_fix=fix,
-                    fix_type="Feeder",
-                    approach_runway=iap_analysis.runway,
-                ))
+                connections.append(
+                    ApproachConnection(
+                        star_name=star_analysis.name,
+                        approach_name=iap_analysis.name,
+                        connecting_fix=fix,
+                        fix_type="Feeder",
+                        approach_runway=iap_analysis.runway,
+                    )
+                )
 
     # Sort by runway, then by approach name
     connections.sort(key=lambda c: (c.approach_runway or "", c.approach_name))
@@ -369,7 +385,9 @@ class FixApproachResult:
     """Result of looking up approaches by fix/waypoint."""
 
     fix_name: str
-    approaches: list[tuple[str, str, str | None]]  # List of (approach_name, fix_type, dest_fix)
+    approaches: list[
+        tuple[str, str, str | None]
+    ]  # List of (approach_name, fix_type, dest_fix)
 
 
 def find_approaches_by_fix(
@@ -394,7 +412,9 @@ def find_approaches_by_fix(
     fix_upper = fix_name.upper()
 
     # Get all approach charts
-    iap_charts = [c for c in charts if c.chart_code == "IAP" and "CONT." not in c.chart_name]
+    iap_charts = [
+        c for c in charts if c.chart_code == "IAP" and "CONT." not in c.chart_name
+    ]
 
     approaches = []
 
@@ -410,8 +430,14 @@ def find_approaches_by_fix(
         elif fix_upper in iap_analysis.if_waypoints:
             approaches.append((iap_analysis.name, "IF", None))
         # Check if fix is a feeder (transition entry point)
-        elif iap_analysis.feeder_waypoints and fix_upper in iap_analysis.feeder_waypoints:
-            dest_fix = iap_analysis.feeder_paths.get(fix_upper) if iap_analysis.feeder_paths else None
+        elif (
+            iap_analysis.feeder_waypoints and fix_upper in iap_analysis.feeder_waypoints
+        ):
+            dest_fix = (
+                iap_analysis.feeder_paths.get(fix_upper)
+                if iap_analysis.feeder_paths
+                else None
+            )
             approaches.append((iap_analysis.name, "Feeder", dest_fix))
 
     # Sort by approach name
@@ -434,7 +460,9 @@ def format_fix_approaches(result: FixApproachResult) -> str:
         # Group by fix type
         iafs = [(name, ft, dest) for name, ft, dest in result.approaches if ft == "IAF"]
         ifs = [(name, ft, dest) for name, ft, dest in result.approaches if ft == "IF"]
-        feeders = [(name, ft, dest) for name, ft, dest in result.approaches if ft == "Feeder"]
+        feeders = [
+            (name, ft, dest) for name, ft, dest in result.approaches if ft == "Feeder"
+        ]
 
         if iafs:
             lines.append(f"As IAF ({len(iafs)}):")

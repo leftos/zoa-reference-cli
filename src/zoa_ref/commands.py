@@ -25,11 +25,10 @@ from .charts import (
     detect_pdf_view_mode,
     download_pdf,
     find_airport_page_in_min_chart,
-    search_chart_content,
     search_chart_cifp,
 )
 from .cli_utils import open_in_browser, wait_for_input_or_close
-from .descent import calculate_descent, calculate_fix_descent, is_fix_identifier
+from .descent import calculate_descent, calculate_fix_descent
 from .display import (
     display_routes,
     display_airlines,
@@ -68,7 +67,7 @@ from .procedures import (
     AIRPORT_ALIASES,
 )
 from .routes import search_routes, open_routes_browser, RouteSearchResult
-from .scratchpads import get_scratchpads, list_facilities, open_scratchpads_browser
+from .scratchpads import get_scratchpads, list_facilities
 
 
 def prompt_procedure_choice(matches: list[ProcedureMatch]) -> ProcedureInfo | None:
@@ -254,7 +253,7 @@ def open_chart_pdf(
             if was_existing:
                 click.echo(f"Chart already open: {chart_name}")
             else:
-                fragment = f"view=FitV"
+                fragment = "view=FitV"
                 if page_num:
                     fragment = f"page={page_num}&{fragment}"
                 pw_page.goto(f"{pdf_url}#{fragment}")
@@ -277,7 +276,7 @@ def open_chart_pdf(
         else:
             click.echo("Failed to download chart", err=True)
             # Fall back to opening URL directly (no rotation)
-            fragment = f"view=FitV"
+            fragment = "view=FitV"
             if page_num:
                 fragment = f"page={page_num}&{fragment}"
             webbrowser.open(f"{pdf_url}#{fragment}")
@@ -733,11 +732,13 @@ def _export_routes_to_lctrainer(
     # Convert to LCTrainer format (PascalCase keys)
     routes_data = []
     for route in result.real_world:
-        routes_data.append({
-            "Frequency": route.frequency,
-            "Route": route.route,
-            "Altitude": route.altitude,
-        })
+        routes_data.append(
+            {
+                "Frequency": route.frequency,
+                "Route": route.route,
+                "Altitude": route.altitude,
+            }
+        )
 
     if not routes_data:
         return 0
@@ -752,9 +753,36 @@ def _export_routes_to_lctrainer(
 
 # Common US destinations for batch export
 COMMON_DESTINATIONS = [
-    "KLAX", "KSFO", "KORD", "KDFW", "KDEN", "KJFK", "KATL", "KLAS", "KSEA", "KPHX",
-    "KMCO", "KBOS", "KMIA", "KIAH", "KMSP", "KDTW", "KEWR", "KPHL", "KLGA", "KDCA",
-    "KSAN", "KPDX", "KSLC", "KSTL", "KCLT", "KBWI", "KTPA", "KAUS", "KSMF", "KSJC",
+    "KLAX",
+    "KSFO",
+    "KORD",
+    "KDFW",
+    "KDEN",
+    "KJFK",
+    "KATL",
+    "KLAS",
+    "KSEA",
+    "KPHX",
+    "KMCO",
+    "KBOS",
+    "KMIA",
+    "KIAH",
+    "KMSP",
+    "KDTW",
+    "KEWR",
+    "KPHL",
+    "KLGA",
+    "KDCA",
+    "KSAN",
+    "KPDX",
+    "KSLC",
+    "KSTL",
+    "KCLT",
+    "KBWI",
+    "KTPA",
+    "KAUS",
+    "KSMF",
+    "KSJC",
 ]
 
 
@@ -781,7 +809,9 @@ def _export_single_route(args: tuple[str, str]) -> tuple[str, int | None, str | 
         return (dest, None, str(e))
 
 
-def do_batch_route_export(departure: str, destinations: list[str] | None = None) -> None:
+def do_batch_route_export(
+    departure: str, destinations: list[str] | None = None
+) -> None:
     """Export routes for multiple destinations to LCTrainer cache.
 
     Uses 8 parallel processes for faster export (Playwright requires separate processes).
@@ -811,20 +841,26 @@ def do_batch_route_export(departure: str, destinations: list[str] | None = None)
     work_items = [(departure, dest) for dest in dests]
 
     with ProcessPoolExecutor(max_workers=NUM_WORKERS) as executor:
-        futures = {executor.submit(_export_single_route, item): item[1] for item in work_items}
+        futures = {
+            executor.submit(_export_single_route, item): item[1] for item in work_items
+        }
 
         for future in as_completed(futures):
             dest, count, error = future.result()
             completed += 1
             if count:
                 exported += 1
-                click.echo(f"[{completed}/{len(dests)}] {departure} -> {dest}: {count} routes")
+                click.echo(
+                    f"[{completed}/{len(dests)}] {departure} -> {dest}: {count} routes"
+                )
             elif error:
                 failed += 1
                 click.echo(f"[{completed}/{len(dests)}] {departure} -> {dest}: {error}")
             else:
                 failed += 1
-                click.echo(f"[{completed}/{len(dests)}] {departure} -> {dest}: no routes found")
+                click.echo(
+                    f"[{completed}/{len(dests)}] {departure} -> {dest}: no routes found"
+                )
 
     click.echo(f"\nDone! Exported {exported} route pairs, {failed} failed/empty.")
 
@@ -1068,7 +1104,9 @@ def do_position_lookup(
             success = open_positions_browser(page)
             if success:
                 wait_for_input_or_close(
-                    session, "Positions page open. Press Enter to close browser...", page
+                    session,
+                    "Positions page open. Press Enter to close browser...",
+                    page,
                 )
             else:
                 wait_for_input_or_close(
@@ -1444,7 +1482,9 @@ def do_approaches_lookup(
         # STAR lookup mode
         if runways:
             rwy_str = ", ".join(runways)
-            click.echo(f"Analyzing STAR {star_or_fix} for {airport} (runways: {rwy_str})...")
+            click.echo(
+                f"Analyzing STAR {star_or_fix} for {airport} (runways: {rwy_str})..."
+            )
         else:
             click.echo(f"Analyzing STAR {star_or_fix} for {airport}...")
 
@@ -1454,7 +1494,11 @@ def do_approaches_lookup(
             click.echo(f"\nCould not find STAR '{star_or_fix}' for {airport}")
             # Show available STARs
             charts = fetch_charts_from_api(airport)
-            stars = [c for c in charts if c.chart_code == "STAR" and "CONT." not in c.chart_name]
+            stars = [
+                c
+                for c in charts
+                if c.chart_code == "STAR" and "CONT." not in c.chart_name
+            ]
             if stars:
                 click.echo("\nAvailable STARs:")
                 for star in stars:
@@ -1473,7 +1517,9 @@ def do_approaches_lookup(
         # Fix/waypoint lookup mode
         if runways:
             rwy_str = ", ".join(runways)
-            click.echo(f"Finding approaches via {star_or_fix.upper()} for {airport} (runways: {rwy_str})...")
+            click.echo(
+                f"Finding approaches via {star_or_fix.upper()} for {airport} (runways: {rwy_str})..."
+            )
         else:
             click.echo(f"Finding approaches via {star_or_fix.upper()} for {airport}...")
 

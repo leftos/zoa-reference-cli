@@ -1,7 +1,6 @@
 """Browser automation module using Playwright."""
 
 import ctypes
-import os
 import sys
 from pathlib import Path
 
@@ -22,7 +21,7 @@ CHART_ASPECT_RATIO = 0.75  # 3:4 ratio, good for PDF viewing
 
 def _get_bundled_chromium_path() -> str | None:
     """Get the path to bundled Chromium when running as a frozen executable."""
-    if not getattr(sys, 'frozen', False):
+    if not getattr(sys, "frozen", False):
         return None
 
     # When frozen, look for chromium in the bundle directory

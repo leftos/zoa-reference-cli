@@ -500,14 +500,23 @@ def get_star_data(airport: str, star_name: str) -> CifpSTAR | None:
     # "SCOLA1" -> base="SCOLA", num="1"
     # "SCOLA ONE" -> base="SCOLA", num="1"
     # "CONCORD TWO" -> base="CONCORD", num="2" -> also try "CCR2" (navaid identifier)
-    star_match = re.match(r"^([A-Z]+)\s*(\d|ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE)$", star_name)
+    star_match = re.match(
+        r"^([A-Z]+)\s*(\d|ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE)$", star_name
+    )
     if star_match:
         base_name = star_match.group(1)
         num_part = star_match.group(2)
         # Convert word to digit if needed
         word_to_digit = {
-            "ONE": "1", "TWO": "2", "THREE": "3", "FOUR": "4", "FIVE": "5",
-            "SIX": "6", "SEVEN": "7", "EIGHT": "8", "NINE": "9",
+            "ONE": "1",
+            "TWO": "2",
+            "THREE": "3",
+            "FOUR": "4",
+            "FIVE": "5",
+            "SIX": "6",
+            "SEVEN": "7",
+            "EIGHT": "8",
+            "NINE": "9",
         }
         if num_part in word_to_digit:
             num_part = word_to_digit[num_part]
@@ -516,6 +525,7 @@ def get_star_data(airport: str, star_name: str) -> CifpSTAR | None:
         # Also try navaid identifiers if base_name is a navaid name
         # e.g., "CONCORD" -> ["CCR", "CON"] so "CONCORD2" -> try "CCR2", "CON2"
         from zoa_ref.navaids import get_all_navaid_identifiers
+
         navaid_idents = get_all_navaid_identifiers(base_name)
         star_id_prefixes = [star_id_prefix]
         for navaid_ident in navaid_idents:
@@ -528,7 +538,9 @@ def get_star_data(airport: str, star_name: str) -> CifpSTAR | None:
     search_prefix = f"SUSAP K{airport}"
 
     # Collect all records for this STAR
-    star_records: dict[str, list[tuple[str, int]]] = {}  # transition -> [(fix, sequence)]
+    star_records: dict[
+        str, list[tuple[str, int]]
+    ] = {}  # transition -> [(fix, sequence)]
 
     with open(cifp_path, "r", encoding="latin-1") as f:
         for line in f:
@@ -559,7 +571,9 @@ def get_star_data(airport: str, star_name: str) -> CifpSTAR | None:
     seen_waypoints = set()
 
     # First add common route waypoints (may be "ALL" or "")
-    common_route_key = "ALL" if "ALL" in star_records else "" if "" in star_records else None
+    common_route_key = (
+        "ALL" if "ALL" in star_records else "" if "" in star_records else None
+    )
     if common_route_key is not None:
         sorted_fixes = sorted(star_records[common_route_key], key=lambda x: x[1])
         for fix, _ in sorted_fixes:
@@ -577,10 +591,14 @@ def get_star_data(airport: str, star_name: str) -> CifpSTAR | None:
                     seen_waypoints.add(fix)
 
     # Filter out airport/runway references (e.g., "RW28L", "KSFO")
-    all_waypoints = [w for w in all_waypoints if not w.startswith("RW") and not w.endswith(airport)]
+    all_waypoints = [
+        w for w in all_waypoints if not w.startswith("RW") and not w.endswith(airport)
+    ]
 
     # Get enroute transition names (excluding common route and runway transitions)
-    transitions = [t for t in star_records.keys() if t and t != "ALL" and not t.startswith("RW")]
+    transitions = [
+        t for t in star_records.keys() if t and t != "ALL" and not t.startswith("RW")
+    ]
 
     return CifpSTAR(
         identifier=star_id_prefix,
@@ -702,14 +720,23 @@ def get_dp_data(airport: str, dp_name: str) -> CifpDP | None:
     # Normalize DP name - extract base name and number
     # "CNDEL5" -> base="CNDEL", num="5"
     # "CNDEL FIVE" -> base="CNDEL", num="5"
-    dp_match = re.match(r"^([A-Z]+)\s*(\d|ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE)$", dp_name)
+    dp_match = re.match(
+        r"^([A-Z]+)\s*(\d|ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE)$", dp_name
+    )
     if dp_match:
         base_name = dp_match.group(1)
         num_part = dp_match.group(2)
         # Convert word to digit if needed
         word_to_digit = {
-            "ONE": "1", "TWO": "2", "THREE": "3", "FOUR": "4", "FIVE": "5",
-            "SIX": "6", "SEVEN": "7", "EIGHT": "8", "NINE": "9",
+            "ONE": "1",
+            "TWO": "2",
+            "THREE": "3",
+            "FOUR": "4",
+            "FIVE": "5",
+            "SIX": "6",
+            "SEVEN": "7",
+            "EIGHT": "8",
+            "NINE": "9",
         }
         if num_part in word_to_digit:
             num_part = word_to_digit[num_part]
@@ -717,6 +744,7 @@ def get_dp_data(airport: str, dp_name: str) -> CifpDP | None:
 
         # Also try navaid identifiers if base_name is a navaid name
         from zoa_ref.navaids import get_all_navaid_identifiers
+
         navaid_idents = get_all_navaid_identifiers(base_name)
         dp_id_prefixes = [dp_id_prefix]
         for navaid_ident in navaid_idents:
@@ -769,7 +797,9 @@ def get_dp_data(airport: str, dp_name: str) -> CifpDP | None:
                     seen_waypoints.add(fix)
 
     # Then add common route waypoints (may be "ALL" or "")
-    common_route_key = "ALL" if "ALL" in dp_records else "" if "" in dp_records else None
+    common_route_key = (
+        "ALL" if "ALL" in dp_records else "" if "" in dp_records else None
+    )
     if common_route_key is not None:
         sorted_fixes = sorted(dp_records[common_route_key], key=lambda x: x[1])
         for fix, _ in sorted_fixes:
@@ -787,10 +817,14 @@ def get_dp_data(airport: str, dp_name: str) -> CifpDP | None:
                     seen_waypoints.add(fix)
 
     # Filter out airport/runway references (e.g., "RW28L", "KOAK")
-    all_waypoints = [w for w in all_waypoints if not w.startswith("RW") and not w.endswith(airport)]
+    all_waypoints = [
+        w for w in all_waypoints if not w.startswith("RW") and not w.endswith(airport)
+    ]
 
     # Get enroute transition names (excluding common route and runway transitions)
-    transitions = [t for t in dp_records.keys() if t and t != "ALL" and not t.startswith("RW")]
+    transitions = [
+        t for t in dp_records.keys() if t and t != "ALL" and not t.startswith("RW")
+    ]
 
     return CifpDP(
         identifier=dp_id_prefix,

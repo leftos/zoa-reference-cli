@@ -74,7 +74,9 @@ def _haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> f
 
 def _distance_from_oak(navaid: "NavaidInfo") -> float:
     """Calculate distance from OAK VOR to a navaid."""
-    return _haversine_distance(OAK_VOR_LAT, OAK_VOR_LON, navaid.latitude, navaid.longitude)
+    return _haversine_distance(
+        OAK_VOR_LAT, OAK_VOR_LON, navaid.latitude, navaid.longitude
+    )
 
 
 def _parse_navaid_type(class_txt: str) -> str:

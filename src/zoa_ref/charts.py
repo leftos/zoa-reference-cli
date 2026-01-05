@@ -737,7 +737,9 @@ def download_and_rotate_pdf(
             pass
 
 
-def download_pdf(pdf_url: str, timeout: int = 30, use_cache: bool = True) -> bytes | None:
+def download_pdf(
+    pdf_url: str, timeout: int = 30, use_cache: bool = True
+) -> bytes | None:
     """Download a PDF from a URL, with optional caching.
 
     PDFs are cached based on AIRAC cycle (extracted from URL) and automatically

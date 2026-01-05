@@ -181,9 +181,7 @@ def _find_facility_value(
     return None
 
 
-def _select_facility_and_scrape(
-    page: Page, facility_value: str
-) -> list[Scratchpad]:
+def _select_facility_and_scrape(page: Page, facility_value: str) -> list[Scratchpad]:
     """Select facility from dropdown and scrape the resulting table."""
     scratchpads = []
     try:

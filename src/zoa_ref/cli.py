@@ -5,7 +5,12 @@ import webbrowser
 import click
 
 from .charts import ZOA_AIRPORTS
-from .cli_utils import COMMAND_HELP, ImplicitChartGroup, set_console_title, print_interactive_help
+from .cli_utils import (
+    COMMAND_HELP,
+    ImplicitChartGroup,
+    set_console_title,
+    print_interactive_help,
+)
 from .completers import (
     complete_airport,
     complete_atis_airport,
@@ -113,7 +118,9 @@ def charts(query: tuple[str, ...]):
 
 @main.command("list", help=COMMAND_HELP["list"].strip())
 @click.argument("airport", shell_complete=complete_airport)
-@click.argument("chart_type", required=False, default=None, shell_complete=complete_chart_type)
+@click.argument(
+    "chart_type", required=False, default=None, shell_complete=complete_chart_type
+)
 @click.argument("search_term", required=False, default=None)
 def list_cmd(airport: str, chart_type: str | None, search_term: str | None):
     do_list_charts(airport, chart_type, search_term)
@@ -341,7 +348,9 @@ def vis():
 
 
 @main.command(help=COMMAND_HELP["tdls"].strip())
-@click.argument("facility", required=False, default=None, shell_complete=complete_facility)
+@click.argument(
+    "facility", required=False, default=None, shell_complete=complete_facility
+)
 def tdls(facility: str | None):
     """Open TDLS (Pre-Departure Clearances)."""
     if facility:

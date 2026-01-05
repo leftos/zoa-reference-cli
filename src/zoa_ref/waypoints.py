@@ -48,7 +48,7 @@ def parse_arinc424_latitude(lat_str: str) -> float | None:
 
         decimal = degrees + minutes / 60 + (seconds + hundredths / 100) / 3600
 
-        if hemisphere == 'S':
+        if hemisphere == "S":
             decimal = -decimal
 
         return decimal
@@ -80,7 +80,7 @@ def parse_arinc424_longitude(lon_str: str) -> float | None:
 
         decimal = degrees + minutes / 60 + (seconds + hundredths / 100) / 3600
 
-        if hemisphere == 'W':
+        if hemisphere == "W":
             decimal = -decimal
 
         return decimal
@@ -115,7 +115,7 @@ def _load_enroute_waypoints() -> dict[str, tuple[float, float]]:
                     continue
 
                 # Check section code - 'EA' for enroute waypoints
-                if line[4:6] != 'EA':
+                if line[4:6] != "EA":
                     continue
 
                 # Extract waypoint identifier (positions 14-18, 0-indexed: 13-17)
@@ -126,15 +126,15 @@ def _load_enroute_waypoints() -> dict[str, tuple[float, float]]:
                 # Find coordinates by locating N/S marker
                 lat_start = -1
                 for i in range(28, min(40, len(line))):
-                    if line[i] in 'NS':
+                    if line[i] in "NS":
                         lat_start = i
                         break
 
                 if lat_start < 0 or len(line) < lat_start + 19:
                     continue
 
-                lat_str = line[lat_start:lat_start + 9]
-                lon_str = line[lat_start + 9:lat_start + 19]
+                lat_str = line[lat_start : lat_start + 9]
+                lon_str = line[lat_start + 9 : lat_start + 19]
 
                 lat = parse_arinc424_latitude(lat_str)
                 lon = parse_arinc424_longitude(lon_str)
@@ -174,9 +174,9 @@ def _load_terminal_waypoints() -> dict[str, tuple[float, float]]:
 
                 # Must start with 'SUSAP' and have 'C' at position 13 (0-indexed: 12)
                 # for terminal waypoints
-                if not line.startswith('SUSAP'):
+                if not line.startswith("SUSAP"):
                     continue
-                if line[12] != 'C':
+                if line[12] != "C":
                     continue
 
                 # Extract waypoint identifier (positions 14-18, 0-indexed: 13-17)
@@ -191,15 +191,15 @@ def _load_terminal_waypoints() -> dict[str, tuple[float, float]]:
                 # Find coordinates by locating N/S marker
                 lat_start = -1
                 for i in range(28, min(45, len(line))):
-                    if line[i] in 'NS':
+                    if line[i] in "NS":
                         lat_start = i
                         break
 
                 if lat_start < 0 or len(line) < lat_start + 19:
                     continue
 
-                lat_str = line[lat_start:lat_start + 9]
-                lon_str = line[lat_start + 9:lat_start + 19]
+                lat_str = line[lat_start : lat_start + 9]
+                lon_str = line[lat_start + 9 : lat_start + 19]
 
                 lat = parse_arinc424_latitude(lat_str)
                 lon = parse_arinc424_longitude(lon_str)
@@ -245,9 +245,9 @@ def _load_airport_references() -> dict[str, tuple[float, float]]:
                     continue
 
                 # Must start with 'SUSAP' and have 'A' at position 13 (0-indexed: 12)
-                if not line.startswith('SUSAP'):
+                if not line.startswith("SUSAP"):
                     continue
-                if line[12] != 'A':
+                if line[12] != "A":
                     continue
 
                 # Extract airport ICAO code (positions 7-10, 0-indexed: 6-9)
@@ -263,15 +263,15 @@ def _load_airport_references() -> dict[str, tuple[float, float]]:
                 # Look for latitude starting with N or S after position 28
                 lat_start = -1
                 for i in range(28, min(35, len(line))):
-                    if line[i] in 'NS':
+                    if line[i] in "NS":
                         lat_start = i
                         break
 
                 if lat_start < 0 or len(line) < lat_start + 19:
                     continue
 
-                lat_str = line[lat_start:lat_start + 9]
-                lon_str = line[lat_start + 9:lat_start + 19]
+                lat_str = line[lat_start : lat_start + 9]
+                lon_str = line[lat_start + 9 : lat_start + 19]
 
                 lat = parse_arinc424_latitude(lat_str)
                 lon = parse_arinc424_longitude(lon_str)
@@ -279,10 +279,10 @@ def _load_airport_references() -> dict[str, tuple[float, float]]:
                 if lat is not None and lon is not None:
                     # Store both with and without K prefix
                     airports[icao] = (lat, lon)
-                    if icao.startswith('K'):
+                    if icao.startswith("K"):
                         airports[icao[1:]] = (lat, lon)
                     else:
-                        airports['K' + icao] = (lat, lon)
+                        airports["K" + icao] = (lat, lon)
 
     except (OSError, IOError):
         pass
@@ -380,8 +380,7 @@ def calculate_distance_nm(from_ident: str, to_ident: str) -> tuple[float, str, s
         raise ValueError(f"Unknown identifier: {to_ident}")
 
     distance = _haversine_distance(
-        from_point.latitude, from_point.longitude,
-        to_point.latitude, to_point.longitude
+        from_point.latitude, from_point.longitude, to_point.latitude, to_point.longitude
     )
 
     return (distance, from_point.point_type, to_point.point_type)

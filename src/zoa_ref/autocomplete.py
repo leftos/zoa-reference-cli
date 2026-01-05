@@ -5,10 +5,13 @@ interface, with background prefetching of chart data for fast completions.
 """
 
 import threading
-from typing import Iterator
+from typing import TYPE_CHECKING, Iterator
 
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.document import Document
+
+if TYPE_CHECKING:
+    from prompt_toolkit.history import FileHistory
 
 from .atis import ATIS_AIRPORTS
 from .cache import cache_chart_list, get_cached_chart_list
