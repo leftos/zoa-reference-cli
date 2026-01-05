@@ -38,6 +38,7 @@ from .display import (
     display_chart_matches,
     display_descent,
     display_fix_descent,
+    display_mea,
     display_navaids,
     display_procedure_matches,
     display_positions,
@@ -1543,3 +1544,24 @@ def do_approaches_lookup(
 
         click.echo()
         click.echo(format_fix_approaches(result))
+
+
+def do_mea_lookup(route: str, altitude: int | None = None) -> None:
+    """Look up MEA requirements for a route.
+
+    Args:
+        route: Route string containing airways (e.g., "SAC V25 MZB J80 RNO")
+        altitude: Optional altitude in hundreds of feet (e.g., 100 = 10,000 ft)
+    """
+    from .mea import get_mea_for_route
+
+    # Convert altitude from FL-style (hundreds of feet) to feet
+    altitude_ft = altitude * 100 if altitude is not None else None
+
+    if altitude_ft is not None:
+        click.echo(f"Analyzing MEA for route at {altitude_ft:,} ft...")
+    else:
+        click.echo("Analyzing MEA for route...")
+
+    result = get_mea_for_route(route, altitude_ft)
+    display_mea(result)

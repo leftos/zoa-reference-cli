@@ -19,6 +19,7 @@ from .commands import (
     do_airway_lookup,
     do_descent_calc,
     do_fix_descent,
+    do_mea_lookup,
     do_route_lookup,
     do_atis_lookup,
     do_chart_lookup,
@@ -404,6 +405,31 @@ def _handle_approaches_interactive(args: str) -> None:
     do_approaches_lookup(parsed.positional[0], parsed.positional[1], runways)
 
 
+def _handle_mea_interactive(args: str) -> None:
+    """Handle 'mea <route> [-a <altitude>]' command in interactive mode."""
+    parsed = parse_interactive_args(
+        args,
+        option_defs={"altitude": ("-a", "--altitude")},
+    )
+    if parsed.show_help or not parsed.positional:
+        from .cli import main
+
+        print_command_help("mea", main)
+        return
+
+    route = " ".join(parsed.positional)
+
+    # Parse altitude if provided
+    altitude = None
+    if parsed.options.get("altitude"):
+        try:
+            altitude = int(parsed.options["altitude"])
+        except ValueError:
+            pass
+
+    do_mea_lookup(route, altitude)
+
+
 def _handle_setbrowser_interactive(args: str) -> None:
     """Handle 'setbrowser [browser]' command in interactive mode."""
     parsed = parse_interactive_args(args)
@@ -439,6 +465,7 @@ INTERACTIVE_COMMANDS: dict[str, tuple] = {
     "des ": (_handle_descent_interactive, 4, False),
     "approaches ": (_handle_approaches_interactive, 11, False),
     "apps ": (_handle_approaches_interactive, 5, False),
+    "mea ": (_handle_mea_interactive, 4, False),
     "position ": (_handle_position_interactive, 9, True),
     "pos ": (_handle_position_interactive, 4, True),
     "scratchpad ": (_handle_scratchpad_interactive, 11, True),

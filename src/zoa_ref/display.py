@@ -7,6 +7,7 @@ from .atis import AtisInfo
 from .charts import ChartMatch
 from .descent import DescentResult, DescentMode, FixDescentResult
 from .icao import AirlineSearchResult, AirportSearchResult, AircraftSearchResult
+from .mea import MeaResult
 from .navaids import NavaidSearchResult
 from .positions import PositionSearchResult
 from .procedures import ProcedureMatch
@@ -408,3 +409,54 @@ def display_airway(result: AirwaySearchResult) -> None:
     for line in lines:
         click.echo(line)
     click.echo()
+
+
+def display_mea(result: MeaResult) -> None:
+    """Display MEA analysis results."""
+    click.echo()
+
+    if result.max_mea is None:
+        click.echo("No airways found in route (or no MEA data available).")
+        return
+
+    # Show safety status if altitude was provided
+    if result.altitude is not None:
+        if result.is_safe:
+            click.echo(
+                click.style(
+                    f"SAFE: {result.altitude:,} ft meets MEA requirement of {result.max_mea:,} ft",
+                    fg="green",
+                )
+            )
+        else:
+            click.echo(
+                click.style(
+                    f"WARNING: {result.altitude:,} ft is BELOW required MEA of {result.max_mea:,} ft",
+                    fg="yellow",
+                    bold=True,
+                )
+            )
+        click.echo()
+    else:
+        click.echo(f"Maximum MEA: {result.max_mea:,} ft")
+        click.echo()
+
+    # Show segments with MEA data
+    if result.segments:
+        if result.altitude is not None:
+            click.echo(f"Segments exceeding {result.altitude:,} ft:")
+        else:
+            click.echo("Segments with MEA restrictions:")
+        click.echo("-" * 60)
+
+        # Sort segments by MEA (highest first)
+        sorted_segments = sorted(result.segments, key=lambda s: s.mea, reverse=True)
+
+        for seg in sorted_segments:
+            moca_str = f" (MOCA: {seg.moca:,})" if seg.moca else ""
+            click.echo(
+                f"  {seg.airway} {seg.segment_start} -> {seg.segment_end}: "
+                f"MEA {seg.mea:,} ft{moca_str}"
+            )
+    elif result.altitude is not None and result.is_safe:
+        click.echo("All segments meet the specified altitude requirement.")

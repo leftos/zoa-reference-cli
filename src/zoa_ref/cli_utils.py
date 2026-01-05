@@ -166,6 +166,7 @@ INTERACTIVE_HELP_COMMANDS = [
     "  strips [facility]         - Open flight strips",
     "Tools:",
     "  descent|des <arg1> <arg2>  - Descent calculator (altitudes or fixes)",
+    "  mea <route> [-a <alt>]     - MEA/MOCA for route (alt in hundreds)",
     "Settings:",
     "  setbrowser [browser]      - Set preferred browser (e.g., setbrowser firefox)",
 ]
@@ -473,6 +474,34 @@ Alias: 'apps' is a shorthand for 'approaches'
 apps - Alias for 'approaches' command
 
 See 'approaches --help' for full documentation.
+""",
+    "mea": """
+mea - Check MEA (Minimum Enroute Altitude) for a route
+
+Analyzes a route string to find all airways used and looks up
+MEA/MOCA restrictions for each segment. Optionally checks if
+a specified altitude meets the MEA requirements.
+
+Airways are automatically detected by pattern (V##, J##, T##, Q##).
+Entry and exit points are determined from adjacent fixes.
+
+\b
+Altitude format:
+  Altitudes use FL-style notation (3 digits in hundreds of feet):
+  - 070 = 7,000 ft
+  - 100 = 10,000 ft
+  - 180 = 18,000 ft (FL180)
+
+\b
+Examples:
+  mea SAC V6 SWR              - Show MEA for V6 between SAC and SWR
+  mea SAC V6 SWR -a 070       - Check if 7,000 ft is safe
+  mea KSFO V25 SAC J80 KRNO   - Full route with multiple airways
+  mea OAK V494 MOD -a 100     - Check 10,000 ft for V494
+
+When an altitude is specified, only segments exceeding that
+altitude are listed. If all segments are at or below the
+specified altitude, the route is marked as SAFE.
 """,
     "setbrowser": """
 setbrowser - Set preferred browser for opening charts

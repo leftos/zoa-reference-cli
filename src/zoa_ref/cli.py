@@ -27,6 +27,7 @@ from .commands import (
     do_airway_lookup,
     do_descent_calc,
     do_fix_descent,
+    do_mea_lookup,
     do_route_lookup,
     do_atis_lookup,
     do_chart_lookup,
@@ -310,6 +311,19 @@ def approaches(airport: str, star_or_fix: str, runways: tuple[str, ...]):
 @click.argument("runways", nargs=-1)
 def apps(airport: str, star_or_fix: str, runways: tuple[str, ...]):
     do_approaches_lookup(airport, star_or_fix, list(runways) if runways else None)
+
+
+@main.command(help=COMMAND_HELP["mea"].strip())
+@click.argument("route", nargs=-1, required=True)
+@click.option(
+    "--altitude",
+    "-a",
+    type=int,
+    default=None,
+    help="Altitude in hundreds of feet (e.g., 100 = 10,000 ft)",
+)
+def mea(route: tuple[str, ...], altitude: int | None):
+    do_mea_lookup(" ".join(route), altitude)
 
 
 # --- Procedure/SOP Commands ---
