@@ -33,6 +33,19 @@ AIRPORT_NAMES = {
     "TRK": "TRUCKEE",
 }
 
+# Known chart category codes from the API
+# These are valid chart_code values that can be used as category filters
+CHART_CATEGORY_CODES = {
+    "DP",  # Departure Procedures (SIDs)
+    "STAR",  # Standard Terminal Arrival Routes
+    "IAP",  # Instrument Approach Procedures
+    "APD",  # Airport Diagrams
+    "MIN",  # Minimums (Takeoff/Alternate)
+    "LAH",  # LAHSO (Land and Hold Short Operations)
+    "HOT",  # Hot Spots
+    "DAU",  # Departure Area (DAU)
+}
+
 # Known airport codes in ZOA
 ZOA_AIRPORTS = [
     "SFO",
@@ -449,6 +462,39 @@ def find_chart_by_name(
             return None, close_matches
 
     return best_match.chart, matches
+
+
+def is_category_code(term: str) -> bool:
+    """Check if a term is a valid chart category code.
+
+    Args:
+        term: The term to check (case-insensitive)
+
+    Returns:
+        True if the term is a valid chart category code
+    """
+    return term.upper() in CHART_CATEGORY_CODES
+
+
+def filter_charts_by_category(
+    charts: list[ChartInfo],
+    category_code: str,
+) -> list[ChartInfo]:
+    """Filter charts by category code.
+
+    Args:
+        charts: List of charts to filter
+        category_code: The chart_code to filter by (case-insensitive)
+
+    Returns:
+        List of charts matching the category, excluding continuation pages.
+    """
+    code_upper = category_code.upper()
+    return [
+        c
+        for c in charts
+        if c.chart_code == code_upper and ", CONT." not in c.chart_name
+    ]
 
 
 def lookup_chart_via_api(query: ChartQuery) -> tuple[str | None, list[ChartMatch]]:

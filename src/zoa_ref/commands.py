@@ -26,6 +26,8 @@ from .charts import (
     download_pdf,
     find_airport_page_in_min_chart,
     search_chart_cifp,
+    is_category_code,
+    filter_charts_by_category,
 )
 from .cli_utils import open_in_browser, wait_for_input_or_close
 from .descent import calculate_descent, calculate_fix_descent
@@ -922,6 +924,108 @@ def do_atis_lookup(
             session.stop()
 
 
+def _handle_category_lookup(
+    airport: str,
+    category_code: str,
+    link_only: bool = False,
+    rotation: int | None = None,
+    visible_session: "BrowserSession | None" = None,
+) -> str | None:
+    """Handle chart lookup when the query is a category code.
+
+    If there's only one chart in the category, opens it directly.
+    If there are multiple charts, shows disambiguation UI.
+
+    Args:
+        airport: Airport code (e.g., "OAK")
+        category_code: Chart category code (e.g., "APD", "HOT", "MIN")
+        link_only: If True, just output the PDF URL; otherwise open in browser
+        rotation: Rotation angle in degrees (0, 90, 180, 270).
+        visible_session: Playwright session for tab management (interactive mode)
+
+    Returns the PDF URL if found, None otherwise.
+    """
+    charts = fetch_charts_from_api(airport)
+    if not charts:
+        click.echo(f"No charts found for {airport}", err=True)
+        return None
+
+    category_charts = filter_charts_by_category(charts, category_code)
+    if not category_charts:
+        click.echo(f"No {category_code.upper()} charts found for {airport}", err=True)
+        return None
+
+    if len(category_charts) == 1:
+        # Only one chart in category - open it directly
+        chart = category_charts[0]
+        all_pages = find_all_chart_pages(charts, chart)
+        pdf_urls = [page.pdf_path for page in all_pages]
+        page_num = None
+
+        # For MIN charts, find the airport page
+        if chart.chart_code == "MIN":
+            click.echo("  Searching for airport in document...")
+            pdf_data = download_pdf(pdf_urls[0])
+            if pdf_data:
+                page_num = find_airport_page_in_min_chart(pdf_data, airport)
+                if page_num:
+                    click.echo(f"  Found {airport} at page {page_num}")
+                else:
+                    click.echo(f"  {airport} not found in document")
+
+        if link_only:
+            for url in pdf_urls:
+                click.echo(url)
+            return pdf_urls[0]
+
+        return open_chart_pdf(
+            pdf_urls=pdf_urls,
+            airport=airport,
+            chart_name=chart.chart_name,
+            rotation=rotation,
+            session=visible_session,
+            page_num=page_num,
+        )
+    else:
+        # Multiple charts in category - show disambiguation UI
+        # Convert to ChartMatch list for display
+        matches = [ChartMatch(chart=c, score=1.0) for c in category_charts]
+        display_chart_matches(matches)
+        choice = prompt_chart_choice(matches)
+
+        if choice:
+            all_pages = find_all_chart_pages(charts, choice)
+            pdf_urls = [page.pdf_path for page in all_pages]
+            page_num = None
+
+            # For MIN charts, find the airport page
+            if choice.chart_code == "MIN":
+                click.echo("  Searching for airport in document...")
+                pdf_data = download_pdf(pdf_urls[0])
+                if pdf_data:
+                    page_num = find_airport_page_in_min_chart(pdf_data, airport)
+                    if page_num:
+                        click.echo(f"  Found {airport} at page {page_num}")
+                    else:
+                        click.echo(f"  {airport} not found in document")
+
+            if link_only:
+                for url in pdf_urls:
+                    click.echo(url)
+                return pdf_urls[0]
+
+            return open_chart_pdf(
+                pdf_urls=pdf_urls,
+                airport=airport,
+                chart_name=choice.chart_name,
+                rotation=rotation,
+                session=visible_session,
+                page_num=page_num,
+            )
+
+    return None
+
+
 def do_chart_lookup(
     query_str: str,
     link_only: bool = False,
@@ -939,6 +1043,23 @@ def do_chart_lookup(
 
     Returns the PDF URL if found, None otherwise.
     """
+    # Check if the query is a category code (e.g., APD, HOT, MIN) BEFORE parsing
+    # This avoids normalization transforming category codes (e.g., HOT -> HOT SPRINGS)
+    query_parts = query_str.strip().upper().split()
+    if len(query_parts) >= 2:
+        airport = query_parts[0]
+        raw_chart_term = " ".join(query_parts[1:])
+        if is_category_code(raw_chart_term):
+            record_airport(airport)
+            click.echo(f"Looking up: {airport} - {raw_chart_term}")
+            return _handle_category_lookup(
+                airport,
+                raw_chart_term,
+                link_only=link_only,
+                rotation=rotation,
+                visible_session=visible_session,
+            )
+
     try:
         parsed = ChartQuery.parse(query_str)
         record_airport(parsed.airport)
