@@ -1146,7 +1146,7 @@ def parse_procedure_leg(line: str, subsection: str) -> ProcedureLeg | None:
 
 
 def get_procedure_detail(
-    airport: str, procedure_name: str
+    airport: str, procedure_name: str, transition: str | None = None
 ) -> CifpProcedureDetail | None:
     """Get detailed procedure data with altitude/speed restrictions.
 
@@ -1156,6 +1156,7 @@ def get_procedure_detail(
     Args:
         airport: Airport code (e.g., "RNO", "OAK")
         procedure_name: Procedure identifier (e.g., "SCOLA1", "CNDEL5", "ILS 17L")
+        transition: Optional transition name to filter (e.g., "LEGGS" for LEGGS.BDEGA4)
 
     Returns:
         CifpProcedureDetail with full leg information, or None if not found
@@ -1338,6 +1339,15 @@ def get_procedure_detail(
         trans_legs.sort(key=lambda x: x.sequence)
     for trans_legs in runway_transitions.values():
         trans_legs.sort(key=lambda x: x.sequence)
+
+    # Filter to specific transition if requested
+    if transition:
+        transition = transition.upper()
+        if transition in transitions:
+            transitions = {transition: transitions[transition]}
+        else:
+            # Transition not found - return None or empty transitions
+            transitions = {}
 
     # Determine identifier
     identifier = proc_id_prefixes[0] if proc_id_prefixes else procedure_name

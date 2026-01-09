@@ -523,12 +523,20 @@ Restriction notation:
   - 250K     = At 250 knots (mandatory)
 
 \b
+Transition selection (dot notation):
+  Use dot notation to show a specific transition as a continuous route.
+  For STARs: transition.procedure (e.g., LEGGS.BDEGA4)
+  For SIDs: procedure.transition (e.g., CNDEL5.SUSEY)
+
+\b
 Examples:
   cifp OAK CNDEL5         - CNDEL FIVE departure from Oakland
   cifp RNO SCOLA1         - SCOLA ONE arrival to Reno
   cifp SFO SERFR4         - SERFR FOUR arrival to SFO
   cifp RNO ILS17L         - ILS approach runway 17L at Reno
   cifp RNO RNAV17LZ       - RNAV (GPS) Z approach runway 17L
+  cifp SFO LEGGS.BDEGA4   - BDEGA4 via LEGGS transition (continuous)
+  cifp OAK CNDEL5.SUSEY   - CNDEL5 to SUSEY exit (continuous)
 """,
     "setbrowser": """
 setbrowser - Set preferred browser for opening charts

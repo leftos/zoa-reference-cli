@@ -617,65 +617,118 @@ def _display_star_horizontal(proc: CifpProcedureDetail, common_fixes: list[Proce
 
     common_fix_names = {f.fix_identifier for f in common_fixes}
 
-    # Entry transitions
-    if proc.transitions:
-        has_transitions = False
-        for name, legs in sorted(proc.transitions.items()):
-            trans_fixes = _get_unique_fixes(legs)
-            # Filter out common route fixes
-            trans_only = [l for l in trans_fixes if l.fix_identifier not in common_fix_names]
-            # Skip if only fix is the transition name itself (redundant)
-            if trans_only and not (len(trans_only) == 1 and trans_only[0].fix_identifier == name):
-                if not has_transitions:
-                    click.echo()
-                    click.secho("  TRANSITIONS:", fg="green", bold=True)
-                    has_transitions = True
-                click.echo()
-                click.echo(f"  {name}:")
-                _draw_horizontal_route(trans_only, "    ")
+    # Prepare transition data
+    meaningful_transitions: dict[str, list[ProcedureLeg]] = {}
+    for name, legs in proc.transitions.items():
+        trans_fixes = _get_unique_fixes(legs)
+        trans_only = [l for l in trans_fixes if l.fix_identifier not in common_fix_names]
+        # Skip if only fix is the transition name itself (redundant)
+        if trans_only and not (len(trans_only) == 1 and trans_only[0].fix_identifier == name):
+            meaningful_transitions[name] = trans_only
 
-    # Common route
-    if common_fixes:
+    # Prepare runway transition data (grouped by identical routes)
+    rwy_groups: dict[str, list[str]] = {}  # route_signature -> [rwy_names]
+    rwy_fixes_map: dict[str, list[ProcedureLeg]] = {}  # route_signature -> fixes
+
+    for rwy_name, legs in proc.runway_transitions.items():
+        rwy_fixes = _get_unique_fixes(legs)
+        rwy_only = [l for l in rwy_fixes if l.fix_identifier not in common_fix_names]
+        if rwy_only:
+            sig = _route_signature(rwy_only)
+            if sig not in rwy_groups:
+                rwy_groups[sig] = []
+                rwy_fixes_map[sig] = rwy_only
+            rwy_groups[sig].append(rwy_name)
+
+    # If single transition + single runway group, show everything as one continuous route
+    if len(meaningful_transitions) == 1 and len(rwy_groups) == 1:
+        trans_name, trans_fixes = next(iter(meaningful_transitions.items()))
+
+        # Build fully merged route: transition -> common -> runway
+        continuous_route: list[ProcedureLeg] = list(trans_fixes)
+
+        for fix in common_fixes:
+            if not continuous_route or fix.fix_identifier != continuous_route[-1].fix_identifier:
+                continuous_route.append(fix)
+
+        rwy_fixes = next(iter(rwy_fixes_map.values()))
+        for fix in rwy_fixes:
+            if not continuous_route or fix.fix_identifier != continuous_route[-1].fix_identifier:
+                continuous_route.append(fix)
+
+        rwy_names = next(iter(rwy_groups.values()))
+        rwy_labels = [_format_runway_label(n) for n in sorted(rwy_names)]
+        combined_rwy = rwy_labels[0]
+        for label in rwy_labels[1:]:
+            rwy_num = label.replace("RWY ", "")
+            combined_rwy += f"/{rwy_num}"
+
         click.echo()
-        click.secho("  COMMON ROUTE:", fg="yellow", bold=True)
+        click.echo(f"  {combined_rwy}:")
         click.echo()
-        _draw_horizontal_route(common_fixes, "    ")
+        _draw_horizontal_route(continuous_route, "    ")
+        return
 
-    # Runway transitions (shown after common route for STARs)
-    if proc.runway_transitions:
+    # Entry transitions (show separately if multiple)
+    if meaningful_transitions:
         click.echo()
-        click.secho("  RUNWAY TRANSITIONS:", fg="cyan", bold=True)
-
-        # Group identical runway transitions together
-        rwy_groups: dict[str, list[str]] = {}  # route_signature -> [rwy_names]
-        rwy_fixes_map: dict[str, list[ProcedureLeg]] = {}  # route_signature -> fixes
-
-        for rwy_name, legs in proc.runway_transitions.items():
-            rwy_fixes = _get_unique_fixes(legs)
-            rwy_only = [l for l in rwy_fixes if l.fix_identifier not in common_fix_names]
-            if rwy_only:
-                # Create signature from fix names and restrictions
-                sig = _route_signature(rwy_only)
-                if sig not in rwy_groups:
-                    rwy_groups[sig] = []
-                    rwy_fixes_map[sig] = rwy_only
-                rwy_groups[sig].append(rwy_name)
-
-        # Display merged groups
-        for sig, rwy_names in sorted(rwy_groups.items(), key=lambda x: x[1][0]):
-            # Format as "RWY 28L/28R/30" - strip "RWY " from all but first
-            rwy_labels = [_format_runway_label(n) for n in sorted(rwy_names)]
-            if not rwy_labels:
-                continue
-            # First label keeps "RWY ", others just show the runway number
-            combined_label = rwy_labels[0]
-            for label in rwy_labels[1:]:
-                # Strip "RWY " prefix and append with /
-                rwy_num = label.replace("RWY ", "")
-                combined_label += f"/{rwy_num}"
+        click.secho("  TRANSITIONS:", fg="green", bold=True)
+        for name, trans_only in sorted(meaningful_transitions.items()):
             click.echo()
-            click.echo(f"  {combined_label}:")
-            _draw_horizontal_route(rwy_fixes_map[sig], "    ")
+            click.echo(f"  {name}:")
+            _draw_horizontal_route(trans_only, "    ")
+
+    # Merge common route + runway transition when there's only one runway group
+    if len(rwy_groups) == 1:
+        # Build merged route: common -> runway
+        merged_route: list[ProcedureLeg] = list(common_fixes)
+
+        # Add runway transition (skip duplicate first fix)
+        rwy_fixes = next(iter(rwy_fixes_map.values()))
+        for fix in rwy_fixes:
+            if not merged_route or fix.fix_identifier != merged_route[-1].fix_identifier:
+                merged_route.append(fix)
+
+        # Get runway label
+        rwy_names = next(iter(rwy_groups.values()))
+        rwy_labels = [_format_runway_label(n) for n in sorted(rwy_names)]
+        combined_rwy = rwy_labels[0]
+        for label in rwy_labels[1:]:
+            rwy_num = label.replace("RWY ", "")
+            combined_rwy += f"/{rwy_num}"
+
+        # Add header if there were transitions shown above
+        if meaningful_transitions:
+            click.echo()
+            click.secho("  COMMON ROUTE:", fg="yellow", bold=True)
+
+        click.echo()
+        click.echo(f"  {combined_rwy}:")
+        click.echo()
+        _draw_horizontal_route(merged_route, "    ")
+    else:
+        # Multiple runway transitions - show common route and transitions separately
+        if common_fixes:
+            click.echo()
+            click.secho("  COMMON ROUTE:", fg="yellow", bold=True)
+            click.echo()
+            _draw_horizontal_route(common_fixes, "    ")
+
+        if rwy_groups:
+            click.echo()
+            click.secho("  RUNWAY TRANSITIONS:", fg="cyan", bold=True)
+
+            for sig, rwy_names in sorted(rwy_groups.items(), key=lambda x: x[1][0]):
+                rwy_labels = [_format_runway_label(n) for n in sorted(rwy_names)]
+                if not rwy_labels:
+                    continue
+                combined_label = rwy_labels[0]
+                for label in rwy_labels[1:]:
+                    rwy_num = label.replace("RWY ", "")
+                    combined_label += f"/{rwy_num}"
+                click.echo()
+                click.echo(f"  {combined_label}:")
+                _draw_horizontal_route(rwy_fixes_map[sig], "    ")
 
 
 def _display_sid_horizontal(proc: CifpProcedureDetail, common_fixes: list[ProcedureLeg]) -> None:
@@ -683,20 +736,90 @@ def _display_sid_horizontal(proc: CifpProcedureDetail, common_fixes: list[Proced
 
     common_fix_names = {f.fix_identifier for f in common_fixes}
 
+    # Prepare runway transition data (grouped by identical routes)
+    rwy_groups: dict[str, list[str]] = {}
+    rwy_fixes_map: dict[str, list[ProcedureLeg]] = {}
+
+    for rwy_name, legs in proc.runway_transitions.items():
+        rwy_fixes = _get_unique_fixes(legs)
+        rwy_only = [l for l in rwy_fixes if l.fix_identifier not in common_fix_names]
+        if rwy_only:
+            sig = _route_signature(rwy_only)
+            if sig not in rwy_groups:
+                rwy_groups[sig] = []
+                rwy_fixes_map[sig] = rwy_only
+            rwy_groups[sig].append(rwy_name)
+
+    # Prepare exit transition data
+    meaningful_transitions: dict[str, list[ProcedureLeg]] = {}
+    for name, legs in proc.transitions.items():
+        trans_fixes = _get_unique_fixes(legs)
+        trans_only = [l for l in trans_fixes if l.fix_identifier not in common_fix_names]
+        if trans_only:
+            meaningful_transitions[name] = trans_only
+
+    # Check if we can display as a single continuous route:
+    # - Exactly one runway transition group
+    # - At most one exit transition (or none)
+    can_merge = len(rwy_groups) == 1 and len(meaningful_transitions) <= 1
+
+    if can_merge:
+        # Build single continuous route: runway -> common -> exit
+        continuous_route: list[ProcedureLeg] = []
+
+        # Add runway transition
+        rwy_fixes = next(iter(rwy_fixes_map.values()))
+        continuous_route.extend(rwy_fixes)
+
+        # Add common route (skip if first fix duplicates last of previous)
+        for fix in common_fixes:
+            if not continuous_route or fix.fix_identifier != continuous_route[-1].fix_identifier:
+                continuous_route.append(fix)
+
+        # Add exit transition (if any), skip duplicate first fix
+        exit_name = ""
+        if meaningful_transitions:
+            exit_name, exit_fixes = next(iter(meaningful_transitions.items()))
+            for fix in exit_fixes:
+                if not continuous_route or fix.fix_identifier != continuous_route[-1].fix_identifier:
+                    continuous_route.append(fix)
+
+        # Get runway label
+        rwy_names = next(iter(rwy_groups.values()))
+        rwy_labels = [_format_runway_label(n) for n in sorted(rwy_names)]
+        combined_rwy = rwy_labels[0]
+        for label in rwy_labels[1:]:
+            rwy_num = label.replace("RWY ", "")
+            combined_rwy += f"/{rwy_num}"
+
+        # Display as single route
+        label = combined_rwy
+        if exit_name:
+            label += f" -> {exit_name}"
+        click.echo()
+        click.echo(f"  {label}:")
+        click.echo()
+        _draw_horizontal_route(continuous_route, "    ")
+        return
+
+    # Otherwise, display sections separately
+
     # Runway transitions
-    if proc.runway_transitions:
+    if rwy_groups:
         click.echo()
         click.secho("  RUNWAY TRANSITIONS:", fg="cyan", bold=True)
 
-        for rwy_name, legs in sorted(proc.runway_transitions.items()):
-            rwy_fixes = _get_unique_fixes(legs)
-            # Filter out common route fixes
-            rwy_only = [l for l in rwy_fixes if l.fix_identifier not in common_fix_names]
-            if rwy_only:
-                rwy_label = _format_runway_label(rwy_name)
-                click.echo()
-                click.echo(f"  {rwy_label}:")
-                _draw_horizontal_route(rwy_only, "    ")
+        for sig, rwy_names in sorted(rwy_groups.items(), key=lambda x: x[1][0]):
+            rwy_labels = [_format_runway_label(n) for n in sorted(rwy_names)]
+            if not rwy_labels:
+                continue
+            combined_label = rwy_labels[0]
+            for label in rwy_labels[1:]:
+                rwy_num = label.replace("RWY ", "")
+                combined_label += f"/{rwy_num}"
+            click.echo()
+            click.echo(f"  {combined_label}:")
+            _draw_horizontal_route(rwy_fixes_map[sig], "    ")
 
     # Common route
     if common_fixes:
@@ -706,18 +829,14 @@ def _display_sid_horizontal(proc: CifpProcedureDetail, common_fixes: list[Proced
         _draw_horizontal_route(common_fixes, "    ")
 
     # Exit transitions
-    if proc.transitions:
+    if meaningful_transitions:
         click.echo()
         click.secho("  EXIT TRANSITIONS:", fg="green", bold=True)
 
-        for name, legs in sorted(proc.transitions.items()):
-            trans_fixes = _get_unique_fixes(legs)
-            # Filter out common route fixes
-            trans_only = [l for l in trans_fixes if l.fix_identifier not in common_fix_names]
-            if trans_only:
-                click.echo()
-                click.echo(f"  {name}:")
-                _draw_horizontal_route(trans_only, "    ")
+        for name, trans_only in sorted(meaningful_transitions.items()):
+            click.echo()
+            click.echo(f"  {name}:")
+            _draw_horizontal_route(trans_only, "    ")
 
 
 def _display_approach_horizontal(proc: CifpProcedureDetail, common_fixes: list[ProcedureLeg]) -> None:

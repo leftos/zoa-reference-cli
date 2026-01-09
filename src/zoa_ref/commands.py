@@ -1694,17 +1694,41 @@ def do_cifp_lookup(airport: str, procedure_name: str) -> None:
     Displays waypoints with altitude and speed restrictions for a given
     SID, STAR, or approach procedure.
 
+    Supports dot notation for transition selection:
+      - leggs.bdega4 -> Show only LEGGS transition of BDEGA4
+
     Args:
         airport: Airport code (e.g., "RNO", "OAK")
         procedure_name: Procedure name (e.g., "SCOLA1", "CNDEL5", "ILS 17L")
+                       Can include transition prefix: "LEGGS.BDEGA4"
     """
     from .cifp import get_procedure_detail
     from .display import display_procedure_detail
 
     record_airport(airport)
+
+    # Parse dot notation for transition selection
+    # Procedure names have a number suffix (BDEGA4, CNDEL5), transitions don't (LEGGS, SUSEY)
+    # STARs: LEGGS.BDEGA4 (transition.procedure)
+    # SIDs: CNDEL5.SUSEY (procedure.transition)
+    transition: str | None = None
+
+    if "." in procedure_name:
+        parts = procedure_name.split(".", 1)
+        # The part with a digit is the procedure name
+        import re
+        if re.search(r"\d", parts[1]):
+            # Second part has digit -> STAR format: transition.procedure
+            transition = parts[0]
+            procedure_name = parts[1]
+        else:
+            # First part has digit -> SID format: procedure.transition
+            procedure_name = parts[0]
+            transition = parts[1]
+
     click.echo(f"Looking up procedure: {airport} {procedure_name}...")
 
-    result = get_procedure_detail(airport, procedure_name)
+    result = get_procedure_detail(airport, procedure_name, transition)
 
     if result is None:
         click.echo(f"Procedure '{procedure_name}' not found for {airport}", err=True)
@@ -1712,6 +1736,7 @@ def do_cifp_lookup(airport: str, procedure_name: str) -> None:
         click.echo("  - SID:      cifp OAK CNDEL5")
         click.echo("  - STAR:     cifp RNO SCOLA1")
         click.echo("  - Approach: cifp RNO ILS17L  or  cifp RNO RNAV17LZ")
+        click.echo("  - With transition: cifp SFO LEGGS.BDEGA4")
         return
 
     display_procedure_detail(result)
