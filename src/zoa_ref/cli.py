@@ -38,6 +38,7 @@ from .commands import (
     do_scratchpad_lookup,
     do_approaches_lookup,
     do_setbrowser,
+    do_cifp_lookup,
 )
 from .descent import is_fix_identifier
 from .interactive import interactive_mode
@@ -324,6 +325,13 @@ def apps(airport: str, star_or_fix: str, runways: tuple[str, ...]):
 )
 def mea(route: tuple[str, ...], altitude: int | None):
     do_mea_lookup(" ".join(route), altitude)
+
+
+@main.command(help=COMMAND_HELP["cifp"].strip())
+@click.argument("airport", shell_complete=complete_airport)
+@click.argument("procedure", nargs=-1, required=True)
+def cifp(airport: str, procedure: tuple[str, ...]):
+    do_cifp_lookup(airport, " ".join(procedure))
 
 
 # --- Procedure/SOP Commands ---

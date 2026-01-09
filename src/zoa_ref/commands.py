@@ -713,7 +713,7 @@ def do_route_lookup(
 
 def _export_routes_to_lctrainer(
     departure: str, arrival: str, result: "RouteSearchResult"
-) -> None:
+) -> int:
     """Export routes to LCTrainer cache format.
 
     LCTrainer expects routes in: %LOCALAPPDATA%/LCTrainer/route-cache/{DEP}_{ARR}.json
@@ -727,7 +727,7 @@ def _export_routes_to_lctrainer(
     local_app_data = os.environ.get("LOCALAPPDATA", "")
     if not local_app_data:
         click.echo("Error: LOCALAPPDATA not set", err=True)
-        return
+        return 0
 
     cache_dir = Path(local_app_data) / "LCTrainer" / "route-cache"
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -1686,3 +1686,32 @@ def do_mea_lookup(route: str, altitude: int | None = None) -> None:
 
     result = get_mea_for_route(route, altitude_ft)
     display_mea(result)
+
+
+def do_cifp_lookup(airport: str, procedure_name: str) -> None:
+    """Look up procedure details from CIFP data.
+
+    Displays waypoints with altitude and speed restrictions for a given
+    SID, STAR, or approach procedure.
+
+    Args:
+        airport: Airport code (e.g., "RNO", "OAK")
+        procedure_name: Procedure name (e.g., "SCOLA1", "CNDEL5", "ILS 17L")
+    """
+    from .cifp import get_procedure_detail
+    from .display import display_procedure_detail
+
+    record_airport(airport)
+    click.echo(f"Looking up procedure: {airport} {procedure_name}...")
+
+    result = get_procedure_detail(airport, procedure_name)
+
+    if result is None:
+        click.echo(f"Procedure '{procedure_name}' not found for {airport}", err=True)
+        click.echo("\nHint: Try formats like:")
+        click.echo("  - SID:      cifp OAK CNDEL5")
+        click.echo("  - STAR:     cifp RNO SCOLA1")
+        click.echo("  - Approach: cifp RNO ILS17L  or  cifp RNO RNAV17LZ")
+        return
+
+    display_procedure_detail(result)

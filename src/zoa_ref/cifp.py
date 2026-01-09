@@ -131,6 +131,94 @@ class CifpDP:
     transitions: list[str]  # Exit transition names (e.g., "MOD", "SAC")
 
 
+# --- Enhanced Data Classes with Altitude/Speed Restrictions ---
+
+
+@dataclass
+class AltitudeRestriction:
+    """Altitude restriction for a procedure leg."""
+
+    description: str  # "+", "-", "@", "B", "G", "H", "I", "J", "V", or ""
+    altitude1: int | None  # First altitude in feet (or None if not specified)
+    altitude2: int | None  # Second altitude in feet (for "B" - between)
+
+    def __str__(self) -> str:
+        if not self.altitude1:
+            return ""
+        alt1_str = f"FL{self.altitude1 // 100}" if self.altitude1 >= 18000 else f"{self.altitude1}"
+        if self.description == "B" and self.altitude2:
+            alt2_str = f"FL{self.altitude2 // 100}" if self.altitude2 >= 18000 else f"{self.altitude2}"
+            return f"{alt1_str}-{alt2_str}"
+        elif self.description == "+":
+            return f"{alt1_str}A"  # At or above
+        elif self.description == "-":
+            return f"{alt1_str}B"  # At or below
+        elif self.description in ("@", ""):
+            return alt1_str  # At (mandatory)
+        elif self.description == "G":
+            return f"{alt1_str}(GS)"
+        elif self.description == "H":
+            return f"{alt1_str}A"  # At or above alt_1
+        else:
+            return alt1_str
+
+
+@dataclass
+class SpeedRestriction:
+    """Speed restriction for a procedure leg."""
+
+    description: str  # "@", "+", "-", or ""
+    speed: int | None  # Speed in knots (or None if not specified)
+
+    def __str__(self) -> str:
+        if not self.speed:
+            return ""
+        if self.description == "+":
+            return f"{self.speed}K+"  # At or above
+        elif self.description == "-":
+            return f"{self.speed}K-"  # At or below
+        else:
+            return f"{self.speed}K"  # Mandatory
+
+
+@dataclass
+class ProcedureLeg:
+    """A single leg/waypoint in a procedure with restrictions."""
+
+    fix_identifier: str  # Waypoint/fix name (e.g., "SCOLA", "FMG")
+    path_terminator: str  # e.g., "IF", "TF", "RF", "DF", "CF"
+    turn_direction: str  # "L", "R", or ""
+    altitude: AltitudeRestriction | None
+    speed: SpeedRestriction | None
+    transition: str  # Transition name or "" for common route
+    sequence: int  # Order in procedure
+    fix_type: str  # "IAF", "IF", "FAF", "MAHP", or ""
+
+    @property
+    def restrictions_str(self) -> str:
+        """Format restrictions as a display string."""
+        parts = []
+        if self.altitude and self.altitude.altitude1:
+            parts.append(str(self.altitude))
+        if self.speed and self.speed.speed:
+            parts.append(str(self.speed))
+        return " ".join(parts)
+
+
+@dataclass
+class CifpProcedureDetail:
+    """Detailed procedure data with full leg information."""
+
+    airport: str  # e.g., "RNO"
+    identifier: str  # e.g., "SCOLA1", "CNDEL5", "H17LZ"
+    procedure_type: str  # "SID", "STAR", "APPROACH"
+    approach_type: str | None  # e.g., "RNAV (GPS)", "ILS" (only for approaches)
+    runway: str | None  # e.g., "17L", "28R"
+    common_legs: list[ProcedureLeg]  # Main route legs
+    transitions: dict[str, list[ProcedureLeg]]  # Transition name -> legs
+    runway_transitions: dict[str, list[ProcedureLeg]]  # RW* transitions
+
+
 # --- CIFP Download and Management ---
 
 
@@ -235,17 +323,21 @@ def ensure_cifp_data() -> Path | None:
 # --- ARINC 424 Record Parsing ---
 
 
-# Waypoint Description Code 1 (position 43, 1-indexed) meanings
+# Waypoint Description Code 1 (position 39, 0-indexed) meanings
+# Code meanings vary by procedure type; these are primarily for approaches
 WAYPOINT_DESC_CODES = {
     "A": "IAF",  # Initial Approach Fix
     "B": "IF",  # Intermediate Fix
-    "C": "IAF",  # IAF and IF combined (treat as IAF)
-    "D": "IAF",  # IAF and FAF combined (treat as IAF)
-    "E": "FAF",  # Final Approach Course Fix / FAF
-    "F": "FAF",  # Final Approach Fix
-    "G": "MAHP",  # Missed Approach Point
-    "I": "IF",  # Initial Fix (IF in path terminator context)
+    "C": "IAF/IF",  # IAF and IF combined
+    "D": "IAF/FAF",  # IAF and FAF combined
+    "E": "",  # Essential waypoint (basic SID/STAR waypoint)
+    "F": "",  # Off-airway/flyover waypoint
+    "G": "",  # Runway or glide slope intercept
+    "H": "",  # Heliport as fix
+    "K": "FAF",  # Final Approach Fix
     "M": "MAHP",  # Missed Approach Holding Fix
+    "P": "",  # Published waypoint
+    "V": "",  # VOR/VORTAC/DME
 }
 
 # Approach type codes (first character of approach ID)
@@ -874,3 +966,389 @@ def get_all_dps(airport: str) -> dict[str, CifpDP]:
             dps[dp_id] = dp
 
     return dps
+
+
+# --- Enhanced Parsing with Altitude/Speed Restrictions ---
+
+
+def _parse_altitude(alt_str: str) -> int | None:
+    """Parse altitude from ARINC 424 format.
+
+    ARINC 424 uses a 5-character altitude field with different encodings:
+    - Flight level: "FL280" or " FL28" -> FL280 = 28,000 ft (FL number × 1000)
+    - Feet: " 1700" -> 17,000 ft (value × 10)
+    - Empty: "     " -> None
+
+    The FL encoding stores FL/10 (e.g., FL280 stored as "FL28" or "FL280").
+    Non-FL values are stored in tens of feet (e.g., 17000 stored as "1700").
+
+    Args:
+        alt_str: 5-character altitude string
+
+    Returns:
+        Altitude in feet, or None if not specified
+    """
+    alt_str = alt_str.strip()
+    if not alt_str:
+        return None
+
+    # Remove any leading zeros (but not from FL numbers)
+    if not alt_str.startswith("FL"):
+        alt_str = alt_str.lstrip("0")
+    if not alt_str:
+        return None
+
+    try:
+        # Check for FL prefix
+        if alt_str.startswith("FL"):
+            # Extract the number after FL
+            fl_num_str = alt_str[2:].strip()
+            if fl_num_str:
+                fl_num = int(fl_num_str)
+                # If 2-digit FL (e.g., "FL28" = FL280), multiply by 1000
+                # If 3-digit FL (e.g., "FL280"), multiply by 100
+                if fl_num < 100:
+                    return fl_num * 1000
+                else:
+                    return fl_num * 100
+            return None
+
+        # Pure numeric - value is in tens of feet
+        val = int(alt_str)
+        return val * 10
+    except ValueError:
+        return None
+
+
+def _parse_speed(speed_str: str) -> int | None:
+    """Parse speed from ARINC 424 format.
+
+    Args:
+        speed_str: 3-character speed string
+
+    Returns:
+        Speed in knots, or None if not specified
+    """
+    speed_str = speed_str.strip()
+    if not speed_str:
+        return None
+    try:
+        return int(speed_str)
+    except ValueError:
+        return None
+
+
+def parse_procedure_leg(line: str, subsection: str) -> ProcedureLeg | None:
+    """Parse a procedure record into a ProcedureLeg with full restrictions.
+
+    ARINC 424 column positions (0-indexed):
+    - 13-19: Procedure identifier
+    - 19-20: Route type (procedure type)
+    - 20-25: Transition identifier
+    - 26-29: Sequence number
+    - 29-34: Fix identifier
+    - 39-43: Waypoint description (4 chars)
+    - 43-44: Turn direction
+    - 47-49: Path terminator
+    - 82-83: Altitude description
+    - 83-88: Altitude 1
+    - 88-93: Altitude 2
+    - 99-102: Speed limit
+    - 117-118: Speed limit description
+
+    Args:
+        line: Raw CIFP record line
+        subsection: Subsection code ("D" for SID, "E" for STAR, "F" for approach)
+
+    Returns:
+        ProcedureLeg object or None if parsing fails
+    """
+    if len(line) < 102:
+        return None
+
+    # Check record type
+    if not line.startswith("SUSAP"):
+        return None
+
+    # Check subsection
+    if len(line) < 13 or line[12] != subsection:
+        return None
+
+    # Extract fields
+    route_type = line[19] if len(line) > 19 else ""
+    transition = line[20:25].strip()
+    sequence_str = line[26:29].strip()
+    fix_identifier = line[29:34].strip()
+    waypoint_desc = line[39:43] if len(line) > 42 else "    "
+    turn_direction = line[43] if len(line) > 43 else " "
+    path_terminator = line[47:49].strip() if len(line) > 48 else ""
+
+    # Altitude fields
+    alt_desc = line[82] if len(line) > 82 else " "
+    alt_1_str = line[83:88] if len(line) > 87 else ""
+    alt_2_str = line[88:93] if len(line) > 92 else ""
+
+    # Speed fields
+    speed_str = line[99:102] if len(line) > 101 else ""
+    speed_desc = line[117] if len(line) > 117 else " "
+
+    # Parse values
+    try:
+        sequence = int(sequence_str)
+    except ValueError:
+        sequence = 0
+
+    if not fix_identifier:
+        return None
+
+    # Skip records with empty path terminators (continuation/special records)
+    if not path_terminator:
+        return None
+
+    # Determine fix type from waypoint description code (first char)
+    fix_type = WAYPOINT_DESC_CODES.get(waypoint_desc[0], "") if waypoint_desc else ""
+
+    # Parse altitude restriction
+    alt_1 = _parse_altitude(alt_1_str)
+    alt_2 = _parse_altitude(alt_2_str)
+    altitude = None
+    if alt_1 is not None or alt_desc.strip():
+        altitude = AltitudeRestriction(
+            description=alt_desc.strip(),
+            altitude1=alt_1,
+            altitude2=alt_2,
+        )
+
+    # Parse speed restriction
+    speed_val = _parse_speed(speed_str)
+    speed = None
+    if speed_val is not None:
+        speed = SpeedRestriction(
+            description=speed_desc.strip(),
+            speed=speed_val,
+        )
+
+    # For transition records (route_type in certain codes), use transition name
+    # For main route records, transition is empty
+    if route_type not in ("1", "2", "3", "4", "5", "6", "A"):
+        transition = ""
+
+    return ProcedureLeg(
+        fix_identifier=fix_identifier,
+        path_terminator=path_terminator,
+        turn_direction=turn_direction.strip(),
+        altitude=altitude,
+        speed=speed,
+        transition=transition,
+        sequence=sequence,
+        fix_type=fix_type,
+    )
+
+
+def get_procedure_detail(
+    airport: str, procedure_name: str
+) -> CifpProcedureDetail | None:
+    """Get detailed procedure data with altitude/speed restrictions.
+
+    Automatically detects procedure type (SID, STAR, or Approach) based on
+    the procedure name format.
+
+    Args:
+        airport: Airport code (e.g., "RNO", "OAK")
+        procedure_name: Procedure identifier (e.g., "SCOLA1", "CNDEL5", "ILS 17L")
+
+    Returns:
+        CifpProcedureDetail with full leg information, or None if not found
+    """
+    cifp_path = ensure_cifp_data()
+    if not cifp_path:
+        return None
+
+    airport = airport.upper().lstrip("K")
+    procedure_name = procedure_name.upper().strip()
+
+    # Strip off common suffixes like "(RNAV)" from chart names
+    procedure_name = re.sub(r"\s*\(RNAV\)$", "", procedure_name)
+
+    # Determine procedure type and normalize the identifier
+    procedure_type: str
+    subsection: str
+    proc_id_prefixes: list[str]
+    approach_type: str | None = None
+    runway: str | None = None
+
+    # Check if it's an approach (starts with approach type identifier)
+    # Supports formats: "ILS 17L", "ILS17L", "RNAV 17L Z", "RNAV17LZ", "ILS Y 17R"
+    approach_pattern = re.match(
+        r"^(ILS|LOC|VOR|RNAV|RNP|GPS|NDB|LDA|SDF|TACAN)\s*"
+        r"(?:(?:Y|Z|X|W)\s+)?(?:OR\s+\w+\s+)?(?:RWY\s*)?"
+        r"(\d{1,2}[LRC]?)\s*([XYZWABCDEFGH])?$",
+        procedure_name,
+    )
+    if approach_pattern:
+        procedure_type = "APPROACH"
+        subsection = "F"
+        app_type_name = approach_pattern.group(1)
+        runway = approach_pattern.group(2)
+        variant = approach_pattern.group(3) or ""
+
+        # Map approach type to ARINC code
+        type_map = {
+            "ILS": "I",
+            "LOC": "L",
+            "VOR": "V",
+            "RNAV": "H",
+            "RNP": "R",  # RNP approaches have their own code
+            "GPS": "P",
+            "NDB": "N",
+            "LDA": "X",
+            "SDF": "U",
+            "TACAN": "T",
+        }
+        type_code = type_map.get(app_type_name, "H")
+
+        # Build approach ID (e.g., "I17R" for ILS 17R, "H17LZ" for RNAV Z 17L)
+        # Try multiple prefixes to catch different encoding variations
+        proc_id_prefixes = []
+        if variant:
+            proc_id_prefixes.append(f"{type_code}{runway}{variant}")
+        proc_id_prefixes.append(f"{type_code}{runway}")
+
+        approach_type = APPROACH_TYPE_CODES.get(type_code, app_type_name)
+    else:
+        # Check for SID/STAR pattern (name + number)
+        proc_match = re.match(
+            r"^([A-Z]+)\s*(\d|ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE)$",
+            procedure_name,
+        )
+        if proc_match:
+            base_name = proc_match.group(1)
+            num_part = proc_match.group(2)
+            # Convert word to digit if needed
+            word_to_digit = {
+                "ONE": "1",
+                "TWO": "2",
+                "THREE": "3",
+                "FOUR": "4",
+                "FIVE": "5",
+                "SIX": "6",
+                "SEVEN": "7",
+                "EIGHT": "8",
+                "NINE": "9",
+            }
+            if num_part in word_to_digit:
+                num_part = word_to_digit[num_part]
+            proc_id_prefix = f"{base_name}{num_part}"
+
+            # Try navaid identifiers too
+            from zoa_ref.navaids import get_all_navaid_identifiers
+
+            navaid_idents = get_all_navaid_identifiers(base_name)
+            proc_id_prefixes = [proc_id_prefix]
+            for navaid_ident in navaid_idents:
+                if navaid_ident != base_name:
+                    proc_id_prefixes.append(f"{navaid_ident}{num_part}")
+        else:
+            # Just use the name as-is
+            proc_id_prefixes = [procedure_name]
+
+        # Try both SID and STAR subsections
+        procedure_type = "SID"  # Will be updated if found in STAR
+        subsection = "D"  # Try SID first
+
+    search_prefix = f"SUSAP K{airport}"
+
+    # Collect all legs
+    all_legs: list[ProcedureLeg] = []
+    found_subsection = subsection
+
+    # First try the initial subsection
+    with open(cifp_path, "r", encoding="latin-1") as f:
+        for line in f:
+            if not line.startswith(search_prefix):
+                continue
+
+            # Check subsection
+            if len(line) <= 12:
+                continue
+
+            line_subsection = line[12]
+            if line_subsection not in ("D", "E", "F"):
+                continue
+
+            proc_id = line[13:19].strip()
+
+            # Check if this matches our procedure
+            # For approaches with variants, require exact match on the variant
+            # For SIDs/STARs, use prefix matching
+            matched = False
+            for prefix in proc_id_prefixes:
+                if subsection == "F":  # Approach - more precise matching
+                    if proc_id == prefix or proc_id.startswith(prefix + " "):
+                        matched = True
+                        break
+                else:  # SID/STAR - prefix matching
+                    if proc_id.startswith(prefix):
+                        matched = True
+                        break
+            if not matched:
+                continue
+
+            # Parse the leg
+            leg = parse_procedure_leg(line, line_subsection)
+            if leg:
+                all_legs.append(leg)
+                found_subsection = line_subsection
+
+    if not all_legs:
+        return None
+
+    # Update procedure type based on what we found
+    if found_subsection == "D":
+        procedure_type = "SID"
+    elif found_subsection == "E":
+        procedure_type = "STAR"
+    elif found_subsection == "F":
+        procedure_type = "APPROACH"
+        # Extract runway from first leg's procedure ID if not already set
+        if not runway and all_legs:
+            first_proc = all_legs[0]
+            # The procedure ID is in the original line, but we can infer from context
+
+    # Organize legs by transition type
+    common_legs: list[ProcedureLeg] = []
+    transitions: dict[str, list[ProcedureLeg]] = {}
+    runway_transitions: dict[str, list[ProcedureLeg]] = {}
+
+    for leg in all_legs:
+        if leg.transition.startswith("RW"):
+            if leg.transition not in runway_transitions:
+                runway_transitions[leg.transition] = []
+            runway_transitions[leg.transition].append(leg)
+        elif leg.transition and leg.transition != "ALL":
+            if leg.transition not in transitions:
+                transitions[leg.transition] = []
+            transitions[leg.transition].append(leg)
+        else:
+            common_legs.append(leg)
+
+    # Sort legs within each group
+    common_legs.sort(key=lambda x: x.sequence)
+    for trans_legs in transitions.values():
+        trans_legs.sort(key=lambda x: x.sequence)
+    for trans_legs in runway_transitions.values():
+        trans_legs.sort(key=lambda x: x.sequence)
+
+    # Determine identifier
+    identifier = proc_id_prefixes[0] if proc_id_prefixes else procedure_name
+
+    return CifpProcedureDetail(
+        airport=airport,
+        identifier=identifier,
+        procedure_type=procedure_type,
+        approach_type=approach_type,
+        runway=runway,
+        common_legs=common_legs,
+        transitions=transitions,
+        runway_transitions=runway_transitions,
+    )

@@ -158,6 +158,7 @@ INTERACTIVE_HELP_COMMANDS = [
     "  position|pos <query>      - Look up ATC positions (e.g., pos NCT)",
     "Procedures:",
     "  sop|proc <query>          - Look up SOP/procedure (e.g., sop OAK)",
+    "  cifp <apt> <procedure>    - Show procedure waypoints/restrictions",
     "Scratchpads:",
     "  scratchpad|scratch <fac>  - Look up scratchpads (e.g., scratch OAK)",
     "External Tools:",
@@ -502,6 +503,32 @@ Examples:
 When an altitude is specified, only segments exceeding that
 altitude are listed. If all segments are at or below the
 specified altitude, the route is marked as SAFE.
+""",
+    "cifp": """
+cifp - Display procedure waypoints with altitude/speed restrictions
+
+Parses FAA CIFP (Coded Instrument Flight Procedures) data to show
+the waypoint sequence, altitude restrictions, and speed limits for
+SIDs (departures), STARs (arrivals), and approach procedures.
+
+Unlike 'chart' which opens the PDF, this command prints structured
+data to the console for quick reference.
+
+\b
+Restriction notation:
+  - 12000    = At 12,000 ft (mandatory)
+  - 12000A   = At or above 12,000 ft
+  - 12000B   = At or below 12,000 ft
+  - 8000-12000 = Between 8,000 and 12,000 ft
+  - 250K     = At 250 knots (mandatory)
+
+\b
+Examples:
+  cifp OAK CNDEL5         - CNDEL FIVE departure from Oakland
+  cifp RNO SCOLA1         - SCOLA ONE arrival to Reno
+  cifp SFO SERFR4         - SERFR FOUR arrival to SFO
+  cifp RNO ILS17L         - ILS approach runway 17L at Reno
+  cifp RNO RNAV17LZ       - RNAV (GPS) Z approach runway 17L
 """,
     "setbrowser": """
 setbrowser - Set preferred browser for opening charts

@@ -30,6 +30,7 @@ from .commands import (
     do_scratchpad_lookup,
     do_approaches_lookup,
     do_setbrowser,
+    do_cifp_lookup,
 )
 from .descent import is_fix_identifier
 from .icao import CodesPage
@@ -443,6 +444,20 @@ def _handle_setbrowser_interactive(args: str) -> None:
     do_setbrowser(browser)
 
 
+def _handle_cifp_interactive(args: str) -> None:
+    """Handle 'cifp <airport> <procedure>' command in interactive mode."""
+    parsed = parse_interactive_args(args)
+    if parsed.show_help or len(parsed.positional) < 2:
+        from .cli import main
+
+        print_command_help("cifp", main)
+        return
+
+    airport = parsed.positional[0]
+    procedure = " ".join(parsed.positional[1:])
+    do_cifp_lookup(airport, procedure)
+
+
 # Command registry: maps command prefix to (handler, prefix_length, needs_context)
 # needs_context indicates whether the handler requires InteractiveContext
 INTERACTIVE_COMMANDS: dict[str, tuple] = {
@@ -466,6 +481,7 @@ INTERACTIVE_COMMANDS: dict[str, tuple] = {
     "approaches ": (_handle_approaches_interactive, 11, False),
     "apps ": (_handle_approaches_interactive, 5, False),
     "mea ": (_handle_mea_interactive, 4, False),
+    "cifp ": (_handle_cifp_interactive, 5, False),
     "position ": (_handle_position_interactive, 9, True),
     "pos ": (_handle_position_interactive, 4, True),
     "scratchpad ": (_handle_scratchpad_interactive, 11, True),

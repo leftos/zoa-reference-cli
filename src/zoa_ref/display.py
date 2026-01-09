@@ -5,6 +5,7 @@ import click
 from .airways import AirwaySearchResult
 from .atis import AtisInfo
 from .charts import ChartMatch
+from .cifp import CifpProcedureDetail, ProcedureLeg
 from .descent import DescentResult, DescentMode, FixDescentResult
 from .icao import AirlineSearchResult, AirportSearchResult, AircraftSearchResult
 from .mea import MeaResult
@@ -460,3 +461,287 @@ def display_mea(result: MeaResult) -> None:
             )
     elif result.altitude is not None and result.is_safe:
         click.echo("All segments meet the specified altitude requirement.")
+
+
+def _format_restriction(leg: ProcedureLeg) -> tuple[str, str]:
+    """Format altitude and speed restrictions for display below a fix.
+
+    Returns tuple of (altitude_str, speed_str) for separate display lines.
+    """
+    alt_str = str(leg.altitude) if leg.altitude and leg.altitude.altitude1 else ""
+    speed_str = str(leg.speed) if leg.speed and leg.speed.speed else ""
+    return alt_str, speed_str
+
+
+def _get_unique_fixes(legs: list[ProcedureLeg]) -> list[ProcedureLeg]:
+    """Get unique fixes from a leg list, keeping first occurrence."""
+    seen = set()
+    result = []
+    for leg in legs:
+        fix_id = leg.fix_identifier
+        # Skip runway/airport references
+        if fix_id.startswith("RW") or fix_id.startswith("K") and len(fix_id) == 4:
+            continue
+        if fix_id not in seen:
+            seen.add(fix_id)
+            result.append(leg)
+    return result
+
+
+def _route_signature(fixes: list[ProcedureLeg]) -> str:
+    """Create a signature string for a route to detect identical routes.
+
+    Combines fix names with their altitude and speed restrictions.
+    """
+    parts = []
+    for leg in fixes:
+        alt, spd = _format_restriction(leg)
+        parts.append(f"{leg.fix_identifier}|{alt}|{spd}")
+    return ";".join(parts)
+
+
+def _format_runway_label(rwy_name: str) -> str:
+    """Format CIFP runway name to readable label.
+
+    CIFP uses special suffixes:
+    - B = both (L and R)
+    - A = all runways
+    - L/C/R = standard left/center/right
+
+    Examples:
+        RW28B -> RWY 28s
+        RW28L -> RWY 28L
+        RW10 -> RWY 10
+    """
+    # Strip "RW" prefix
+    rwy = rwy_name[2:] if rwy_name.startswith("RW") else rwy_name
+
+    # Handle special CIFP suffixes
+    if rwy.endswith("B"):
+        # "Both" - 28B means 28L and 28R
+        return f"RWY {rwy[:-1]}L/{rwy[:-1]}R"
+    elif rwy.endswith("A"):
+        # "All" runways with this heading
+        return f"RWY {rwy[:-1]} (all)"
+
+    return f"RWY {rwy}"
+
+
+def _draw_horizontal_route(fixes: list[ProcedureLeg], indent: str = "  ") -> None:
+    """Draw fixes horizontally with restrictions below.
+
+    Layout:
+      SCOLA--->TEXSS--->HLDMM--->CHIME--->KLOCK
+      FL280-FL240       16000A   13000-12000
+                        280K-    250K
+
+    Each fix is only padded as much as needed for its restriction text.
+    """
+    if not fixes:
+        return
+
+    arrow = "--->"
+
+    # Calculate per-fix column widths (just enough to fit fix name and restrictions)
+    col_widths = []
+    for leg in fixes:
+        fix_name = leg.fix_identifier
+        alt, spd = _format_restriction(leg)
+        width = max(len(fix_name), len(alt), len(spd))
+        col_widths.append(width)
+
+    # Build the three lines: fixes, altitudes, speeds
+    fix_line = indent
+    alt_line = indent
+    spd_line = indent
+
+    for i, leg in enumerate(fixes):
+        fix_name = leg.fix_identifier
+        alt, spd = _format_restriction(leg)
+        width = col_widths[i]
+
+        if i > 0:
+            fix_line += arrow
+            alt_line += " " * len(arrow)
+            spd_line += " " * len(arrow)
+
+        fix_line += fix_name.ljust(width)
+        alt_line += alt.ljust(width)
+        spd_line += spd.ljust(width)
+
+    click.echo(fix_line)
+    # Only print restriction lines if there's content
+    if alt_line.strip():
+        click.echo(alt_line)
+    if spd_line.strip():
+        click.echo(spd_line)
+
+
+def display_procedure_detail(proc: CifpProcedureDetail) -> None:
+    """Display procedure as horizontal ASCII art diagram.
+
+    Shows the procedure with:
+    - Fix names in brackets laid out horizontally
+    - Altitude restrictions on line below
+    - Speed restrictions on line below that
+    - Transitions shown as separate routes
+    """
+    click.echo()
+
+    # Header
+    proc_type_display = proc.procedure_type
+    if proc.approach_type:
+        proc_type_display = f"{proc.approach_type} APPROACH"
+    if proc.runway:
+        proc_type_display += f" RWY {proc.runway}"
+
+    click.echo("=" * 70)
+    click.echo(f"  {proc.airport} - {proc.identifier} ({proc_type_display})")
+    click.echo("=" * 70)
+
+    # Get common route fixes
+    common_fixes = _get_unique_fixes(proc.common_legs)
+
+    if proc.procedure_type == "STAR":
+        _display_star_horizontal(proc, common_fixes)
+    elif proc.procedure_type == "SID":
+        _display_sid_horizontal(proc, common_fixes)
+    else:  # APPROACH
+        _display_approach_horizontal(proc, common_fixes)
+
+    click.echo()
+
+
+def _display_star_horizontal(proc: CifpProcedureDetail, common_fixes: list[ProcedureLeg]) -> None:
+    """Display STAR procedure horizontally."""
+
+    common_fix_names = {f.fix_identifier for f in common_fixes}
+
+    # Entry transitions
+    if proc.transitions:
+        has_transitions = False
+        for name, legs in sorted(proc.transitions.items()):
+            trans_fixes = _get_unique_fixes(legs)
+            # Filter out common route fixes
+            trans_only = [l for l in trans_fixes if l.fix_identifier not in common_fix_names]
+            # Skip if only fix is the transition name itself (redundant)
+            if trans_only and not (len(trans_only) == 1 and trans_only[0].fix_identifier == name):
+                if not has_transitions:
+                    click.echo()
+                    click.secho("  TRANSITIONS:", fg="green", bold=True)
+                    has_transitions = True
+                click.echo()
+                click.echo(f"  {name}:")
+                _draw_horizontal_route(trans_only, "    ")
+
+    # Common route
+    if common_fixes:
+        click.echo()
+        click.secho("  COMMON ROUTE:", fg="yellow", bold=True)
+        click.echo()
+        _draw_horizontal_route(common_fixes, "    ")
+
+    # Runway transitions (shown after common route for STARs)
+    if proc.runway_transitions:
+        click.echo()
+        click.secho("  RUNWAY TRANSITIONS:", fg="cyan", bold=True)
+
+        # Group identical runway transitions together
+        rwy_groups: dict[str, list[str]] = {}  # route_signature -> [rwy_names]
+        rwy_fixes_map: dict[str, list[ProcedureLeg]] = {}  # route_signature -> fixes
+
+        for rwy_name, legs in proc.runway_transitions.items():
+            rwy_fixes = _get_unique_fixes(legs)
+            rwy_only = [l for l in rwy_fixes if l.fix_identifier not in common_fix_names]
+            if rwy_only:
+                # Create signature from fix names and restrictions
+                sig = _route_signature(rwy_only)
+                if sig not in rwy_groups:
+                    rwy_groups[sig] = []
+                    rwy_fixes_map[sig] = rwy_only
+                rwy_groups[sig].append(rwy_name)
+
+        # Display merged groups
+        for sig, rwy_names in sorted(rwy_groups.items(), key=lambda x: x[1][0]):
+            # Format as "RWY 28L/28R/30" - strip "RWY " from all but first
+            rwy_labels = [_format_runway_label(n) for n in sorted(rwy_names)]
+            if not rwy_labels:
+                continue
+            # First label keeps "RWY ", others just show the runway number
+            combined_label = rwy_labels[0]
+            for label in rwy_labels[1:]:
+                # Strip "RWY " prefix and append with /
+                rwy_num = label.replace("RWY ", "")
+                combined_label += f"/{rwy_num}"
+            click.echo()
+            click.echo(f"  {combined_label}:")
+            _draw_horizontal_route(rwy_fixes_map[sig], "    ")
+
+
+def _display_sid_horizontal(proc: CifpProcedureDetail, common_fixes: list[ProcedureLeg]) -> None:
+    """Display SID procedure horizontally."""
+
+    common_fix_names = {f.fix_identifier for f in common_fixes}
+
+    # Runway transitions
+    if proc.runway_transitions:
+        click.echo()
+        click.secho("  RUNWAY TRANSITIONS:", fg="cyan", bold=True)
+
+        for rwy_name, legs in sorted(proc.runway_transitions.items()):
+            rwy_fixes = _get_unique_fixes(legs)
+            # Filter out common route fixes
+            rwy_only = [l for l in rwy_fixes if l.fix_identifier not in common_fix_names]
+            if rwy_only:
+                rwy_label = _format_runway_label(rwy_name)
+                click.echo()
+                click.echo(f"  {rwy_label}:")
+                _draw_horizontal_route(rwy_only, "    ")
+
+    # Common route
+    if common_fixes:
+        click.echo()
+        click.secho("  COMMON ROUTE:", fg="yellow", bold=True)
+        click.echo()
+        _draw_horizontal_route(common_fixes, "    ")
+
+    # Exit transitions
+    if proc.transitions:
+        click.echo()
+        click.secho("  EXIT TRANSITIONS:", fg="green", bold=True)
+
+        for name, legs in sorted(proc.transitions.items()):
+            trans_fixes = _get_unique_fixes(legs)
+            # Filter out common route fixes
+            trans_only = [l for l in trans_fixes if l.fix_identifier not in common_fix_names]
+            if trans_only:
+                click.echo()
+                click.echo(f"  {name}:")
+                _draw_horizontal_route(trans_only, "    ")
+
+
+def _display_approach_horizontal(proc: CifpProcedureDetail, common_fixes: list[ProcedureLeg]) -> None:
+    """Display approach procedure horizontally."""
+
+    common_fix_names = {f.fix_identifier for f in common_fixes}
+
+    # Transitions
+    if proc.transitions:
+        click.echo()
+        click.secho("  TRANSITIONS:", fg="green", bold=True)
+
+        for name, legs in sorted(proc.transitions.items()):
+            trans_fixes = _get_unique_fixes(legs)
+            # Filter out common route fixes
+            trans_only = [l for l in trans_fixes if l.fix_identifier not in common_fix_names]
+            if trans_only:
+                click.echo()
+                click.echo(f"  {name}:")
+                _draw_horizontal_route(trans_only, "    ")
+
+    # Final approach
+    if common_fixes:
+        click.echo()
+        click.secho("  FINAL APPROACH:", fg="yellow", bold=True)
+        click.echo()
+        _draw_horizontal_route(common_fixes, "    ")
