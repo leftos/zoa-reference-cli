@@ -968,6 +968,165 @@ def get_all_dps(airport: str) -> dict[str, CifpDP]:
     return dps
 
 
+def find_matching_procedures(airport: str, procedure_name: str) -> list[str]:
+    """Find all procedure names that match a query.
+
+    Used for disambiguation when multiple procedures match (e.g., ILS 17R
+    matches I17RX, I17RY, I17RZ).
+
+    Args:
+        airport: Airport code (e.g., "RNO")
+        procedure_name: Procedure query (e.g., "ILS 17R", "SCOLA1")
+
+    Returns:
+        List of matching procedure identifiers
+    """
+    cifp_path = ensure_cifp_data()
+    if not cifp_path:
+        return []
+
+    airport = airport.upper().lstrip("K")
+    procedure_name = procedure_name.upper().strip()
+    procedure_name = re.sub(r"\s*\(RNAV\)$", "", procedure_name)
+
+    # Determine what we're looking for
+    search_prefix = f"SUSAP K{airport}"
+    proc_id_prefix: str | None = None
+    subsection_filter: str | None = None
+
+    # Check if it's an approach
+    approach_pattern = re.match(
+        r"^(ILS|LOC|VOR|RNAV|RNP|GPS|NDB|LDA|SDF|TACAN)\s*"
+        r"(?:(?:Y|Z|X|W)\s+)?(?:OR\s+\w+\s+)?(?:RWY\s*)?"
+        r"(\d{1,2}[LRC]?)\s*([XYZWABCDEFGH])?$",
+        procedure_name,
+    )
+    if approach_pattern:
+        subsection_filter = "F"
+        app_type_name = approach_pattern.group(1)
+        runway = approach_pattern.group(2)
+        variant = approach_pattern.group(3) or ""
+
+        type_map = {
+            "ILS": "I", "LOC": "L", "VOR": "V", "RNAV": "H",
+            "RNP": "R", "GPS": "P", "NDB": "N", "LDA": "X",
+            "SDF": "U", "TACAN": "T",
+        }
+        type_code = type_map.get(app_type_name, "H")
+
+        if variant:
+            # Specific variant requested - look for exact match
+            proc_id_prefix = f"{type_code}{runway}{variant}"
+        else:
+            # No variant - look for all variants
+            proc_id_prefix = f"{type_code}{runway}"
+    else:
+        # SID/STAR - check for pattern
+        proc_match = re.match(
+            r"^([A-Z]+)\s*(\d|ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE)$",
+            procedure_name,
+        )
+        if proc_match:
+            base_name = proc_match.group(1)
+            num_part = proc_match.group(2)
+            word_to_digit = {
+                "ONE": "1", "TWO": "2", "THREE": "3", "FOUR": "4",
+                "FIVE": "5", "SIX": "6", "SEVEN": "7", "EIGHT": "8", "NINE": "9",
+            }
+            if num_part in word_to_digit:
+                num_part = word_to_digit[num_part]
+            proc_id_prefix = f"{base_name}{num_part}"
+        else:
+            proc_id_prefix = procedure_name
+
+    if not proc_id_prefix:
+        return []
+
+    # Find all matching procedure IDs
+    matching_ids: set[str] = set()
+
+    with open(cifp_path, "r", encoding="latin-1") as f:
+        for line in f:
+            if not line.startswith(search_prefix):
+                continue
+
+            if len(line) <= 12:
+                continue
+
+            line_subsection = line[12]
+            if subsection_filter and line_subsection != subsection_filter:
+                continue
+            if line_subsection not in ("D", "E", "F"):
+                continue
+
+            proc_id = line[13:19].strip()
+            if not proc_id:
+                continue
+
+            # Check for match
+            if proc_id.startswith(proc_id_prefix):
+                if line_subsection in ("D", "E"):
+                    # SID/STAR - normalize to base ID
+                    match = re.match(r"^([A-Z]+\d)", proc_id)
+                    if match:
+                        matching_ids.add(match.group(1))
+                else:
+                    # Approach - keep full ID
+                    matching_ids.add(proc_id)
+
+    return sorted(matching_ids)
+
+
+def list_all_procedures(airport: str) -> list[str]:
+    """Get all procedure names (SIDs, STARs, approaches) for an airport.
+
+    Returns a list of procedure identifiers suitable for fuzzy matching.
+
+    Args:
+        airport: Airport code (e.g., "OAK", "RNO")
+
+    Returns:
+        List of procedure names (e.g., ["CNDEL5", "OAK6", "SCOLA1", "ILS17L"])
+    """
+    cifp_path = ensure_cifp_data()
+    if not cifp_path:
+        return []
+
+    airport = airport.upper().lstrip("K")
+    search_prefix = f"SUSAP K{airport}"
+
+    procedure_ids: set[str] = set()
+
+    with open(cifp_path, "r", encoding="latin-1") as f:
+        for line in f:
+            if not line.startswith(search_prefix):
+                continue
+
+            if len(line) <= 12:
+                continue
+
+            subsection = line[12]
+            if subsection not in ("D", "E", "F"):
+                continue
+
+            # Extract procedure ID
+            proc_id = line[13:19].strip()
+            if not proc_id:
+                continue
+
+            if subsection in ("D", "E"):  # SID or STAR
+                # Normalize to base ID (e.g., "CNDEL54" -> "CNDEL5")
+                match = re.match(r"^([A-Z]+\d)", proc_id)
+                if match:
+                    procedure_ids.add(match.group(1))
+            else:  # Approach (F)
+                # Keep full ID for approaches (e.g., "I17L", "H17LZ")
+                # Also add a readable version (e.g., "ILS17L", "RNAV17LZ")
+                procedure_ids.add(proc_id)
+
+    return sorted(procedure_ids)
+
+
 # --- Enhanced Parsing with Altitude/Speed Restrictions ---
 
 
@@ -1280,14 +1439,23 @@ def get_procedure_detail(
             proc_id = line[13:19].strip()
 
             # Check if this matches our procedure
-            # For approaches with variants, require exact match on the variant
-            # For SIDs/STARs, use prefix matching
+            # For approaches: if variant specified, require exact match; otherwise prefix match
+            # For SIDs/STARs: use prefix matching
             matched = False
             for prefix in proc_id_prefixes:
-                if subsection == "F":  # Approach - more precise matching
-                    if proc_id == prefix or proc_id.startswith(prefix + " "):
-                        matched = True
-                        break
+                if subsection == "F":  # Approach
+                    # If searching with variant (e.g., I17RZ), require exact match
+                    # If no variant (e.g., I17R), use prefix matching to find any variant
+                    if len(prefix) > 3 and prefix[-1] in "XYZWABCDEFGH":
+                        # Has variant - require exact match
+                        if proc_id == prefix:
+                            matched = True
+                            break
+                    else:
+                        # No variant - use prefix matching
+                        if proc_id.startswith(prefix):
+                            matched = True
+                            break
                 else:  # SID/STAR - prefix matching
                     if proc_id.startswith(prefix):
                         matched = True

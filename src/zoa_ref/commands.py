@@ -1692,7 +1692,8 @@ def do_cifp_lookup(airport: str, procedure_name: str) -> None:
     """Look up procedure details from CIFP data.
 
     Displays waypoints with altitude and speed restrictions for a given
-    SID, STAR, or approach procedure.
+    SID, STAR, or approach procedure. Uses fuzzy matching if exact match
+    not found.
 
     Supports dot notation for transition selection:
       - leggs.bdega4 -> Show only LEGGS transition of BDEGA4
@@ -1702,8 +1703,9 @@ def do_cifp_lookup(airport: str, procedure_name: str) -> None:
         procedure_name: Procedure name (e.g., "SCOLA1", "CNDEL5", "ILS 17L")
                        Can include transition prefix: "LEGGS.BDEGA4"
     """
-    from .cifp import get_procedure_detail
+    from .cifp import get_procedure_detail, list_all_procedures, find_matching_procedures
     from .display import display_procedure_detail
+    from .fuzzy import fuzzy_match
 
     record_airport(airport)
 
@@ -1728,7 +1730,45 @@ def do_cifp_lookup(airport: str, procedure_name: str) -> None:
 
     click.echo(f"Looking up procedure: {airport} {procedure_name}...")
 
-    result = get_procedure_detail(airport, procedure_name, transition)
+    # First check if query matches multiple procedures (e.g., "ILS 17R" -> I17RX, I17RY, I17RZ)
+    matching = find_matching_procedures(airport, procedure_name)
+    if len(matching) > 1:
+        # Multiple matches - need disambiguation
+        click.echo(f"\nMultiple procedures match '{procedure_name}':")
+        for i, proc_id in enumerate(matching, 1):
+            click.echo(f"  {i}. {proc_id}")
+        click.echo()
+        choice = prompt_single_choice(len(matching))
+        if choice is None:
+            return
+        procedure_name = matching[choice - 1]
+
+    # Try exact match (or the single matching procedure)
+    lookup_name = matching[0] if len(matching) == 1 else procedure_name
+    result = get_procedure_detail(airport, lookup_name, transition)
+
+    # If not found, try fuzzy matching
+    if result is None:
+        all_procedures = list_all_procedures(airport)
+        if all_procedures:
+            best_match, matches = fuzzy_match(procedure_name, all_procedures)
+
+            if best_match:
+                click.echo(f"  -> Matched: {best_match}")
+                result = get_procedure_detail(airport, best_match, transition)
+            elif matches:
+                # Ambiguous - show options and prompt for selection
+                click.echo(f"\nAmbiguous match for '{procedure_name}'. Did you mean:")
+                top_matches = matches[:5]
+                for i, m in enumerate(top_matches, 1):
+                    click.echo(f"  {i}. {m.name} (score: {m.score:.0%})")
+                click.echo()
+                choice = prompt_single_choice(len(top_matches))
+                if choice is None:
+                    return
+                selected = top_matches[choice - 1].name
+                click.echo(f"  -> Selected: {selected}")
+                result = get_procedure_detail(airport, selected, transition)
 
     if result is None:
         click.echo(f"Procedure '{procedure_name}' not found for {airport}", err=True)
