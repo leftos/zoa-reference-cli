@@ -214,9 +214,9 @@ def open_procedure_pdf(procedure: ProcedureInfo, page_num: int = 1) -> None:
         click.echo("Failed to download, opening URL directly...", err=True)
         pdf_url = procedure.full_url
         if page_num > 1:
-            url_with_page = f"{pdf_url}#page={page_num}&view=FitV"
+            url_with_page = f"{pdf_url}#page={page_num}&zoom=FitV&view=FitV"
         else:
-            url_with_page = f"{pdf_url}#view=FitV"
+            url_with_page = f"{pdf_url}#zoom=FitV&view=FitV"
         webbrowser.open(url_with_page)
 
 
@@ -256,7 +256,7 @@ def open_chart_pdf(
             if was_existing:
                 click.echo(f"Chart already open: {chart_name}")
             else:
-                fragment = "view=FitV"
+                fragment = "zoom=FitV&view=FitV"
                 if page_num:
                     fragment = f"page={page_num}&{fragment}"
                 pw_page.goto(f"{pdf_url}#{fragment}")
@@ -279,7 +279,7 @@ def open_chart_pdf(
         else:
             click.echo("Failed to download chart", err=True)
             # Fall back to opening URL directly (no rotation)
-            fragment = "view=FitV"
+            fragment = "zoom=FitV&view=FitV"
             if page_num:
                 fragment = f"page={page_num}&{fragment}"
             webbrowser.open(f"{pdf_url}#{fragment}")
@@ -296,7 +296,7 @@ def open_chart_pdf(
             if session is not None:
                 # Playwright mode
                 page = session.new_page()
-                page.goto(f"{Path(temp_path).as_uri()}#view={view_mode}")
+                page.goto(f"{Path(temp_path).as_uri()}#zoom={view_mode}&view={view_mode}")
             else:
                 # System browser mode
                 open_in_browser(temp_path, view=view_mode)
@@ -308,9 +308,9 @@ def open_chart_pdf(
             if session is not None:
                 page, was_existing = session.get_or_create_page(pdf_url)
                 if not was_existing:
-                    page.goto(f"{pdf_url}#view=FitV")
+                    page.goto(f"{pdf_url}#zoom=FitV&view=FitV")
             else:
-                webbrowser.open(f"{pdf_url}#view=FitV")
+                webbrowser.open(f"{pdf_url}#zoom=FitV&view=FitV")
             return pdf_url
 
 
@@ -1181,7 +1181,7 @@ def do_charts_browse(
             page.evaluate("""() => {
                 const obj = document.querySelector('object[data*=".PDF"]');
                 if (obj && obj.data && !obj.data.includes('#')) {
-                    obj.data = obj.data + '#view=FitV';
+                    obj.data = obj.data + '#zoom=FitV&view=FitV';
                 }
             }""")
             click.echo("Chart found! Browse other charts in the browser window.")

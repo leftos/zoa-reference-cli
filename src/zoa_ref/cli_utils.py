@@ -719,6 +719,9 @@ def open_in_browser(
     if page:
         fragments.append(f"page={page}")
     if view:
+        # Set both zoom and view to the same value since different browsers
+        # and PDF engines only support one or the other
+        fragments.append(f"zoom={view}")
         fragments.append(f"view={view}")
     if fragments:
         file_uri = f"{file_uri}#{'&'.join(fragments)}"
