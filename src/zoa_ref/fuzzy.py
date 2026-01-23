@@ -94,12 +94,18 @@ def calculate_similarity(query: str, target: str) -> float:
     elif any(qt in target for qt in query_tokens):
         substring_bonus = 0.15
 
-    # Prefix bonus (first token match)
+    # Prefix bonus - query token is a prefix of a target token
+    # Bonus scales with how much of the target token is covered
     prefix_bonus = 0.0
-    if query_tokens and target_tokens:
-        query_first = sorted(query_tokens)[0] if query_tokens else ""
-        if any(tt.startswith(query_first) for tt in target_tokens):
-            prefix_bonus = 0.1
+    for qt in query_tokens:
+        if len(qt) < 2:
+            continue  # Skip very short tokens
+        for tt in target_tokens:
+            if tt.startswith(qt) and tt != qt:
+                # Bonus proportional to prefix coverage (up to 0.3 for near-complete match)
+                coverage = len(qt) / len(tt)
+                bonus = 0.3 * coverage
+                prefix_bonus = max(prefix_bonus, bonus)
 
     # Edit distance bonus for typo tolerance
     # Only applies when no exact token match was found
