@@ -302,11 +302,6 @@ def search_chart_content(chart: ChartInfo, search_term: str) -> bool:
         return False
 
 
-def is_runway_pattern(term: str) -> bool:
-    """Check if term looks like a runway (e.g., 17L, 28R, 07)."""
-    return bool(re.match(r"^\d{1,2}[LRC]?$", term))
-
-
 def search_chart_cifp(chart: ChartInfo, search_term: str, airport: str) -> bool:
     """
     Search chart using CIFP data instead of PDF text extraction.
@@ -330,14 +325,17 @@ def search_chart_cifp(chart: ChartInfo, search_term: str, airport: str) -> bool:
     """
     search_term = search_term.upper()
 
+    # First check: simple contains match on chart name
+    # Handles "35" matching "RWY 35L", "ILS" matching "ILS OR LOC", etc.
+    if search_term in chart.chart_name.upper():
+        return True
+
+    # Second check: search CIFP data for waypoints/fixes not in chart name
     if chart.chart_code == "IAP":
         from zoa_ref.approaches import analyze_approach
 
         analysis = analyze_approach(airport, chart.chart_name)
         if analysis:
-            # Runway filtering: list RNO IAP 17L
-            if is_runway_pattern(search_term):
-                return analysis.runway == search_term
             # Fix search: list RNO IAP KLOCK
             all_fixes = (
                 analysis.iaf_waypoints
