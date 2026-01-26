@@ -136,3 +136,7 @@ Thumbs.db
 
 # Test scripts
 scripts/
+
+# Bad CLAUDE pipes
+_nul.7z
+nul
