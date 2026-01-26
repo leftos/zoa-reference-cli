@@ -2,7 +2,6 @@
 
 import os
 import re
-import tempfile
 import webbrowser
 from collections.abc import Callable
 from pathlib import Path
@@ -10,6 +9,7 @@ from pathlib import Path
 import click
 
 from .atis import fetch_atis, fetch_all_atis, ATIS_AIRPORTS
+from .config import get_temp_dir
 from .frequency import record_airport
 from .browser import BrowserSession, _calculate_viewport_size
 from .charts import (
@@ -28,6 +28,7 @@ from .charts import (
     search_chart_cifp,
     is_category_code,
     filter_charts_by_category,
+    strip_pdf_metadata,
 )
 from .cli_utils import open_in_browser, wait_for_input_or_close
 from .descent import calculate_descent, calculate_fix_descent
@@ -151,8 +152,8 @@ def sanitize_chart_filename(airport: str, chart_name: str) -> str:
 def sanitize_procedure_filename(procedure_name: str) -> str:
     """Convert procedure name to a clean, descriptive filename.
 
-    Example: "Sacramento ATCT SOP" -> "ZOA_SOP_SMF_ATCT.pdf"
-    Example: "ZOA - NCT LOA" -> "ZOA_LOA_ZOA_NCT.pdf"
+    Example: "Sacramento ATCT SOP" -> "ZOA_SMF_SOP.pdf"
+    Example: "Northern California TRACON LOA" -> "ZOA_NCT_LOA.pdf"
     """
     # Build reverse mapping: city name -> airport code
     city_to_code = {name.upper(): code for code, name in AIRPORT_ALIASES.items()}
@@ -187,7 +188,7 @@ def sanitize_procedure_filename(procedure_name: str) -> str:
     name = re.sub(r"\s+", "_", name.strip())
     name = re.sub(r"_+", "_", name)  # Collapse multiple underscores
     name = name.strip("_")
-    return f"ZOA_{doc_type}_{name}.pdf"
+    return f"ZOA_{name}_{doc_type}.pdf"
 
 
 def open_procedure_pdf(procedure: ProcedureInfo, page_num: int = 1) -> None:
@@ -199,10 +200,12 @@ def open_procedure_pdf(procedure: ProcedureInfo, page_num: int = 1) -> None:
     # Download PDF to temp file with descriptive name
     pdf_data = download_procedure_pdf(procedure.full_url)
     if pdf_data:
+        # Strip metadata so browser shows our filename
+        clean_pdf = strip_pdf_metadata(pdf_data)
         filename = sanitize_procedure_filename(procedure.name)
-        temp_path = os.path.join(tempfile.gettempdir(), filename)
+        temp_path = os.path.join(get_temp_dir(), filename)
         with open(temp_path, "wb") as f:
-            f.write(pdf_data)
+            f.write(clean_pdf)
 
         # Open with page fragment
         if page_num > 1:
@@ -267,7 +270,7 @@ def open_chart_pdf(
 
         # System browser mode: download, optionally rotate, and open
         filename = sanitize_chart_filename(airport, chart_name)
-        temp_path = os.path.join(tempfile.gettempdir(), filename)
+        temp_path = os.path.join(get_temp_dir(), filename)
 
         if download_and_rotate_pdf(pdf_url, temp_path, rotation):
             view_mode = detect_pdf_view_mode(temp_path)
@@ -289,7 +292,7 @@ def open_chart_pdf(
         click.echo(f"Chart has {num_pages} pages, merging...")
 
         filename = sanitize_chart_filename(airport, chart_name)
-        temp_path = os.path.join(tempfile.gettempdir(), filename)
+        temp_path = os.path.join(get_temp_dir(), filename)
 
         if download_and_merge_pdfs(pdf_urls, temp_path, rotation):
             view_mode = detect_pdf_view_mode(temp_path)

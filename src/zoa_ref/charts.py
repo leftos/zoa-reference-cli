@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from enum import Enum
 from playwright.sync_api import Page, TimeoutError as PlaywrightTimeout
 
-from zoa_ref.config import REFERENCE_BASE_URL
+from zoa_ref.config import REFERENCE_BASE_URL, get_temp_dir
 
 CHARTS_URL = f"{REFERENCE_BASE_URL}/charts"
 CHARTS_API_URL = "https://charts-api.oakartcc.org/v1/charts"
@@ -649,6 +649,37 @@ def detect_rotation_needed(pdf_data: bytes) -> int:
     return 0
 
 
+def strip_pdf_metadata(pdf_data: bytes) -> bytes:
+    """
+    Strip title and other metadata from PDF to force browser to show filename.
+
+    Args:
+        pdf_data: Raw PDF bytes
+
+    Returns:
+        PDF bytes with metadata stripped
+    """
+    from pypdf import PdfReader, PdfWriter
+    import io
+
+    try:
+        reader = PdfReader(io.BytesIO(pdf_data))
+        writer = PdfWriter()
+
+        for page in reader.pages:
+            writer.add_page(page)
+
+        # Clear metadata by setting empty values
+        writer.add_metadata({})
+
+        output = io.BytesIO()
+        writer.write(output)
+        return output.getvalue()
+    except Exception:
+        # If stripping fails, return original data
+        return pdf_data
+
+
 def download_and_merge_pdfs(
     pdf_urls: list[str],
     output_path: str,
@@ -696,7 +727,7 @@ def download_and_merge_pdfs(
                 page_rotation = rotation
 
             # Write to temp file (pypdf needs a file, not bytes)
-            temp_fd, temp_path = tempfile.mkstemp(suffix=".pdf")
+            temp_fd, temp_path = tempfile.mkstemp(suffix=".pdf", dir=get_temp_dir())
             temp_files.append(temp_path)
             with os.fdopen(temp_fd, "wb") as f:
                 f.write(pdf_data)
@@ -707,6 +738,9 @@ def download_and_merge_pdfs(
                 if page_rotation:
                     page.rotate(page_rotation)
                 writer.add_page(page)
+
+        # Clear metadata so browser shows our filename
+        writer.add_metadata({})
 
         # Write merged PDF
         with open(output_path, "wb") as f:
@@ -753,13 +787,14 @@ def download_and_rotate_pdf(
         rotation = detect_rotation_needed(pdf_data)
 
     if not rotation:
-        # No rotation needed, just save directly
+        # No rotation needed, strip metadata and save
+        clean_pdf = strip_pdf_metadata(pdf_data)
         with open(output_path, "wb") as f:
-            f.write(pdf_data)
+            f.write(clean_pdf)
         return True
 
     # Need to rotate - write to temp, read, rotate, write to output
-    temp_fd, temp_path = tempfile.mkstemp(suffix=".pdf")
+    temp_fd, temp_path = tempfile.mkstemp(suffix=".pdf", dir=get_temp_dir())
     try:
         with os.fdopen(temp_fd, "wb") as f:
             f.write(pdf_data)
@@ -769,6 +804,9 @@ def download_and_rotate_pdf(
         for page in reader.pages:
             page.rotate(rotation)
             writer.add_page(page)
+
+        # Clear metadata so browser shows our filename
+        writer.add_metadata({})
 
         with open(output_path, "wb") as f:
             writer.write(f)
