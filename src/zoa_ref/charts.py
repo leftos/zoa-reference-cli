@@ -13,6 +13,7 @@ from zoa_ref.config import REFERENCE_BASE_URL, get_temp_dir
 
 CHARTS_URL = f"{REFERENCE_BASE_URL}/charts"
 CHARTS_API_URL = "https://charts-api.oakartcc.org/v1/charts"
+USER_AGENT = "ZOA-Reference-CLI/1.0"
 
 # Airport code to city/airport name mapping for procedure name expansion
 # Used to match queries like "RNO1" to "RENO ONE" at RNO airport
@@ -232,7 +233,8 @@ def fetch_charts_from_api(airport: str) -> list[ChartInfo]:
     url = f"{CHARTS_API_URL}?apt={airport.upper()}"
 
     try:
-        with urllib.request.urlopen(url, timeout=10) as response:
+        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+        with urllib.request.urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode())
     except urllib.error.URLError as e:
         print(f"Error fetching charts from API: {e}")
@@ -285,7 +287,8 @@ def search_chart_content(chart: ChartInfo, search_term: str) -> bool:
 
     try:
         # Download PDF
-        with urllib.request.urlopen(chart.pdf_path, timeout=10) as response:
+        req = urllib.request.Request(chart.pdf_path, headers={"User-Agent": USER_AGENT})
+        with urllib.request.urlopen(req, timeout=10) as response:
             pdf_data = response.read()
 
         # Extract text and search
@@ -845,7 +848,8 @@ def download_pdf(
 
     # Download fresh
     try:
-        with urllib.request.urlopen(pdf_url, timeout=timeout) as response:
+        req = urllib.request.Request(pdf_url, headers={"User-Agent": USER_AGENT})
+        with urllib.request.urlopen(req, timeout=timeout) as response:
             pdf_data = response.read()
     except urllib.error.URLError:
         return None

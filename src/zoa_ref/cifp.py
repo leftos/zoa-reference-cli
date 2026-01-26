@@ -22,6 +22,7 @@ from zoa_ref.cache import get_current_airac_cycle, CACHE_DIR
 
 CIFP_BASE_URL = "https://aeronav.faa.gov/Upload_313-d/cifp/"
 CIFP_TIMEOUT = 60  # seconds for download
+USER_AGENT = "ZOA-Reference-CLI/1.0"
 
 
 # --- Data Classes ---
@@ -287,7 +288,8 @@ def ensure_cifp_data() -> Path | None:
     print(f"Downloading CIFP data from {url}...")
 
     try:
-        with urllib.request.urlopen(url, timeout=CIFP_TIMEOUT) as response:
+        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+        with urllib.request.urlopen(req, timeout=CIFP_TIMEOUT) as response:
             zip_data = response.read()
     except (urllib.error.URLError, TimeoutError) as e:
         print(f"Failed to download CIFP: {e}")

@@ -9,7 +9,7 @@ from pathlib import Path
 import click
 
 from .atis import fetch_atis, fetch_all_atis, ATIS_AIRPORTS
-from .config import get_temp_dir
+from .cache import get_airac_for_caching, get_processed_pdf_path
 from .frequency import record_airport
 from .browser import BrowserSession, _calculate_viewport_size
 from .charts import (
@@ -197,21 +197,22 @@ def open_procedure_pdf(procedure: ProcedureInfo, page_num: int = 1) -> None:
     if page_num > 1:
         click.echo(f"  Page: {page_num}")
 
-    # Download PDF to temp file with descriptive name
+    # Download PDF to cache with descriptive name
     pdf_data = download_procedure_pdf(procedure.full_url)
     if pdf_data:
         # Strip metadata so browser shows our filename
         clean_pdf = strip_pdf_metadata(pdf_data)
         filename = sanitize_procedure_filename(procedure.name)
-        temp_path = os.path.join(get_temp_dir(), filename)
-        with open(temp_path, "wb") as f:
+        airac = get_airac_for_caching()
+        cache_path = get_processed_pdf_path(filename, airac)
+        with open(cache_path, "wb") as f:
             f.write(clean_pdf)
 
         # Open with page fragment
         if page_num > 1:
-            open_in_browser(temp_path, page=page_num, view="FitV")
+            open_in_browser(str(cache_path), page=page_num, view="FitV")
         else:
-            open_in_browser(temp_path, view="FitV")
+            open_in_browser(str(cache_path), view="FitV")
     else:
         # Fall back to opening URL directly
         click.echo("Failed to download, opening URL directly...", err=True)
@@ -270,15 +271,16 @@ def open_chart_pdf(
 
         # System browser mode: download, optionally rotate, and open
         filename = sanitize_chart_filename(airport, chart_name)
-        temp_path = os.path.join(get_temp_dir(), filename)
+        airac = get_airac_for_caching(pdf_url)
+        cache_path = get_processed_pdf_path(filename, airac)
 
-        if download_and_rotate_pdf(pdf_url, temp_path, rotation):
-            view_mode = detect_pdf_view_mode(temp_path)
+        if download_and_rotate_pdf(pdf_url, str(cache_path), rotation):
+            view_mode = detect_pdf_view_mode(str(cache_path))
             click.echo(f"Opening chart: {chart_name}")
             if page_num:
                 click.echo(f"  Page: {page_num}")
-            open_in_browser(temp_path, view=view_mode, page=page_num)
-            return temp_path
+            open_in_browser(str(cache_path), view=view_mode, page=page_num)
+            return str(cache_path)
         else:
             click.echo("Failed to download chart", err=True)
             # Fall back to opening URL directly (no rotation)
@@ -292,19 +294,20 @@ def open_chart_pdf(
         click.echo(f"Chart has {num_pages} pages, merging...")
 
         filename = sanitize_chart_filename(airport, chart_name)
-        temp_path = os.path.join(get_temp_dir(), filename)
+        airac = get_airac_for_caching(pdf_urls[0])
+        cache_path = get_processed_pdf_path(filename, airac)
 
-        if download_and_merge_pdfs(pdf_urls, temp_path, rotation):
-            view_mode = detect_pdf_view_mode(temp_path)
+        if download_and_merge_pdfs(pdf_urls, str(cache_path), rotation):
+            view_mode = detect_pdf_view_mode(str(cache_path))
             if session is not None:
                 # Playwright mode
                 page = session.new_page()
-                page.goto(f"{Path(temp_path).as_uri()}#zoom={view_mode}&view={view_mode}")
+                page.goto(f"{cache_path.as_uri()}#zoom={view_mode}&view={view_mode}")
             else:
                 # System browser mode
-                open_in_browser(temp_path, view=view_mode)
+                open_in_browser(str(cache_path), view=view_mode)
             click.echo(f"Chart found: {chart_name} ({num_pages} pages)")
-            return temp_path
+            return str(cache_path)
         else:
             click.echo("Failed to merge PDF pages, opening first page only")
             pdf_url = pdf_urls[0]

@@ -367,7 +367,7 @@ def cleanup_old_airac_caches(keep_cycles: int = 2) -> int:
     removed = 0
 
     # Check each AIRAC-based cache directory
-    for cache_type in ["charts", "analysis"]:
+    for cache_type in ["charts", "analysis", "processed"]:
         cache_base = CACHE_DIR / cache_type
         if not cache_base.exists():
             continue
@@ -469,7 +469,7 @@ def clear_all_airac_cache() -> int:
     """
     removed = 0
 
-    for cache_type in ["charts", "analysis", "cifp", "chart_lists", "nasr"]:
+    for cache_type in ["charts", "analysis", "cifp", "chart_lists", "nasr", "processed"]:
         cache_base = CACHE_DIR / cache_type
         if cache_base.exists():
             try:
@@ -487,6 +487,27 @@ def clear_all_airac_cache() -> int:
             pass
 
     return removed
+
+
+# --- Processed PDF Caching (for browser viewing) ---
+
+
+def get_processed_pdf_path(filename: str, airac: str) -> Path:
+    """Get the cache path for a processed PDF (chart or procedure).
+
+    These are the final PDFs opened by the browser, distinct from the raw
+    cached PDFs used for download caching.
+
+    Args:
+        filename: Pre-sanitized filename (e.g., "ZOA_OAK_ILS_RWY_28R.pdf")
+        airac: AIRAC cycle (e.g., "2512")
+
+    Returns:
+        Path to the processed PDF file
+    """
+    cache_dir = CACHE_DIR / "processed" / airac
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir / filename
 
 
 # --- Chart List Caching (for autocomplete) ---
