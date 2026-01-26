@@ -1,7 +1,7 @@
 """Waypoint/fix/airport coordinate lookup for distance calculations.
 
 This module provides a unified interface to look up coordinates for:
-- Navaids (VORs, VORTACs, TACANs) from local NAVAID_System.geojson
+- Navaids (VORs, VORTACs, TACANs) from NASR NAV.txt data
 - Airports from CIFP PA (airport reference point) records
 - Fixes/waypoints from CIFP EA (enroute waypoint) records
 """
@@ -294,7 +294,7 @@ def get_point_coordinates(ident: str) -> WaypointInfo | None:
     """Look up coordinates for a fix, airport, or navaid.
 
     Search order:
-    1. Navaids (from NAVAID_System.geojson) - fastest, local data
+    1. Navaids (from NASR NAV.txt)
     2. Airports (from CIFP PA records)
     3. Terminal waypoints (from CIFP PC records)
     4. Enroute waypoints (from CIFP EA records)

@@ -1,55 +1,21 @@
 """MEA (Minimum Enroute Altitude) lookup for route analysis.
 
-This module downloads FAA NASR (National Airspace System Resources) data
-to extract MEA/MOCA restrictions for airways and analyzes routes to determine
-altitude requirements.
-
-NASR data is downloaded once per 28-day AIRAC cycle and cached locally.
+This module analyzes routes to determine MEA/MOCA altitude requirements
+using airway data from the NASR module.
 """
 
-import io
 import re
-import urllib.request
-import urllib.error
-import zipfile
 from dataclasses import dataclass
-from datetime import date, timedelta
-from functools import lru_cache
-from pathlib import Path
 
-from zoa_ref.cache import get_current_airac_cycle, CACHE_DIR, AIRAC_EPOCH, CYCLE_DAYS
-
-# NASR download settings
-NASR_BASE_URL = "https://nfdc.faa.gov/webContent/28DaySub/"
-NASR_TIMEOUT = 120  # seconds for download
+from zoa_ref.nasr import (
+    AirwayFix,
+    AirwayRestriction,
+    load_airway_restrictions,
+    load_airways,
+)
 
 
 # --- Data Classes ---
-
-
-@dataclass
-class AirwaySegmentRestriction:
-    """MEA/MOCA altitude restrictions for an airway segment.
-
-    Each segment is identified by its sequence number, which corresponds
-    to the point-to-point segment ending at that sequence in the airway.
-    """
-
-    airway: str  # e.g., "V23", "J80"
-    sequence: int  # Links to AirwayFix sequence (segment ends at this point)
-    mea: int | None  # Minimum Enroute Altitude in feet (e.g., 5000)
-    mea_opposite: int | None  # MEA for opposite direction (may differ)
-    moca: int | None  # Minimum Obstruction Clearance Altitude in feet
-
-
-@dataclass
-class AirwayFixNasr:
-    """A fix along an airway with sequence number (from NASR data)."""
-
-    identifier: str  # e.g., "MZB", "SUNOL"
-    sequence: int  # Order along the airway
-    latitude: float
-    longitude: float
 
 
 @dataclass
@@ -74,341 +40,31 @@ class MeaResult:
     is_safe: bool | None  # True if altitude >= max_mea, None if no altitude given
 
 
-# --- NASR Cycle Calculation ---
+# --- Backwards compatibility aliases ---
+# These are kept for any code that imports from mea directly
 
+AirwaySegmentRestriction = AirwayRestriction
+AirwayFixNasr = AirwayFix
 
-def _get_nasr_cycle_date() -> str:
-    """Get the effective date string for current NASR cycle.
 
-    Returns:
-        Date string in YYYY-MM-DD format
-    """
-    today = date.today()
-    days_since_epoch = (today - AIRAC_EPOCH).days
-    cycle_number = days_since_epoch // CYCLE_DAYS
-
-    effective_date = AIRAC_EPOCH + timedelta(days=cycle_number * CYCLE_DAYS)
-    return effective_date.strftime("%Y-%m-%d")
-
-
-def _get_nasr_cache_path() -> Path:
-    """Get the cache directory for NASR data.
-
-    Returns:
-        Path to the cached NASR data directory
-    """
-    cycle_id, _, _ = get_current_airac_cycle()
-    return CACHE_DIR / "nasr" / cycle_id
-
-
-# --- NASR Download and Parsing ---
-
-
-def _download_nasr_file(url: str, dest_file: Path, quiet: bool = False) -> bool:
-    """Download a single NASR zip file and extract its .txt file.
-
-    Args:
-        url: URL to download from
-        dest_file: Path to save the extracted .txt file
-        quiet: If True, suppress print output
-
-    Returns:
-        True if successful, False otherwise
-    """
-    try:
-        req = urllib.request.Request(
-            url, headers={"User-Agent": "ZOA-Reference-CLI/1.0"}
-        )
-        with urllib.request.urlopen(req, timeout=NASR_TIMEOUT) as response:
-            zip_data = response.read()
-
-        with zipfile.ZipFile(io.BytesIO(zip_data)) as zf:
-            # Find the .txt file in the zip
-            txt_name = dest_file.stem + ".txt"
-            for name in zf.namelist():
-                if name.endswith(txt_name) or name == txt_name:
-                    with zf.open(name) as src:
-                        dest_file.write_bytes(src.read())
-                    return True
-
-        if not quiet:
-            print(f"{txt_name} not found in {url}")
-        return False
-
-    except (urllib.error.URLError, TimeoutError, zipfile.BadZipFile) as e:
-        if not quiet:
-            print(f"Failed to download {url}: {e}")
-        return False
-
-
-def ensure_nasr_data(quiet: bool = False) -> Path | None:
-    """Download NASR data if missing or outdated.
-
-    Auto-downloads new NASR data when a new cycle begins.
-
-    Args:
-        quiet: If True, suppress print output
-
-    Returns:
-        Path to the NASR data directory, or None if download failed
-    """
-    cache_path = _get_nasr_cache_path()
-    awy_file = cache_path / "AWY.txt"
-
-    # Check if we already have the data
-    if awy_file.exists():
-        return cache_path
-
-    cache_path.mkdir(parents=True, exist_ok=True)
-    cycle_date = _get_nasr_cycle_date()
-
-    # Download AWY.zip
-    awy_url = f"{NASR_BASE_URL}{cycle_date}/AWY.zip"
-
-    if not quiet:
-        print(f"Downloading NASR airway data from {awy_url}...")
-    if not _download_nasr_file(awy_url, awy_file, quiet):
-        return None
-
-    if not quiet:
-        print(f"NASR data cached to {cache_path}")
-    return cache_path
-
-
-# --- AWY.txt Parsing ---
-
-
-def _parse_awy1_record(line: str) -> tuple[str, AirwaySegmentRestriction] | None:
-    """Parse an AWY.txt AWY1 record line for MEA/MOCA data.
-
-    AWY.txt format is fixed-width. AWY1 records contain altitude restrictions:
-    - Positions 0-4: Record type "AWY1"
-    - Positions 4-9: Airway designator (e.g., "V27  ", "J1   ")
-    - Positions 10-15: Sequence number
-    - Positions 74-79: MEA (5 digits, right-justified, e.g., "05000")
-    - Positions 85-90: MEA opposite direction (may be blank)
-    - Positions 101-106: MOCA (5 digits or blank)
-
-    Args:
-        line: Raw AWY.txt record line
-
-    Returns:
-        Tuple of (airway_designator, AirwaySegmentRestriction) if valid, None otherwise
-    """
-    if len(line) < 110:
-        return None
-
-    # Only process AWY1 records
-    record_type = line[0:4].strip()
-    if record_type != "AWY1":
-        return None
-
-    try:
-        # Extract airway designator (positions 4-9)
-        airway = line[4:9].strip()
-        if not airway:
-            return None
-
-        # Extract sequence number (positions 10-15)
-        seq_str = line[10:15].strip()
-        if not seq_str:
-            return None
-        sequence = int(seq_str)
-
-        # Extract MEA (positions 74-79)
-        mea_str = line[74:79].strip()
-        mea = int(mea_str) if mea_str and mea_str.isdigit() else None
-
-        # Extract MEA opposite direction (positions 85-90)
-        mea_opp_str = line[85:90].strip()
-        mea_opposite = (
-            int(mea_opp_str) if mea_opp_str and mea_opp_str.isdigit() else None
-        )
-
-        # Extract MOCA (positions 101-106)
-        moca_str = line[101:106].strip()
-        moca = int(moca_str) if moca_str and moca_str.isdigit() else None
-
-        # Skip if no altitude data at all
-        if mea is None and mea_opposite is None and moca is None:
-            return None
-
-        return (
-            airway,
-            AirwaySegmentRestriction(
-                airway=airway,
-                sequence=sequence,
-                mea=mea,
-                mea_opposite=mea_opposite,
-                moca=moca,
-            ),
-        )
-
-    except (IndexError, ValueError):
-        return None
-
-
-def _parse_awy2_record(line: str) -> tuple[str, AirwayFixNasr] | None:
-    """Parse an AWY.txt AWY2 record line for fix information.
-
-    AWY.txt format is fixed-width. AWY2 records contain fix details.
-
-    Args:
-        line: Raw AWY.txt record line
-
-    Returns:
-        Tuple of (airway_designator, AirwayFixNasr) if valid, None otherwise
-    """
-    if len(line) < 120:
-        return None
-
-    # Only process AWY2 records (fix location data)
-    record_type = line[0:4].strip()
-    if record_type != "AWY2":
-        return None
-
-    try:
-        # Extract airway designator and sequence number
-        header_match = re.match(r"AWY2([A-Z][A-Z0-9]*)\s*(\d+)", line)
-        if not header_match:
-            return None
-
-        airway = header_match.group(1)
-        sequence = int(header_match.group(2))
-
-        # Find latitude and longitude using regex
-        lat_match = re.search(r"(\d{2})-(\d{2})-(\d{2}\.?\d*)([NS])", line)
-        lon_match = re.search(r"(\d{2,3})-(\d{2})-(\d{2}\.?\d*)([EW])", line)
-
-        if not lat_match or not lon_match:
-            return None
-
-        # Parse latitude
-        lat_deg = int(lat_match.group(1))
-        lat_min = int(lat_match.group(2))
-        lat_sec = float(lat_match.group(3)) if lat_match.group(3) else 0.0
-        latitude = lat_deg + lat_min / 60 + lat_sec / 3600
-        if lat_match.group(4) == "S":
-            latitude = -latitude
-
-        # Parse longitude
-        lon_deg = int(lon_match.group(1))
-        lon_min = int(lon_match.group(2))
-        lon_sec = float(lon_match.group(3)) if lon_match.group(3) else 0.0
-        longitude = lon_deg + lon_min / 60 + lon_sec / 3600
-        if lon_match.group(4) == "W":
-            longitude = -longitude
-
-        # Extract fix identifier from the remaining part of the line
-        remaining = line[lon_match.end() :]
-
-        fix_id = None
-
-        # Pattern 1: Look for *FIXID* pattern (most common for fixes)
-        star_match = re.search(r"\*([A-Z]{2,5})\*", remaining)
-        if star_match:
-            fix_id = star_match.group(1)
-        else:
-            # Pattern 2: Look for 3-letter code followed by airway (for VORTACs)
-            id_match = re.search(r"\s+([A-Z]{2,5})\s+" + re.escape(airway), remaining)
-            if id_match:
-                fix_id = id_match.group(1)
-
-        if not fix_id:
-            return None
-
-        return (
-            airway,
-            AirwayFixNasr(
-                identifier=fix_id,
-                sequence=sequence,
-                latitude=latitude,
-                longitude=longitude,
-            ),
-        )
-
-    except (IndexError, ValueError):
-        return None
-
-
-# --- High-Level API ---
-
-
-@lru_cache(maxsize=1)
-def load_airway_restrictions() -> dict[str, dict[int, AirwaySegmentRestriction]]:
-    """Load MEA/MOCA restrictions for all airways from NASR data.
-
-    Returns:
-        Dict mapping airway designator to dict of sequence -> restriction.
-        Example: {"V23": {20: AirwaySegmentRestriction(...), 30: ...}}
-    """
-    cache_path = ensure_nasr_data(quiet=True)
-    if not cache_path:
-        return {}
-
-    awy_file = cache_path / "AWY.txt"
-    if not awy_file.exists():
-        return {}
-
-    restrictions: dict[str, dict[int, AirwaySegmentRestriction]] = {}
-
-    try:
-        with open(awy_file, "r", encoding="latin-1") as f:
-            for line in f:
-                result = _parse_awy1_record(line)
-                if result:
-                    airway, restriction = result
-                    if airway not in restrictions:
-                        restrictions[airway] = {}
-                    restrictions[airway][restriction.sequence] = restriction
-
-    except (OSError, IOError):
-        return {}
-
-    return restrictions
-
-
-@lru_cache(maxsize=1)
-def load_airways_nasr() -> dict[str, list[AirwayFixNasr]]:
+def load_airways_nasr() -> dict[str, list[AirwayFix]]:
     """Load all airways from NASR data.
 
-    Returns:
-        Dict mapping airway designator to ordered list of AirwayFixNasr objects
+    Deprecated: Use nasr.load_airways() directly.
     """
-    cache_path = ensure_nasr_data(quiet=True)
-    if not cache_path:
-        return {}
-
-    awy_file = cache_path / "AWY.txt"
-    if not awy_file.exists():
-        return {}
-
-    airways: dict[str, list[AirwayFixNasr]] = {}
-
-    try:
-        with open(awy_file, "r", encoding="latin-1") as f:
-            for line in f:
-                result = _parse_awy2_record(line)
-                if result:
-                    airway, fix = result
-                    if airway not in airways:
-                        airways[airway] = []
-                    airways[airway].append(fix)
-
-        # Sort each airway's fixes by sequence number
-        for airway in airways:
-            airways[airway].sort(key=lambda f: f.sequence)
-
-    except (OSError, IOError):
-        return {}
-
-    return airways
+    return load_airways()
 
 
 def clear_nasr_cache() -> None:
-    """Clear the LRU caches for NASR lookups."""
-    load_airway_restrictions.cache_clear()
-    load_airways_nasr.cache_clear()
+    """Clear the LRU caches for NASR lookups.
+
+    Deprecated: Use nasr.clear_nasr_cache() directly.
+    """
+    from zoa_ref.nasr import clear_nasr_cache as _clear
+    _clear()
+
+
+# --- MEA Analysis ---
 
 
 def get_mea_for_route(route: str, altitude: int | None = None) -> MeaResult:
@@ -430,7 +86,7 @@ def get_mea_for_route(route: str, altitude: int | None = None) -> MeaResult:
         )
 
     restrictions = load_airway_restrictions()
-    airways_data = load_airways_nasr()
+    airways_data = load_airways()
 
     if not restrictions:
         return MeaResult(

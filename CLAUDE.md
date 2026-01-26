@@ -66,7 +66,10 @@ Modules in `src/zoa_ref/`:
 - **routes.py**: TEC/AAR/ADR routes, LOA rules, real-world routes scraping
 - **atis.py**: ATIS for SFO/SJC/RNO/OAK/SMF (no caching - time-sensitive)
 - **icao.py**: Airline/airport/aircraft lookups with cache (`~/.zoa-ref/cache/`, 7-day TTL). `CodesPage` for persistent page reuse
-- **navaids.py**: Navaid lookup from local GeoJSON (`NAVAID_System.geojson`). Also provides navaid aliasing for chart lookup (e.g., "FMG1" → "MUSTANG1")
+- **cifp.py**: FAA CIFP (ARINC 424) data download and parsing. Provides procedure data (SIDs, STARs, approaches). Auto-downloads per AIRAC cycle.
+- **nasr.py**: FAA NASR data download and parsing. Provides navaid data (NAV.txt) and airway data (AWY.txt). Auto-downloads per AIRAC cycle.
+- **navaids.py**: Re-exports navaid functions from nasr.py. Provides navaid aliasing for chart lookup (e.g., "FMG1" → "MUSTANG1")
+- **mea.py**: MEA/MOCA altitude analysis for routes using airway data from nasr.py
 - **positions.py**: ATC position lookup (name, TCP, callsign, frequency). Cached.
 - **scratchpads.py**: STARS scratchpad code lookup per facility. Cached.
 - **approaches.py**: Analyzes STAR endpoints and approach IAFs/IFs to find connections
@@ -95,7 +98,8 @@ Modules in `src/zoa_ref/`:
 - Charts API: `charts-api.oakartcc.org/v1/charts?apt=<airport>`
 - Reference Tool: `reference.oakartcc.org/{charts,routes,atis,codes,positions,scratchpads}`
 - SOP PDFs: Linked from Reference Tool procedures page
-- Navaids: Local GeoJSON (`data/NAVAID_System.geojson`)
+- CIFP: FAA ARINC 424 procedure data (`aeronav.faa.gov/Upload_313-d/cifp/`)
+- NASR: FAA navaid and airway data (`nfdc.faa.gov/webContent/28DaySub/`)
 - External tools: `airspace.oakartcc.org`, `tdls.virtualnas.net`, `strips.virtualnas.net`
 
 ## Workflow

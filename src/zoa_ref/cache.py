@@ -435,6 +435,27 @@ def cleanup_old_airac_caches(keep_cycles: int = 2) -> int:
             except (ValueError, OSError):
                 continue
 
+    # Clean up old NASR data directories
+    nasr_base = CACHE_DIR / "nasr"
+    if nasr_base.exists():
+        for nasr_dir in nasr_base.iterdir():
+            if not nasr_dir.is_dir():
+                continue
+
+            # NASR directories are named by cycle ID (e.g., "2512")
+            if not re.match(r"^\d{4}$", nasr_dir.name):
+                continue
+
+            try:
+                cycle_num = int(nasr_dir.name)
+                current_num = int(current_cycle)
+
+                if current_num - cycle_num > keep_cycles:
+                    shutil.rmtree(nasr_dir)
+                    removed += 1
+            except (ValueError, OSError):
+                continue
+
     return removed
 
 
@@ -448,7 +469,7 @@ def clear_all_airac_cache() -> int:
     """
     removed = 0
 
-    for cache_type in ["charts", "analysis", "cifp", "chart_lists"]:
+    for cache_type in ["charts", "analysis", "cifp", "chart_lists", "nasr"]:
         cache_base = CACHE_DIR / cache_type
         if cache_base.exists():
             try:
