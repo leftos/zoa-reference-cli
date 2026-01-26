@@ -15,7 +15,7 @@ from .navaids import get_all_identifiers
 from .procedures import CLASS_D_AIRPORTS
 
 # Common facility codes
-FACILITY_CODES = ["NCT", "NorCal", "Oakland", "SFO", "OAK", "SJC", "SMF", "RNO"]
+FACILITY_CODES = ["ZOA", "NCT", "NorCal", "Oakland", "SFO", "OAK", "SJC", "SMF", "RNO"]
 
 
 def complete_airport(
