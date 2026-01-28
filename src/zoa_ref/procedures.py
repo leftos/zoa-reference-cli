@@ -653,8 +653,34 @@ def find_procedure_by_name(
 # --- PDF Heading Extraction ---
 
 
-def _download_pdf(url: str, timeout: int = 30) -> bytes | None:
-    """Download PDF content from URL."""
+def _download_pdf(url: str, timeout: int = 30, use_cache: bool = True) -> bytes | None:
+    """Download PDF content from URL, with optional caching.
+
+    PDFs are cached based on AIRAC cycle and automatically invalidate
+    when a new cycle begins.
+
+    Args:
+        url: URL to the PDF (relative or absolute)
+        timeout: Download timeout in seconds
+        use_cache: Whether to use cached data (default: True)
+
+    Returns:
+        PDF bytes, or None if download failed
+    """
+    from zoa_ref import cache
+
+    # Extract UUID from URL for cache key
+    uuid_match = re.search(r"zoapdfs/([^/]+)\.pdf", url)
+    uuid = uuid_match.group(1) if uuid_match else None
+
+    # Try cache first
+    if use_cache and uuid:
+        airac, _, _ = cache.get_current_airac_cycle()
+        cached = cache.get_cached_procedure_pdf(uuid, airac)
+        if cached:
+            return cached
+
+    # Download fresh
     full_url = url if url.startswith("http") else f"{REFERENCE_BASE_URL}/{url}"
 
     try:
@@ -662,9 +688,16 @@ def _download_pdf(url: str, timeout: int = 30) -> bytes | None:
             full_url, headers={"User-Agent": "ZOA-Reference-CLI/1.0"}
         )
         with urllib.request.urlopen(req, timeout=timeout) as response:
-            return response.read()
+            pdf_data = response.read()
     except (urllib.error.URLError, TimeoutError):
         return None
+
+    # Cache the result
+    if use_cache and uuid and pdf_data:
+        airac, _, _ = cache.get_current_airac_cycle()
+        cache.cache_procedure_pdf(uuid, pdf_data, airac)
+
+    return pdf_data
 
 
 def _extract_pdf_bookmarks(pdf_data: bytes) -> list[HeadingInfo]:
@@ -1113,7 +1146,15 @@ def clear_procedures_cache() -> int:
     count = 0
     cache_base = CACHE_DIR / "procedures"
     if cache_base.exists():
+        # Clear JSON files (headings, procedures list)
         for cache_file in cache_base.rglob("*.json"):
+            try:
+                cache_file.unlink()
+                count += 1
+            except OSError:
+                pass
+        # Clear PDF files
+        for cache_file in cache_base.rglob("*.pdf"):
             try:
                 cache_file.unlink()
                 count += 1

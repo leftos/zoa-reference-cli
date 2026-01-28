@@ -348,6 +348,62 @@ def cache_headings(uuid: str, headings: list[dict], airac: str) -> None:
         pass
 
 
+# --- Procedure PDF Caching (AIRAC-aware) ---
+
+
+def get_procedure_pdf_cache_path(uuid: str, airac: str) -> Path:
+    """Get the cache path for a procedure PDF.
+
+    Args:
+        uuid: Procedure UUID
+        airac: AIRAC cycle
+
+    Returns:
+        Path to the cached PDF file
+    """
+    safe_uuid = uuid.replace("/", "_").replace("\\", "_")
+    return CACHE_DIR / "procedures" / "pdfs" / airac / f"{safe_uuid}.pdf"
+
+
+def get_cached_procedure_pdf(uuid: str, airac: str) -> bytes | None:
+    """Retrieve a cached procedure PDF.
+
+    Args:
+        uuid: Procedure UUID
+        airac: AIRAC cycle
+
+    Returns:
+        PDF bytes if cached, None otherwise
+    """
+    cache_path = get_procedure_pdf_cache_path(uuid, airac)
+    if cache_path.exists():
+        try:
+            return cache_path.read_bytes()
+        except OSError:
+            return None
+    return None
+
+
+def cache_procedure_pdf(uuid: str, pdf_data: bytes, airac: str) -> Path | None:
+    """Cache a procedure PDF.
+
+    Args:
+        uuid: Procedure UUID
+        pdf_data: PDF bytes to cache
+        airac: AIRAC cycle
+
+    Returns:
+        Path to cached file, or None if caching failed
+    """
+    cache_path = get_procedure_pdf_cache_path(uuid, airac)
+    try:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        cache_path.write_bytes(pdf_data)
+        return cache_path
+    except OSError:
+        return None
+
+
 # --- Cache Cleanup ---
 
 
@@ -397,6 +453,26 @@ def cleanup_old_airac_caches(keep_cycles: int = 2) -> int:
     headings_base = CACHE_DIR / "procedures" / "headings"
     if headings_base.exists():
         for airac_dir in headings_base.iterdir():
+            if not airac_dir.is_dir():
+                continue
+
+            if not re.match(r"^\d{4}$", airac_dir.name):
+                continue
+
+            try:
+                cycle_num = int(airac_dir.name)
+                current_num = int(current_cycle)
+
+                if current_num - cycle_num > keep_cycles:
+                    shutil.rmtree(airac_dir)
+                    removed += 1
+            except (ValueError, OSError):
+                continue
+
+    # Clean up procedure PDFs cache
+    pdfs_base = CACHE_DIR / "procedures" / "pdfs"
+    if pdfs_base.exists():
+        for airac_dir in pdfs_base.iterdir():
             if not airac_dir.is_dir():
                 continue
 
