@@ -81,11 +81,12 @@ def _fill_and_search(
     # Click search button
     page.locator("button:has-text('Search Routes')").click()
 
-    # Wait for results to load (wait for any table to appear)
+    # Wait for search to complete by waiting for network to settle
+    # We can't wait for a table because no table is rendered if there are no results
     try:
-        page.wait_for_selector("table", timeout=10000)
+        page.wait_for_load_state("networkidle", timeout=10000)
     except PlaywrightTimeout:
-        print("Warning: Timeout waiting for route results")
+        print("Warning: Timeout waiting for route search to complete")
         return False
 
     return True
