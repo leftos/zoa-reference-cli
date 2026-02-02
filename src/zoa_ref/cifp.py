@@ -325,21 +325,18 @@ def ensure_cifp_data() -> Path | None:
 # --- ARINC 424 Record Parsing ---
 
 
-# Waypoint Description Code 1 (position 39, 0-indexed) meanings
-# Code meanings vary by procedure type; these are primarily for approaches
+# Waypoint Description Code 4 (position 43, 1-indexed; 42 0-indexed) meanings
+# This is the 4th character of the waypoint description field, indicating fix role
 WAYPOINT_DESC_CODES = {
     "A": "IAF",  # Initial Approach Fix
     "B": "IF",  # Intermediate Fix
-    "C": "IAF/IF",  # IAF and IF combined
-    "D": "IAF/FAF",  # IAF and FAF combined
-    "E": "",  # Essential waypoint (basic SID/STAR waypoint)
-    "F": "",  # Off-airway/flyover waypoint
-    "G": "",  # Runway or glide slope intercept
-    "H": "",  # Heliport as fix
-    "K": "FAF",  # Final Approach Fix
-    "M": "MAHP",  # Missed Approach Holding Fix
-    "P": "",  # Published waypoint
-    "V": "",  # VOR/VORTAC/DME
+    "C": "",  # Calculated course to fix
+    "D": "FAF",  # FAF with calculated course
+    "E": "",  # FAF with straight-in minimums (not common)
+    "F": "FAF",  # Final Approach Fix
+    "I": "IAF",  # Initial Approach Fix (alternate code)
+    "M": "MAHP",  # Missed Approach Point
+    "P": "",  # Procedure turn fix
 }
 
 # Approach type codes (first character of approach ID)
