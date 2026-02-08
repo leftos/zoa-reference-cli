@@ -56,6 +56,7 @@ from .icao import (
     CodesPage,
 )
 from .input import prompt_single_choice
+from .nasr import ensure_nasr_data
 from .navaids import search_navaids
 from .positions import search_positions, open_positions_browser
 from .procedures import (
@@ -1338,6 +1339,11 @@ def do_navaid_lookup(query: str) -> None:
     Args:
         query: Space-separated search queries (e.g., "LLC SWR BVL BAM")
     """
+    # Ensure NASR data is available, showing errors if download fails
+    if not ensure_nasr_data(["NAV"]):
+        click.echo("Failed to download NASR navaid data from FAA.", err=True)
+        return
+
     # Split query into individual identifiers
     identifiers = query.split()
 
@@ -1359,6 +1365,11 @@ def do_airway_lookup(airway_id: str, highlights: list[str] | None = None) -> Non
         airway_id: Airway identifier (e.g., "V23", "J60", "T270")
         highlights: Optional list of fix identifiers to highlight in the display
     """
+    # Ensure NASR data is available, showing errors if download fails
+    if not ensure_nasr_data(["AWY"]):
+        click.echo("Failed to download NASR airway data from FAA.", err=True)
+        return
+
     from .airways import search_airway
     from .display import display_airway
 
@@ -1680,6 +1691,11 @@ def do_mea_lookup(route: str, altitude: int | None = None) -> None:
         route: Route string containing airways (e.g., "SAC V25 MZB J80 RNO")
         altitude: Optional altitude in hundreds of feet (e.g., 100 = 10,000 ft)
     """
+    # Ensure NASR data is available, showing errors if download fails
+    if not ensure_nasr_data(["NAV", "AWY"]):
+        click.echo("Failed to download NASR data from FAA.", err=True)
+        return
+
     from .mea import get_mea_for_route
 
     # Convert altitude from FL-style (hundreds of feet) to feet
