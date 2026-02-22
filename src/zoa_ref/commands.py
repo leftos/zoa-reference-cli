@@ -1365,6 +1365,11 @@ def do_airway_lookup(airway_id: str, highlights: list[str] | None = None) -> Non
         airway_id: Airway identifier (e.g., "V23", "J60", "T270")
         highlights: Optional list of fix identifiers to highlight in the display
     """
+    # Normalize dots to spaces (aviation systems use . as separator)
+    airway_id = re.sub(r"\.+", " ", airway_id).strip()
+    if highlights:
+        highlights = [re.sub(r"\.+", " ", h).strip() for h in highlights]
+
     # Ensure NASR data is available, showing errors if download fails
     if not ensure_nasr_data(["AWY"]):
         click.echo("Failed to download NASR airway data from FAA.", err=True)
@@ -1763,6 +1768,9 @@ def do_mea_lookup(route: str, altitude: int | None = None) -> None:
         route: Route string containing airways (e.g., "SAC V25 MZB J80 RNO")
         altitude: Optional altitude in hundreds of feet (e.g., 100 = 10,000 ft)
     """
+    # Normalize dots to spaces (aviation systems use . as separator)
+    route = re.sub(r"\.+", " ", route)
+
     # Ensure NASR data is available, showing errors if download fails
     if not ensure_nasr_data(["NAV", "AWY"]):
         click.echo("Failed to download NASR data from FAA.", err=True)
