@@ -1829,10 +1829,11 @@ def do_cifp_lookup(airport: str, procedure_name: str) -> None:
     # SIDs: CNDEL5.SUSEY (procedure.transition)
     transition: str | None = None
 
+    import re
+
     if "." in procedure_name:
         parts = procedure_name.split(".", 1)
         # The part with a digit is the procedure name
-        import re
         if re.search(r"\d", parts[1]):
             # Second part has digit -> STAR format: transition.procedure
             transition = parts[0]
@@ -1841,6 +1842,17 @@ def do_cifp_lookup(airport: str, procedure_name: str) -> None:
             # First part has digit -> SID format: procedure.transition
             procedure_name = parts[0]
             transition = parts[1]
+    elif " " in procedure_name:
+        parts = procedure_name.split(" ", 1)
+        # Same logic: the part with a digit is the procedure name
+        if re.search(r"\d", parts[0]) and not re.search(r"\d", parts[1]):
+            # First part has digit, second doesn't -> SID: procedure transition
+            procedure_name = parts[0]
+            transition = parts[1]
+        elif re.search(r"\d", parts[1]) and not re.search(r"\d", parts[0]):
+            # Second part has digit, first doesn't -> STAR: transition procedure
+            transition = parts[0]
+            procedure_name = parts[1]
 
     click.echo(f"Looking up procedure: {airport} {procedure_name}...")
 
