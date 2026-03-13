@@ -672,8 +672,21 @@ def strip_pdf_metadata(pdf_data: bytes) -> bytes:
         # Clone entire document (preserves outline/bookmarks)
         writer.clone_reader_document_root(reader)
 
-        # Clear metadata by setting empty values
-        writer.add_metadata({})
+        # Remove XMP metadata stream (browsers prefer XMP over /Info)
+        root = writer._root_object
+        if "/Metadata" in root:
+            del root["/Metadata"]
+
+        # Clear /Info dictionary metadata
+        writer.add_metadata(
+            {
+                "/Title": "",
+                "/Author": "",
+                "/Subject": "",
+                "/Creator": "",
+                "/Producer": "",
+            }
+        )
 
         output = io.BytesIO()
         writer.write(output)
