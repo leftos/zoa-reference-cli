@@ -165,6 +165,7 @@ INTERACTIVE_HELP_COMMANDS = [
     "  scratchpad|scratch <fac>  - Look up scratchpads (e.g., scratch OAK)",
     "External Tools:",
     "  vis                       - Open ZOA airspace visualizer",
+    "  vr [airport...]           - Open VATSIM Radar (e.g., vr SFO)",
     "  tdls [facility]           - Open TDLS (Pre-Departure Clearances)",
     "  strips [facility]         - Open flight strips",
     "Tools:",
@@ -578,6 +579,23 @@ Examples:
   cifp RNO RNAV17LZ       - RNAV (GPS) Z approach runway 17L
   cifp SFO LEGGS.BDEGA4   - BDEGA4 via LEGGS transition (continuous)
   cifp OAK CNDEL5.SUSEY   - CNDEL5 to SUSEY exit (continuous)
+""",
+    "vr": """
+vr [airport...] - Open VATSIM Radar
+
+Opens VATSIM Radar in your browser. Optionally center the map on one
+or more airports. When multiple airports are given, centers on the
+midpoint between them.
+
+\b
+Examples:
+  vr                   - Open VATSIM Radar (no centering)
+  vr SFO               - Center on San Francisco
+  vr SMF RNO           - Center between Sacramento and Reno
+  vr OAK -z 10         - Center on Oakland with zoom level 10
+
+\b
+URL: https://vatsim-radar.com/
 """,
     "setbrowser": """
 setbrowser - Set preferred browser for opening charts

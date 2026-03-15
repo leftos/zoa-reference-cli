@@ -1952,3 +1952,67 @@ def do_cifp_lookup(airport: str, procedure_name: str) -> None:
         return
 
     display_procedure_detail(result)
+
+
+def do_vatsim_radar(airports: list[str] | None, zoom: int | None) -> None:
+    """Open VATSIM Radar, optionally centered on one or more airports.
+
+    When multiple airports are given, centers on the midpoint between them.
+
+    Args:
+        airports: Airport identifiers to center on (e.g., ["SFO"] or ["SMF", "RNO"]).
+        zoom: Optional zoom level for the map.
+    """
+    from .config import VATSIM_RADAR_URL
+    from .waypoints import (
+        WaypointInfo,
+        _load_airport_references,
+        get_point_coordinates,
+    )
+
+    if not airports:
+        webbrowser.open(VATSIM_RADAR_URL)
+        click.echo("Opened VATSIM Radar")
+        return
+
+    airport_refs = _load_airport_references()
+
+    lats: list[float] = []
+    lons: list[float] = []
+    resolved: list[str] = []
+    for apt in airports:
+        apt_upper = apt.upper().strip()
+        # Try airport reference points first (avoids partial navaid matches
+        # e.g. "RNO" matching "TURNO" navaid instead of Reno airport)
+        coords: WaypointInfo | None = None
+        for key in (apt_upper, f"K{apt_upper}", apt_upper.lstrip("K")):
+            if key in airport_refs:
+                lat, lon = airport_refs[key]
+                coords = WaypointInfo(
+                    ident=key, name=None, latitude=lat, longitude=lon,
+                    point_type="AIRPORT",
+                )
+                break
+        if coords is None:
+            coords = get_point_coordinates(apt_upper)
+        if coords is None:
+            click.echo(f"Could not find coordinates for '{apt_upper}'", err=True)
+            return
+        lats.append(coords.latitude)
+        lons.append(coords.longitude)
+        resolved.append(apt_upper)
+
+    center_lat = sum(lats) / len(lats)
+    center_lon = sum(lons) / len(lons)
+
+    params = f"center={center_lon:.5f},{center_lat:.5f}"
+    if zoom is not None:
+        params += f"&zoom={zoom}"
+    url = f"{VATSIM_RADAR_URL}?{params}"
+    webbrowser.open(url)
+
+    label = ", ".join(resolved)
+    if len(resolved) > 1:
+        click.echo(f"Opened VATSIM Radar centered between {label}")
+    else:
+        click.echo(f"Opened VATSIM Radar centered on {label}")

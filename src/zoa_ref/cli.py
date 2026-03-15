@@ -41,6 +41,7 @@ from .commands import (
     do_setbrowser,
     do_cifp_lookup,
     do_uses_lookup,
+    do_vatsim_radar,
 )
 from .descent import is_fix_identifier
 from .interactive import interactive_mode
@@ -413,6 +414,14 @@ def strips(facility: str | None):
     else:
         webbrowser.open(STRIPS_URL)
         click.echo("Opened flight strips")
+
+
+@main.command(help=COMMAND_HELP["vr"].strip())
+@click.argument("airports", nargs=-1, shell_complete=complete_airport)
+@click.option("--zoom", "-z", type=int, default=None, help="Map zoom level")
+def vr(airports: tuple[str, ...], zoom: int | None):
+    """Open VATSIM Radar centered on airport(s)."""
+    do_vatsim_radar(list(airports) if airports else None, zoom)
 
 
 @main.command("help")

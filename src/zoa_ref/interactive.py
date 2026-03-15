@@ -35,6 +35,7 @@ from .commands import (
     do_clear_hotkey,
     do_cifp_lookup,
     do_uses_lookup,
+    do_vatsim_radar,
 )
 from .descent import is_fix_identifier
 from .icao import CodesPage
@@ -290,6 +291,23 @@ def _handle_sop_interactive(args: str, ctx: InteractiveContext) -> None:
     )
 
 
+def _handle_vr_interactive(args: str) -> None:
+    """Handle 'vr' command in interactive mode."""
+    parsed = parse_interactive_args(
+        args,
+        option_defs={"zoom": ("-z", "--zoom")},
+    )
+    if parsed.show_help:
+        from .cli import main
+
+        print_command_help("vr", main)
+        return
+    airports = parsed.positional if parsed.positional else None
+    zoom_str = parsed.options.get("zoom")
+    zoom = int(zoom_str) if zoom_str else None
+    do_vatsim_radar(airports, zoom)
+
+
 def _handle_vis_interactive(args: str) -> None:
     """Handle 'vis' command in interactive mode."""
     webbrowser.open(AIRSPACE_URL)
@@ -535,6 +553,7 @@ INTERACTIVE_COMMANDS: dict[str, tuple] = {
     "pos ": (_handle_position_interactive, 4, True),
     "scratchpad ": (_handle_scratchpad_interactive, 11, True),
     "scratch ": (_handle_scratchpad_interactive, 8, True),
+    "vr": (_handle_vr_interactive, 2, False),
     "vis": (_handle_vis_interactive, 3, False),
     "tdls": (_handle_tdls_interactive, 4, False),
     "strips": (_handle_strips_interactive, 6, False),
