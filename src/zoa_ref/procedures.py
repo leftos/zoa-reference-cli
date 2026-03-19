@@ -631,12 +631,11 @@ def find_procedure_by_name(
 
     best_match = matches[0]
 
-    # Check for exact match
-    if best_match.score == 1.0:
-        return best_match.procedure, matches
-
-    # Check if only one match contains ALL query tokens
-    # This handles cases like "ZOA NCT" where only one result has both terms
+    # For multi-token queries, prefer the match containing ALL original tokens.
+    # This must run before the score-based shortcut because alias expansion can
+    # inflate scores for partial matches (e.g., "NCT ZOA" expands ZOA →
+    # "OAKLAND CENTER" which scores 1.0 against "Oakland Center SOP", but the
+    # user wanted the LOA that contains both NCT and ZOA).
     if len(query_tokens) > 1:
         full_matches = []
         for m in matches:
