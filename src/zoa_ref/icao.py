@@ -231,7 +231,7 @@ def _search_airports(page: Page, query: str) -> list[AirportCode]:
     """Fill airport search and scrape results."""
     try:
         # Fill input and click search
-        page.locator('input[placeholder="Airport code"]').fill(query)
+        page.locator('input[placeholder="Airport code / name"]').fill(query)
         page.locator('button:has-text("Search Airports")').click()
 
         # Wait for Blazor to process and return results
