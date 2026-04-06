@@ -61,28 +61,25 @@ def _fill_and_search(
     page: Page, departure: str, arrival: str, timeout: int = 30000
 ) -> bool:
     """
-    Navigate to routes page, fill the search form, and click search.
+    Navigate to routes page with search params and wait for results.
+
+    Uses URL query parameters instead of form filling because the Blazor
+    Server app's SignalR-based model binding doesn't reliably pick up
+    Playwright's .fill() events, causing stale search results.
 
     Returns True if search was successful.
     """
-    page.goto(ROUTES_URL, wait_until="networkidle", timeout=timeout)
+    url = f"{ROUTES_URL}?dep={departure}&dest={arrival}"
+    page.goto(url, wait_until="networkidle", timeout=timeout)
 
-    # Wait for departure input to appear
+    # Wait for the page to finish loading
     try:
         page.wait_for_selector("#departureInput", timeout=10000)
     except PlaywrightTimeout:
         print("Warning: Page load timeout, departure input not found")
         return False
 
-    # Fill departure and arrival
-    page.locator("#departureInput").fill(departure)
-    page.locator("input[placeholder='Arrival ID']").fill(arrival)
-
-    # Click search button
-    page.locator("button:has-text('Search Routes')").click()
-
-    # Wait for search to complete by waiting for network to settle
-    # We can't wait for a table because no table is rendered if there are no results
+    # Wait for search results to load
     try:
         page.wait_for_load_state("networkidle", timeout=10000)
     except PlaywrightTimeout:
