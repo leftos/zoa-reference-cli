@@ -1,10 +1,8 @@
 """Shared command implementations for CLI and interactive modes."""
 
-import os
 import re
 import webbrowser
 from collections.abc import Callable
-from pathlib import Path
 
 import click
 
@@ -72,7 +70,7 @@ from .procedures import (
     _download_pdf as download_procedure_pdf,
     AIRPORT_ALIASES,
 )
-from .routes import search_routes, open_routes_browser, RouteSearchResult
+from .routes import search_routes, open_routes_browser
 from .scratchpads import get_scratchpads, list_facilities
 
 
@@ -629,7 +627,6 @@ def do_route_lookup(
     show_flights: bool = False,
     top_n: int = 5,
     headless_session: "BrowserSession | None" = None,
-    export_lc: bool = False,
 ) -> None:
     """Shared route lookup.
 
@@ -641,7 +638,6 @@ def do_route_lookup(
         show_flights: If True, include recent flights
         top_n: Number of real world routes to show (if not show_all)
         headless_session: Shared headless session (interactive mode)
-        export_lc: If True, export routes to LCTrainer cache format
     """
     departure = departure.upper()
     arrival = arrival.upper()
@@ -683,18 +679,11 @@ def do_route_lookup(
                 page = session.new_page()
                 result = search_routes(page, departure, arrival)
                 if result:
-                    if export_lc:
-                        count = _export_routes_to_lctrainer(departure, arrival, result)
-                        if count:
-                            click.echo(f"Exported {count} routes to LCTrainer cache")
-                        else:
-                            click.echo("No real-world routes found to export")
-                    else:
-                        display_routes(
-                            result,
-                            max_real_world=None if show_all else top_n,
-                            show_flights=show_flights,
-                        )
+                    display_routes(
+                        result,
+                        max_real_world=None if show_all else top_n,
+                        show_flights=show_flights,
+                    )
                 else:
                     click.echo("Failed to retrieve routes.", err=True)
         else:
@@ -703,177 +692,13 @@ def do_route_lookup(
             result = search_routes(page, departure, arrival)
             page.close()
             if result:
-                if export_lc:
-                    count = _export_routes_to_lctrainer(departure, arrival, result)
-                    if count:
-                        click.echo(f"Exported {count} routes to LCTrainer cache")
-                    else:
-                        click.echo("No real-world routes found to export")
-                else:
-                    display_routes(
-                        result,
-                        max_real_world=None if show_all else top_n,
-                        show_flights=show_flights,
-                    )
+                display_routes(
+                    result,
+                    max_real_world=None if show_all else top_n,
+                    show_flights=show_flights,
+                )
             else:
                 click.echo("Failed to retrieve routes.", err=True)
-
-
-def _export_routes_to_lctrainer(
-    departure: str, arrival: str, result: "RouteSearchResult"
-) -> int:
-    """Export routes to LCTrainer cache format.
-
-    LCTrainer expects routes in: %LOCALAPPDATA%/LCTrainer/route-cache/{DEP}_{ARR}.json
-    Format: [{"Frequency": "45%", "Route": "OAK6 ...", "Altitude": "FL350"}, ...]
-    """
-    import json
-    import os
-    from pathlib import Path
-
-    # LCTrainer cache directory
-    local_app_data = os.environ.get("LOCALAPPDATA", "")
-    if not local_app_data:
-        click.echo("Error: LOCALAPPDATA not set", err=True)
-        return 0
-
-    cache_dir = Path(local_app_data) / "LCTrainer" / "route-cache"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-
-    # Convert to LCTrainer format (PascalCase keys)
-    routes_data = []
-    for route in result.real_world:
-        routes_data.append(
-            {
-                "Frequency": route.frequency,
-                "Route": route.route,
-                "Altitude": route.altitude,
-            }
-        )
-
-    if not routes_data:
-        return 0
-
-    # Write to cache file
-    cache_file = cache_dir / f"{departure}_{arrival}.json"
-    with open(cache_file, "w", encoding="utf-8") as f:
-        json.dump(routes_data, f, indent=2)
-
-    return len(routes_data)
-
-
-# Common US destinations for batch export
-COMMON_DESTINATIONS = [
-    "KLAX",
-    "KSFO",
-    "KORD",
-    "KDFW",
-    "KDEN",
-    "KJFK",
-    "KATL",
-    "KLAS",
-    "KSEA",
-    "KPHX",
-    "KMCO",
-    "KBOS",
-    "KMIA",
-    "KIAH",
-    "KMSP",
-    "KDTW",
-    "KEWR",
-    "KPHL",
-    "KLGA",
-    "KDCA",
-    "KSAN",
-    "KPDX",
-    "KSLC",
-    "KSTL",
-    "KCLT",
-    "KBWI",
-    "KTPA",
-    "KAUS",
-    "KSMF",
-    "KSJC",
-]
-
-
-def _export_single_route(args: tuple[str, str]) -> tuple[str, int | None, str | None]:
-    """Export a single route pair. Run in subprocess.
-
-    Args:
-        args: Tuple of (departure, destination)
-
-    Returns:
-        Tuple of (destination, route_count, error_message)
-    """
-    departure, dest = args
-    try:
-        with BrowserSession(headless=True) as session:
-            page = session.new_page()
-            result = search_routes(page, departure, dest)
-            if result and result.real_world:
-                count = _export_routes_to_lctrainer(departure, dest, result)
-                return (dest, count, None)
-            else:
-                return (dest, None, None)
-    except Exception as e:
-        return (dest, None, str(e))
-
-
-def do_batch_route_export(
-    departure: str, destinations: list[str] | None = None
-) -> None:
-    """Export routes for multiple destinations to LCTrainer cache.
-
-    Uses 8 parallel processes for faster export (Playwright requires separate processes).
-
-    Args:
-        departure: Departure airport code
-        destinations: List of destinations (default: COMMON_DESTINATIONS)
-    """
-    from concurrent.futures import ProcessPoolExecutor, as_completed
-
-    NUM_WORKERS = 8
-
-    departure = departure.upper()
-    dests = destinations or COMMON_DESTINATIONS
-
-    # Filter out the departure airport from destinations
-    dests = [d.upper() for d in dests if d.upper() != departure]
-
-    click.echo(f"Exporting routes from {departure} to {len(dests)} destinations...")
-    click.echo(f"Using {NUM_WORKERS} parallel workers...")
-
-    exported = 0
-    failed = 0
-    completed = 0
-
-    # Prepare arguments for worker function
-    work_items = [(departure, dest) for dest in dests]
-
-    with ProcessPoolExecutor(max_workers=NUM_WORKERS) as executor:
-        futures = {
-            executor.submit(_export_single_route, item): item[1] for item in work_items
-        }
-
-        for future in as_completed(futures):
-            dest, count, error = future.result()
-            completed += 1
-            if count:
-                exported += 1
-                click.echo(
-                    f"[{completed}/{len(dests)}] {departure} -> {dest}: {count} routes"
-                )
-            elif error:
-                failed += 1
-                click.echo(f"[{completed}/{len(dests)}] {departure} -> {dest}: {error}")
-            else:
-                failed += 1
-                click.echo(
-                    f"[{completed}/{len(dests)}] {departure} -> {dest}: no routes found"
-                )
-
-    click.echo(f"\nDone! Exported {exported} route pairs, {failed} failed/empty.")
 
 
 def do_atis_lookup(

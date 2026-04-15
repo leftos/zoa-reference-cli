@@ -167,11 +167,6 @@ def airports():
     default=5,
     help="Number of real world routes to show (default: 5)",
 )
-@click.option(
-    "--export-lc",
-    is_flag=True,
-    help="Export routes to LCTrainer cache format",
-)
 def route(
     departure: str,
     arrival: str,
@@ -179,7 +174,6 @@ def route(
     all_routes: bool,
     flights: bool,
     top: int,
-    export_lc: bool,
 ):
     do_route_lookup(
         departure,
@@ -188,27 +182,7 @@ def route(
         show_all=all_routes,
         show_flights=flights,
         top_n=top,
-        export_lc=export_lc,
     )
-
-
-@main.command("export-routes")
-@click.argument("departure", shell_complete=complete_airport)
-@click.option(
-    "--destinations",
-    "-d",
-    multiple=True,
-    help="Specific destinations (default: common US airports)",
-)
-def export_routes(departure: str, destinations: tuple[str, ...]):
-    """Export routes to LCTrainer cache for multiple destinations.
-
-    Example: zoa export-routes KOAK
-    Example: zoa export-routes KOAK -d KLAX -d KSFO -d KORD
-    """
-    from .commands import do_batch_route_export
-
-    do_batch_route_export(departure, list(destinations) if destinations else None)
 
 
 @main.command(help=COMMAND_HELP["airline"].strip())
