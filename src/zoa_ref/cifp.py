@@ -1497,10 +1497,6 @@ def get_procedure_detail(
         procedure_type = "STAR"
     elif found_subsection == "F":
         procedure_type = "APPROACH"
-        # Extract runway from first leg's procedure ID if not already set
-        if not runway and all_legs:
-            first_proc = all_legs[0]
-            # The procedure ID is in the original line, but we can infer from context
 
     # Organize legs by transition type
     common_legs: list[ProcedureLeg] = []

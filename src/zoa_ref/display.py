@@ -776,7 +776,7 @@ def _display_star_horizontal(proc: CifpProcedureDetail, common_fixes: list[Proce
     meaningful_transitions: dict[str, list[ProcedureLeg]] = {}
     for name, legs in proc.transitions.items():
         trans_fixes = _get_unique_fixes(legs)
-        trans_only = [l for l in trans_fixes if l.fix_identifier not in common_fix_names]
+        trans_only = [f for f in trans_fixes if f.fix_identifier not in common_fix_names]
         # Skip if only fix is the transition name itself (redundant)
         if trans_only and not (len(trans_only) == 1 and trans_only[0].fix_identifier == name):
             meaningful_transitions[name] = trans_only
@@ -787,7 +787,7 @@ def _display_star_horizontal(proc: CifpProcedureDetail, common_fixes: list[Proce
 
     for rwy_name, legs in proc.runway_transitions.items():
         rwy_fixes = _get_unique_fixes(legs)
-        rwy_only = [l for l in rwy_fixes if l.fix_identifier not in common_fix_names]
+        rwy_only = [f for f in rwy_fixes if f.fix_identifier not in common_fix_names]
         if rwy_only:
             sig = _route_signature(rwy_only)
             if sig not in rwy_groups:
@@ -897,7 +897,7 @@ def _display_sid_horizontal(proc: CifpProcedureDetail, common_fixes: list[Proced
 
     for rwy_name, legs in proc.runway_transitions.items():
         rwy_fixes = _get_unique_fixes(legs)
-        rwy_only = [l for l in rwy_fixes if l.fix_identifier not in common_fix_names]
+        rwy_only = [f for f in rwy_fixes if f.fix_identifier not in common_fix_names]
         if rwy_only:
             sig = _route_signature(rwy_only)
             if sig not in rwy_groups:
@@ -909,7 +909,7 @@ def _display_sid_horizontal(proc: CifpProcedureDetail, common_fixes: list[Proced
     meaningful_transitions: dict[str, list[ProcedureLeg]] = {}
     for name, legs in proc.transitions.items():
         trans_fixes = _get_unique_fixes(legs)
-        trans_only = [l for l in trans_fixes if l.fix_identifier not in common_fix_names]
+        trans_only = [f for f in trans_fixes if f.fix_identifier not in common_fix_names]
         if trans_only:
             meaningful_transitions[name] = trans_only
 
@@ -1007,7 +1007,7 @@ def _display_approach_horizontal(proc: CifpProcedureDetail, common_fixes: list[P
         for name, legs in sorted(proc.transitions.items()):
             trans_fixes = _get_unique_fixes(legs)
             # Filter out common route fixes
-            trans_only = [l for l in trans_fixes if l.fix_identifier not in common_fix_names]
+            trans_only = [f for f in trans_fixes if f.fix_identifier not in common_fix_names]
             if trans_only:
                 click.echo()
                 click.echo(f"  {name}:")
@@ -1055,7 +1055,7 @@ def display_fix_uses(result: FixUsesResult) -> None:
             else:
                 name = proc.procedure_id
 
-            click.echo(f"    ", nl=False)
+            click.echo("    ", nl=False)
             click.secho(label, fg=color, nl=False)
             click.echo(f" {name}")
         click.echo()

@@ -10,6 +10,7 @@ from enum import Enum
 from playwright.sync_api import Page, TimeoutError as PlaywrightTimeout
 
 from zoa_ref.config import REFERENCE_BASE_URL, get_temp_dir
+from zoa_ref.fuzzy import calculate_similarity as _calculate_similarity
 
 CHARTS_URL = f"{REFERENCE_BASE_URL}/charts"
 CHARTS_API_URL = "https://charts-api.oakartcc.org/v1/charts"
@@ -1065,14 +1066,6 @@ def _get_filter_text(chart_name: str, chart_type: ChartType) -> str:
         return parts[0]
 
     return chart_name
-
-
-# Import shared fuzzy matching utilities
-from .fuzzy import (
-    normalize_runway_numbers as _normalize_runway_numbers,
-    levenshtein as _levenshtein,
-    calculate_similarity as _calculate_similarity,
-)
 
 
 def _find_chart_button(
