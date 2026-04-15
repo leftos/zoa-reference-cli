@@ -818,10 +818,20 @@ def open_in_browser(
 
     if browser_cmd:
         try:
-            # Use 'start' command on Windows to launch browser by name
-            subprocess.Popen(f'start "" "{browser_cmd}" "{file_uri}"', shell=True)
+            if sys.platform == "win32":
+                # On Windows, cmd's `start` resolves registered browser names
+                # like "chrome" / "msedge" via App Paths without needing a full
+                # path. The first "" is the mandatory window-title placeholder.
+                subprocess.Popen(
+                    ["cmd", "/c", "start", "", browser_cmd, file_uri],
+                    close_fds=True,
+                )
+            else:
+                # On Linux/macOS, let Python's webbrowser module resolve the
+                # named browser via its platform-specific registry.
+                webbrowser.get(browser_cmd).open(file_uri)
             return True
-        except Exception:
+        except (OSError, webbrowser.Error):
             pass  # Fall back to default
 
     # Fall back to default handler

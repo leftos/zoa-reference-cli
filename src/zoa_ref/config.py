@@ -25,6 +25,11 @@ def get_temp_dir() -> Path:
 # =============================================================================
 BROWSER_PREF_FILE = Path.home() / ".zoa-ref" / "browser_pref.txt"
 
+# Playwright's Chromium install location. Set as PLAYWRIGHT_BROWSERS_PATH so
+# the frozen binary's download lives alongside the user's other zoa-ref state
+# rather than being scattered under %LOCALAPPDATA% / ~/.cache.
+PLAYWRIGHT_BROWSERS_DIR = Path.home() / ".zoa-ref" / "browsers"
+
 # =============================================================================
 # Hotkey Settings
 # =============================================================================

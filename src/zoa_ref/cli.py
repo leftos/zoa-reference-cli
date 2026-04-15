@@ -45,6 +45,7 @@ from .commands import (
 )
 from .descent import is_fix_identifier
 from .interactive import interactive_mode
+from .playwright_bootstrap import ensure_chromium_installed
 
 
 @click.group(cls=ImplicitChartGroup, invoke_without_command=True)
@@ -75,6 +76,11 @@ def main(ctx, playwright: bool):
     """
     # Set console title
     set_console_title("ZOA Ref CLI")
+
+    # On first run (typically in the standalone binary distribution), make
+    # sure Playwright's Chromium is installed and point PLAYWRIGHT_BROWSERS_PATH
+    # at ~/.zoa-ref/browsers. No-op on subsequent runs.
+    ensure_chromium_installed()
 
     # Store in context for subcommands that might need it
     ctx.ensure_object(dict)
