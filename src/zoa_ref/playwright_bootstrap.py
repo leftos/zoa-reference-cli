@@ -8,9 +8,11 @@ This module must be imported and :func:`ensure_chromium_installed` called
 before any :class:`BrowserSession` is constructed.
 """
 
+import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 import click
 
@@ -19,16 +21,69 @@ from .config import PLAYWRIGHT_BROWSERS_DIR
 _ENV_VAR = "PLAYWRIGHT_BROWSERS_PATH"
 
 
+# Playwright's on-disk directory layout uses ``<name-with-underscores>-<rev>``
+# (e.g. the ``chromium-headless-shell`` browser lands in
+# ``chromium_headless_shell-1208/``). Only these two entries matter for this
+# app — tip-of-tree variants are unused.
+_REQUIRED_BROWSER_NAMES = {
+    "chromium": "chromium",
+    "chromium-headless-shell": "chromium_headless_shell",
+}
+
+
+def _required_chromium_dirs() -> list[str] | None:
+    """Return the directory names the current Playwright expects, or None.
+
+    Reads ``browsers.json`` from the Playwright package bundled with the
+    running app — important when the frozen binary embeds a newer Playwright
+    than any system cache, so we can't assume a cached ``chromium-*`` dir is
+    compatible. Returns ``None`` if we can't locate or parse the manifest.
+    """
+    try:
+        import playwright  # type: ignore[import-not-found]
+    except ImportError:
+        return None
+
+    manifest_path = (
+        Path(playwright.__file__).parent / "driver" / "package" / "browsers.json"
+    )
+    if not manifest_path.exists():
+        return None
+
+    try:
+        with manifest_path.open("r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    required: list[str] = []
+    for browser in data.get("browsers", []):
+        name = browser.get("name")
+        revision = browser.get("revision")
+        dir_prefix = _REQUIRED_BROWSER_NAMES.get(name)
+        if dir_prefix and revision is not None:
+            required.append(f"{dir_prefix}-{revision}")
+    return required or None
+
+
 def _chromium_already_installed() -> bool:
-    """Return True if a Chromium install is present in PLAYWRIGHT_BROWSERS_DIR."""
+    """Return True if the expected Chromium revisions are present.
+
+    If we can't determine the expected revisions (e.g. ``browsers.json`` is
+    missing), fall back to a loose "any ``chromium-*`` dir exists" check so
+    we don't spam a reinstall every launch.
+    """
     if not PLAYWRIGHT_BROWSERS_DIR.exists():
         return False
-    # Playwright lays out browsers as ``chromium-<build>/chrome-<platform>/...``.
-    # Any ``chromium-*`` subdirectory with content counts as installed.
-    for entry in PLAYWRIGHT_BROWSERS_DIR.iterdir():
-        if entry.is_dir() and entry.name.startswith("chromium-"):
-            return True
-    return False
+
+    required = _required_chromium_dirs()
+    if required is None:
+        return any(
+            entry.is_dir() and entry.name.startswith("chromium-")
+            for entry in PLAYWRIGHT_BROWSERS_DIR.iterdir()
+        )
+
+    return all((PLAYWRIGHT_BROWSERS_DIR / d).is_dir() for d in required)
 
 
 def _run_playwright_install() -> None:
