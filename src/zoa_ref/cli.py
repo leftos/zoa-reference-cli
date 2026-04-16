@@ -8,6 +8,7 @@ from .charts import ZOA_AIRPORTS
 from .cli_utils import (
     COMMAND_HELP,
     ImplicitChartGroup,
+    reset_terminal_state,
     set_console_title,
     print_interactive_help,
 )
@@ -76,6 +77,11 @@ def main(ctx, playwright: bool):
     """
     # Set console title
     set_console_title("ZOA Ref CLI")
+
+    # Clear any leftover terminal modes (e.g. focus reporting left on by a
+    # prior buggy subprocess invocation) so stray "\e[O" sequences stop
+    # leaking into the prompt.
+    reset_terminal_state()
 
     # On first run (typically in the standalone binary distribution), make
     # sure Playwright's Chromium is installed and point PLAYWRIGHT_BROWSERS_PATH

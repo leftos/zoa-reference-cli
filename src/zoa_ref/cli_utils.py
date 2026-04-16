@@ -822,8 +822,14 @@ def open_in_browser(
                 # On Windows, cmd's `start` resolves registered browser names
                 # like "chrome" / "msedge" via App Paths without needing a full
                 # path. The first "" is the mandatory window-title placeholder.
+                # cmd.exe treats '&' as a command separator, and
+                # subprocess.list2cmdline only quotes arguments containing
+                # whitespace, so unquoted URL fragments like
+                # "#zoom=FitV&view=FitV" get split into a second command.
+                # Escape '&' with '^' so cmd passes a literal '&' to start.
+                cmd_safe_uri = file_uri.replace("&", "^&")
                 subprocess.Popen(
-                    ["cmd", "/c", "start", "", browser_cmd, file_uri],
+                    ["cmd", "/c", "start", "", browser_cmd, cmd_safe_uri],
                     close_fds=True,
                 )
             else:
@@ -1000,4 +1006,20 @@ def set_console_title(title: str) -> None:
     import sys
 
     sys.stdout.write(f"\033]0;{title}\007")
+    sys.stdout.flush()
+
+
+def reset_terminal_state() -> None:
+    """Clear terminal modes that a previous misbehaving app may have left on.
+
+    A prior bug could launch vim inside the zoa terminal via accidental cmd.exe
+    argument splitting. vim enables focus reporting (CSI ?1004h) at startup and
+    only disables it on clean exit — a partial/aborted run leaves the mode
+    sticky at the terminal level, so every focus change afterwards injects
+    "\\e[O" / "\\e[I" into stdin and surfaces as literal "[O" at the prompt.
+    Sending the disable code here clears that leftover state for the session.
+    """
+    import sys
+
+    sys.stdout.write("\033[?1004l")
     sys.stdout.flush()
