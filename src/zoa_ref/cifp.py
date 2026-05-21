@@ -214,6 +214,12 @@ class ProcedureLeg:
     sequence: int  # Order in procedure
     fix_type: str  # "IAF", "IF", "FAF", "MAHP", or ""
     is_fly_over: bool = False  # True if char 40 of desc_code is 'Y'
+    rec_navaid: str = ""  # Recommended navaid identifier (cols 50-54)
+    theta: float | None = None  # Magnetic bearing from rec_navaid (degrees)
+    rho: float | None = None  # Distance from rec_navaid (NM)
+    outbound_course: float | None = None  # Outbound course / heading (magnetic degrees)
+    leg_distance_nm: float | None = None  # Leg distance (NM) or holding time
+    vertical_angle: float | None = None  # Vertical path angle (degrees, signed)
 
     @property
     def restrictions_str(self) -> str:
@@ -1182,6 +1188,40 @@ def _parse_altitude(alt_str: str) -> int | None:
         return None
 
 
+def _parse_tenths(raw: str) -> float | None:
+    """Decode a 4-char tenths-of-units field (course/distance/bearing/distance).
+
+    ARINC 424 stores these fields as zero-padded integers where the value
+    is in tenths of the displayed unit (e.g. course '0900' = 090.0°,
+    dist_time '0048' = 4.8 NM). A blank field is None.
+    """
+    raw = raw.strip()
+    if not raw:
+        return None
+    try:
+        return int(raw) / 10.0
+    except ValueError:
+        return None
+
+
+def _parse_hundredths_signed(raw: str) -> float | None:
+    """Decode a 4-char signed hundredths field (vertical angle).
+
+    Format is sign + 3 digits, e.g. '-285' = -2.85°, ' 305' = 3.05°.
+    """
+    raw = raw.strip()
+    if not raw:
+        return None
+    sign = -1 if raw.startswith("-") else 1
+    digits = raw.lstrip("+-").strip()
+    if not digits:
+        return None
+    try:
+        return sign * int(digits) / 100.0
+    except ValueError:
+        return None
+
+
 def _parse_speed(speed_str: str) -> int | None:
     """Parse speed from ARINC 424 format.
 
@@ -1246,6 +1286,14 @@ def parse_procedure_leg(line: str, subsection: str) -> ProcedureLeg | None:
     waypoint_desc = line[39:43] if len(line) > 42 else "    "
     turn_direction = line[43] if len(line) > 43 else " "
     path_terminator = line[47:49].strip() if len(line) > 48 else ""
+
+    # Geometry / navigation fields (cifparse cols 50..78, 102..106)
+    rec_navaid = line[50:54].strip() if len(line) > 53 else ""
+    theta_str = line[62:66] if len(line) > 65 else ""
+    rho_str = line[66:70] if len(line) > 69 else ""
+    course_str = line[70:74] if len(line) > 73 else ""
+    dist_time_str = line[74:78] if len(line) > 77 else ""
+    vert_angle_str = line[102:106] if len(line) > 105 else ""
 
     # Altitude fields (cifparse alt_1 = (84, 89), alt_2 = (89, 94))
     alt_desc = line[82] if len(line) > 82 else " "
@@ -1313,6 +1361,12 @@ def parse_procedure_leg(line: str, subsection: str) -> ProcedureLeg | None:
         sequence=sequence,
         fix_type=fix_type,
         is_fly_over=is_fly_over,
+        rec_navaid=rec_navaid,
+        theta=_parse_tenths(theta_str),
+        rho=_parse_tenths(rho_str),
+        outbound_course=_parse_tenths(course_str),
+        leg_distance_nm=_parse_tenths(dist_time_str),
+        vertical_angle=_parse_hundredths_signed(vert_angle_str),
     )
 
 
