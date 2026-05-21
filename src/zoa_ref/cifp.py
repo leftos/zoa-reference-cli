@@ -213,6 +213,7 @@ class ProcedureLeg:
     transition: str  # Transition name or "" for common route
     sequence: int  # Order in procedure
     fix_type: str  # "IAF", "IF", "FAF", "MAHP", or ""
+    is_fly_over: bool = False  # True if char 40 of desc_code is 'Y'
 
     @property
     def restrictions_str(self) -> str:
@@ -1274,6 +1275,9 @@ def parse_procedure_leg(line: str, subsection: str) -> ProcedureLeg | None:
     # line[42] directly; this parser must agree.
     fix_type = WAYPOINT_DESC_CODES.get(waypoint_desc[3], "") if len(waypoint_desc) > 3 else ""
 
+    # Position 2 of desc_code (char 40) = 'Y' marks a fly-over waypoint.
+    is_fly_over = len(waypoint_desc) > 1 and waypoint_desc[1] == "Y"
+
     # Parse altitude restriction
     alt_1 = _parse_altitude(alt_1_str)
     alt_2 = _parse_altitude(alt_2_str)
@@ -1308,6 +1312,7 @@ def parse_procedure_leg(line: str, subsection: str) -> ProcedureLeg | None:
         transition=transition,
         sequence=sequence,
         fix_type=fix_type,
+        is_fly_over=is_fly_over,
     )
 
 
