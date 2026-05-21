@@ -1151,13 +1151,13 @@ def list_all_procedures(airport: str) -> list[str]:
 def _parse_altitude(alt_str: str) -> int | None:
     """Parse altitude from ARINC 424 format.
 
-    ARINC 424 uses a 5-character altitude field with different encodings:
-    - Flight level: "FL280" or " FL28" -> FL280 = 28,000 ft (FL number × 1000)
-    - Feet: " 1700" -> 17,000 ft (value × 10)
-    - Empty: "     " -> None
+    ARINC 424 uses a 5-character altitude field with two encodings:
+    - Flight level: "FL280" -> 28,000 ft (FL number × 100)
+    - Feet: "01700" -> 1,700 ft (value in feet, zero-padded)
 
-    The FL encoding stores FL/10 (e.g., FL280 stored as "FL28" or "FL280").
-    Non-FL values are stored in tens of feet (e.g., 17000 stored as "1700").
+    Matches cifparse 2.0 semantics where altitude is stored as actual feet,
+    not tens of feet. See cifparse/records/procedure/widths.py PrimaryIndices
+    alt_1 = (84, 89).
 
     Args:
         alt_str: 5-character altitude string
@@ -1169,30 +1169,14 @@ def _parse_altitude(alt_str: str) -> int | None:
     if not alt_str:
         return None
 
-    # Remove any leading zeros (but not from FL numbers)
-    if not alt_str.startswith("FL"):
-        alt_str = alt_str.lstrip("0")
-    if not alt_str:
-        return None
-
     try:
-        # Check for FL prefix
         if alt_str.startswith("FL"):
-            # Extract the number after FL
-            fl_num_str = alt_str[2:].strip()
-            if fl_num_str:
-                fl_num = int(fl_num_str)
-                # If 2-digit FL (e.g., "FL28" = FL280), multiply by 1000
-                # If 3-digit FL (e.g., "FL280"), multiply by 100
-                if fl_num < 100:
-                    return fl_num * 1000
-                else:
-                    return fl_num * 100
-            return None
+            fl_num_str = alt_str[2:].strip().lstrip("0")
+            if not fl_num_str:
+                return None
+            return int(fl_num_str) * 100
 
-        # Pure numeric - value is in tens of feet
-        val = int(alt_str)
-        return val * 10
+        return int(alt_str.lstrip("0") or "0")
     except ValueError:
         return None
 
@@ -1218,7 +1202,8 @@ def _parse_speed(speed_str: str) -> int | None:
 def parse_procedure_leg(line: str, subsection: str) -> ProcedureLeg | None:
     """Parse a procedure record into a ProcedureLeg with full restrictions.
 
-    ARINC 424 column positions (0-indexed):
+    ARINC 424 column positions (0-indexed half-open ranges, match
+    cifparse PrimaryIndices in cifparse/records/procedure/widths.py):
     - 13-19: Procedure identifier
     - 19-20: Route type (procedure type)
     - 20-25: Transition identifier
@@ -1228,8 +1213,9 @@ def parse_procedure_leg(line: str, subsection: str) -> ProcedureLeg | None:
     - 43-44: Turn direction
     - 47-49: Path terminator
     - 82-83: Altitude description
-    - 83-88: Altitude 1
-    - 88-93: Altitude 2
+    - 83-84: ATC indicator
+    - 84-89: Altitude 1
+    - 89-94: Altitude 2
     - 99-102: Speed limit
     - 117-118: Speed limit description
 
@@ -1260,10 +1246,10 @@ def parse_procedure_leg(line: str, subsection: str) -> ProcedureLeg | None:
     turn_direction = line[43] if len(line) > 43 else " "
     path_terminator = line[47:49].strip() if len(line) > 48 else ""
 
-    # Altitude fields
+    # Altitude fields (cifparse alt_1 = (84, 89), alt_2 = (89, 94))
     alt_desc = line[82] if len(line) > 82 else " "
-    alt_1_str = line[83:88] if len(line) > 87 else ""
-    alt_2_str = line[88:93] if len(line) > 92 else ""
+    alt_1_str = line[84:89] if len(line) > 88 else ""
+    alt_2_str = line[89:94] if len(line) > 93 else ""
 
     # Speed fields
     speed_str = line[99:102] if len(line) > 101 else ""
