@@ -1268,8 +1268,11 @@ def parse_procedure_leg(line: str, subsection: str) -> ProcedureLeg | None:
     if not path_terminator:
         return None
 
-    # Determine fix type from waypoint description code (first char)
-    fix_type = WAYPOINT_DESC_CODES.get(waypoint_desc[0], "") if waypoint_desc else ""
+    # Determine fix type from waypoint description code position 4 (char 42).
+    # The 4-char field is Type / Performance / Phase / Fix-role; pos 0 is the
+    # route-description code, NOT the fix role. parse_approach_record reads
+    # line[42] directly; this parser must agree.
+    fix_type = WAYPOINT_DESC_CODES.get(waypoint_desc[3], "") if len(waypoint_desc) > 3 else ""
 
     # Parse altitude restriction
     alt_1 = _parse_altitude(alt_1_str)
