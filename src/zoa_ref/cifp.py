@@ -283,6 +283,13 @@ class CifpProcedureDetail:
     runway_transitions: dict[str, list[ProcedureLeg]]  # RW* transitions
     missed_approach_legs: list[ProcedureLeg] = field(default_factory=list)
     """Legs after the MAP (climb-out + hold). Empty for SID/STAR."""
+    is_sbas_authorized: bool = False
+    """True if the procedure has at least one SBAS continuation record (W).
+
+    Applies only to approaches. Indicates the FAA published SBAS / LPV
+    minima authorization for this procedure; the actual minima dataset is
+    not parsed (FAS data block parsing is a separate enhancement).
+    """
 
     def _all_legs(self) -> list[ProcedureLeg]:
         legs: list[ProcedureLeg] = list(self.common_legs)
@@ -1486,6 +1493,13 @@ def parse_procedure_leg(line: str, subsection: str) -> ProcedureLeg | None:
     if len(line) < 13 or line[12] != subsection:
         return None
 
+    # Skip non-primary records. cont_rec_no (col 38) marks continuation when
+    # it isn't '0' or '1'; continuations use a different field layout and are
+    # parsed by separate helpers (see is_sbas_authorized on the detail).
+    cont_rec_no = line[38] if len(line) > 38 else "0"
+    if cont_rec_no not in ("0", "1"):
+        return None
+
     # Extract fields
     route_type = line[19] if len(line) > 19 else ""
     transition = line[20:25].strip()
@@ -1523,7 +1537,9 @@ def parse_procedure_leg(line: str, subsection: str) -> ProcedureLeg | None:
     if not fix_identifier:
         return None
 
-    # Skip records with empty path terminators (continuation/special records)
+    # A primary record with no path terminator is malformed; drop it. Real
+    # continuations have already been filtered by cont_rec_no above, so
+    # this no longer accidentally rejects 'W'-application SBAS records.
     if not path_terminator:
         return None
 
@@ -1739,6 +1755,7 @@ def get_procedure_detail(
     # Collect all legs
     all_legs: list[ProcedureLeg] = []
     found_subsection = subsection
+    is_sbas_authorized = False
 
     # First try the initial subsection
     with open(cifp_path, "r", encoding="latin-1") as f:
@@ -1779,6 +1796,17 @@ def get_procedure_detail(
                         matched = True
                         break
             if not matched:
+                continue
+
+            # Detect SBAS authorization continuations on approaches before
+            # parse_procedure_leg filters them out as continuation records.
+            if (
+                line_subsection == "F"
+                and len(line) > 39
+                and line[38] not in ("0", "1")
+                and line[39] == "W"
+            ):
+                is_sbas_authorized = True
                 continue
 
             # Parse the leg
@@ -1863,6 +1891,7 @@ def get_procedure_detail(
         transitions=transitions,
         runway_transitions=runway_transitions,
         missed_approach_legs=missed_approach_legs,
+        is_sbas_authorized=is_sbas_authorized,
     )
 
 
