@@ -253,6 +253,22 @@ class ProcedureLeg:
         return " ".join(parts)
 
 
+@dataclass(frozen=True)
+class Navaid:
+    """A VHF (VOR/DME) or NDB navaid with coordinates.
+
+    Both record types live in CIFP section D and share lat/lon column
+    positions, so the same parser handles them; navaid_type differentiates.
+    """
+
+    ident: str  # e.g., "OSI", "SFO", "RNO" — 1-4 chars
+    navaid_type: str  # "VHF" or "NDB"
+    lat: float  # decimal degrees, signed
+    lon: float  # decimal degrees, signed (negative = west)
+    airport_id: str = ""  # Terminal navaids: parent ICAO; enroute: ""
+    frequency_mhz: float | None = None  # Decoded frequency (VHF: MHz; NDB: kHz/1000)
+
+
 @dataclass
 class CifpProcedureDetail:
     """Detailed procedure data with full leg information."""
@@ -1302,6 +1318,75 @@ def _parse_arinc_lon(raw: str) -> float | None:
         return None
     value = degrees + minutes / 60.0 + seconds / 3600.0
     return -value if hemisphere == "W" else value
+
+
+@lru_cache(maxsize=1)
+def get_navaids() -> dict[str, Navaid]:
+    """Return all CIFP section-D navaids (VHF + NDB) keyed by ident.
+
+    VHF and NDB navaids share the lat/lon/ident column layout in their
+    primary record (cont_rec_no '0' or '1'). Continuation, simulation, and
+    limitation records are skipped.
+
+    Returns:
+        Dict mapping ident -> Navaid. Idents are unique within VHF and
+        within NDB; on collision the VHF record wins (covers OSI/SFO etc.).
+    """
+    cifp_path = ensure_cifp_data()
+    if not cifp_path:
+        return {}
+
+    result: dict[str, Navaid] = {}
+    ndb_pending: dict[str, Navaid] = {}
+    with open(cifp_path, "r", encoding="latin-1") as f:
+        for line in f:
+            if len(line) < 51:
+                continue
+            if line[0] != "S" or line[4] != "D":
+                continue
+            subsection = line[5]
+            if subsection == " ":
+                navaid_type = "VHF"
+            elif subsection == "B":
+                navaid_type = "NDB"
+            else:
+                continue
+            # Skip continuation / simulation / planning records.
+            cont_rec_no = line[21] if len(line) > 21 else "0"
+            if cont_rec_no not in ("0", "1"):
+                continue
+            ident = line[13:17].strip()
+            if not ident:
+                continue
+            lat = _parse_arinc_lat(line[32:41])
+            lon = _parse_arinc_lon(line[41:51])
+            if lat is None or lon is None:
+                continue
+            airport_id = line[6:10].strip()
+            freq_raw = line[22:27].strip() if len(line) > 26 else ""
+            frequency_mhz: float | None = None
+            if freq_raw.isdigit():
+                # VHF stores frequency * 100 (e.g. 11390 = 113.90 MHz).
+                # NDB stores frequency * 10 in kHz (e.g. 4000 = 400.0 kHz),
+                # which we normalize to MHz so a single field works for both.
+                divisor = 100.0 if navaid_type == "VHF" else 10000.0
+                frequency_mhz = int(freq_raw) / divisor
+            navaid = Navaid(
+                ident=ident,
+                navaid_type=navaid_type,
+                lat=lat,
+                lon=lon,
+                airport_id=airport_id,
+                frequency_mhz=frequency_mhz,
+            )
+            if navaid_type == "VHF":
+                result[ident] = navaid
+            else:
+                ndb_pending[ident] = navaid
+    # NDB doesn't overwrite a VHF with the same ident.
+    for ident, navaid in ndb_pending.items():
+        result.setdefault(ident, navaid)
+    return result
 
 
 @lru_cache(maxsize=32)
