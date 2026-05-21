@@ -11,7 +11,7 @@ invalidate when a new cycle begins.
 import json
 import re
 import shutil
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from zoa_ref.config import CACHE_DIR
@@ -36,7 +36,9 @@ def get_current_airac_cycle() -> tuple[str, date, date]:
         Tuple of (cycle_id, start_date, end_date)
         Example: ("2512", date(2025, 11, 27), date(2025, 12, 24))
     """
-    today = date.today()
+    # Use UTC date: AIRAC cycles roll over at 0000 UTC, so a local-time
+    # call near midnight UTC could land in the wrong cycle.
+    today = datetime.now(tz=timezone.utc).date()
     days_since_epoch = (today - AIRAC_EPOCH).days
     cycle_number = days_since_epoch // CYCLE_DAYS  # 0-indexed from 2501
 
