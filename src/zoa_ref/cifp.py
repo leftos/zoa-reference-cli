@@ -1346,9 +1346,20 @@ def parse_procedure_leg(line: str, subsection: str) -> ProcedureLeg | None:
             speed=speed_val,
         )
 
-    # For transition records (route_type in certain codes), use transition name
-    # For main route records, transition is empty
-    if route_type not in ("1", "2", "3", "4", "5", "6", "A"):
+    # Route-type codes are subsection-specific (ARINC 424 §5.7):
+    #   F (approach): only 'A' is a transition; everything else is main route
+    #     (parse_approach_record uses the same rule)
+    #   D (SID):    1-6 + T (RNAV departure transition) + V (vector)
+    #   E (STAR):   1-6
+    # For main-route legs, drop the transition name so the caller can group
+    # by transition or treat the empty string as common.
+    if subsection == "F":
+        transition_codes = {"A"}
+    elif subsection == "D":
+        transition_codes = {"1", "2", "3", "4", "5", "6", "T", "V"}
+    else:  # subsection == "E"
+        transition_codes = {"1", "2", "3", "4", "5", "6"}
+    if route_type not in transition_codes:
         transition = ""
 
     return ProcedureLeg(
