@@ -1260,6 +1260,87 @@ def _parse_hundredths_signed(raw: str) -> float | None:
         return None
 
 
+def _parse_arinc_lat(raw: str) -> float | None:
+    """Decode a 9-char ARINC 424 latitude field.
+
+    Format: hemisphere ('N'/'S') + DD + MM + SSSS, where SSSS is hundredths
+    of seconds. Returns signed decimal degrees. Blank field is None.
+    """
+    raw = raw.strip()
+    if not raw or len(raw) < 9:
+        return None
+    hemisphere = raw[0]
+    try:
+        degrees = int(raw[1:3])
+        minutes = int(raw[3:5])
+        seconds = int(raw[5:9]) / 100.0
+    except ValueError:
+        return None
+    value = degrees + minutes / 60.0 + seconds / 3600.0
+    return -value if hemisphere == "S" else value
+
+
+def _parse_arinc_lon(raw: str) -> float | None:
+    """Decode a 10-char ARINC 424 longitude field.
+
+    Format: hemisphere ('E'/'W') + DDD + MM + SSSS. Returns signed decimal
+    degrees (negative for west). Blank field is None.
+    """
+    raw = raw.strip()
+    if not raw or len(raw) < 10:
+        return None
+    hemisphere = raw[0]
+    try:
+        degrees = int(raw[1:4])
+        minutes = int(raw[4:6])
+        seconds = int(raw[6:10]) / 100.0
+    except ValueError:
+        return None
+    value = degrees + minutes / 60.0 + seconds / 3600.0
+    return -value if hemisphere == "W" else value
+
+
+@lru_cache(maxsize=32)
+def get_terminal_waypoints(airport: str) -> dict[str, tuple[float, float]]:
+    """Return all terminal waypoints (subsection C) for an airport.
+
+    Args:
+        airport: ICAO airport code (e.g., "KSFO") or FAA code ("SFO").
+
+    Returns:
+        Dict mapping waypoint ident -> (lat, lon) in decimal degrees.
+        Empty dict if CIFP data is unavailable or no waypoints match.
+    """
+    cifp_path = ensure_cifp_data()
+    if not cifp_path:
+        return {}
+
+    apt = airport.upper().strip()
+    if len(apt) == 3:
+        apt = f"K{apt}"
+
+    result: dict[str, tuple[float, float]] = {}
+    with open(cifp_path, "r", encoding="latin-1") as f:
+        for line in f:
+            if not line.startswith("SUSAP"):
+                continue
+            if len(line) < 51:
+                continue
+            if line[6:10] != apt:
+                continue
+            if line[12] != "C":
+                continue
+            ident = line[13:18].strip()
+            if not ident:
+                continue
+            lat = _parse_arinc_lat(line[32:41])
+            lon = _parse_arinc_lon(line[41:51])
+            if lat is None or lon is None:
+                continue
+            result[ident] = (lat, lon)
+    return result
+
+
 def _parse_speed(speed_str: str) -> int | None:
     """Parse speed from ARINC 424 format.
 
