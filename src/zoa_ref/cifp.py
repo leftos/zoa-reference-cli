@@ -241,9 +241,11 @@ class CifpProcedureDetail:
     procedure_type: str  # "SID", "STAR", "APPROACH"
     approach_type: str | None  # e.g., "RNAV (GPS)", "ILS" (only for approaches)
     runway: str | None  # e.g., "17L", "28R"
-    common_legs: list[ProcedureLeg]  # Main route legs
+    common_legs: list[ProcedureLeg]  # Inbound legs up to and including MAP
     transitions: dict[str, list[ProcedureLeg]]  # Transition name -> legs
     runway_transitions: dict[str, list[ProcedureLeg]]  # RW* transitions
+    missed_approach_legs: list[ProcedureLeg] = field(default_factory=list)
+    """Legs after the MAP (climb-out + hold). Empty for SID/STAR."""
 
 
 # --- CIFP Download and Management ---
@@ -1581,6 +1583,21 @@ def get_procedure_detail(
     for trans_legs in runway_transitions.values():
         trans_legs.sort(key=lambda x: x.sequence)
 
+    # Split missed-approach legs off the tail of common_legs for approaches.
+    # The MAP fix (WAYPOINT_DESC_CODES "M" — labeled MAHP in the existing
+    # mapping) is the boundary: it stays as the last inbound leg, and every
+    # leg after it belongs to the climb-out / hold.
+    missed_approach_legs: list[ProcedureLeg] = []
+    if procedure_type == "APPROACH":
+        map_idx: int | None = None
+        for i, leg in enumerate(common_legs):
+            if leg.fix_type == "MAHP":
+                map_idx = i
+                break
+        if map_idx is not None and map_idx + 1 < len(common_legs):
+            missed_approach_legs = common_legs[map_idx + 1 :]
+            common_legs = common_legs[: map_idx + 1]
+
     # Filter to specific transition if requested
     if transition:
         transition = transition.upper()
@@ -1602,6 +1619,7 @@ def get_procedure_detail(
         common_legs=common_legs,
         transitions=transitions,
         runway_transitions=runway_transitions,
+        missed_approach_legs=missed_approach_legs,
     )
 
 
