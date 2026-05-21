@@ -227,6 +227,10 @@ class ProcedureLeg:
     outbound_course: float | None = None  # Outbound course / heading (magnetic degrees)
     leg_distance_nm: float | None = None  # Leg distance (NM) or holding time
     vertical_angle: float | None = None  # Vertical path angle (degrees, signed)
+    arc_radius_nm: float | None = None  # RF-arc radius (cols 56-62, thousandths of NM)
+    center_fix: str = ""  # RF-arc center fix ident (cols 106-111)
+    center_fix_lat: float | None = None  # Resolved from terminal waypoint table
+    center_fix_lon: float | None = None  # Resolved from terminal waypoint table
 
     @property
     def is_hold(self) -> bool:
@@ -1406,13 +1410,15 @@ def parse_procedure_leg(line: str, subsection: str) -> ProcedureLeg | None:
     turn_direction = line[43] if len(line) > 43 else " "
     path_terminator = line[47:49].strip() if len(line) > 48 else ""
 
-    # Geometry / navigation fields (cifparse cols 50..78, 102..106)
+    # Geometry / navigation fields (cifparse cols 50..78, 102..111)
     rec_navaid = line[50:54].strip() if len(line) > 53 else ""
+    arc_radius_str = line[56:62] if len(line) > 61 else ""
     theta_str = line[62:66] if len(line) > 65 else ""
     rho_str = line[66:70] if len(line) > 69 else ""
     course_str = line[70:74] if len(line) > 73 else ""
     dist_time_str = line[74:78] if len(line) > 77 else ""
     vert_angle_str = line[102:106] if len(line) > 105 else ""
+    center_fix_str = line[106:111].strip() if len(line) > 110 else ""
 
     # Altitude fields (cifparse alt_1 = (84, 89), alt_2 = (89, 94))
     alt_desc = line[82] if len(line) > 82 else " "
@@ -1481,6 +1487,14 @@ def parse_procedure_leg(line: str, subsection: str) -> ProcedureLeg | None:
     if route_type not in transition_codes:
         transition = ""
 
+    arc_radius_nm: float | None = None
+    arc_raw = arc_radius_str.strip()
+    if arc_raw:
+        try:
+            arc_radius_nm = int(arc_raw) / 1000.0
+        except ValueError:
+            arc_radius_nm = None
+
     return ProcedureLeg(
         fix_identifier=fix_identifier,
         path_terminator=path_terminator,
@@ -1497,7 +1511,30 @@ def parse_procedure_leg(line: str, subsection: str) -> ProcedureLeg | None:
         outbound_course=_parse_tenths(course_str),
         leg_distance_nm=_parse_tenths(dist_time_str),
         vertical_angle=_parse_hundredths_signed(vert_angle_str),
+        arc_radius_nm=arc_radius_nm,
+        center_fix=center_fix_str,
     )
+
+
+def _resolve_center_fix_coords(airport: str, legs: list[ProcedureLeg]) -> None:
+    """Resolve center_fix idents to (lat, lon) using terminal waypoints.
+
+    Skips legs without a center_fix. The lookup is cheap (single dict
+    lookup per RF leg) once the waypoints dict is built, and
+    get_terminal_waypoints is lru_cached.
+    """
+    if not any(leg.center_fix for leg in legs):
+        return
+    waypoints = get_terminal_waypoints(airport)
+    if not waypoints:
+        return
+    for leg in legs:
+        if not leg.center_fix:
+            continue
+        coords = waypoints.get(leg.center_fix)
+        if coords is None:
+            continue
+        leg.center_fix_lat, leg.center_fix_lon = coords
 
 
 def get_procedure_detail(
@@ -1675,6 +1712,10 @@ def get_procedure_detail(
         procedure_type = "STAR"
     elif found_subsection == "F":
         procedure_type = "APPROACH"
+
+    # Resolve RF-arc center fix coordinates from the airport's terminal
+    # waypoint table. Lookup happens once per get_procedure_detail call.
+    _resolve_center_fix_coords(airport, all_legs)
 
     # Organize legs by transition type
     common_legs: list[ProcedureLeg] = []
