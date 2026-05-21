@@ -201,6 +201,13 @@ class SpeedRestriction:
             return f"{self.speed}K"  # Mandatory
 
 
+HOLD_PATH_TERMINATORS = frozenset({"HA", "HF", "HM"})
+"""Hold path terminators (hold-at-altitude / -to-fix / -to-manual-termination)."""
+
+PROCEDURE_TURN_TERMINATORS = frozenset({"PI"})
+"""Classical procedure-turn (45/180) leg."""
+
+
 @dataclass
 class ProcedureLeg:
     """A single leg/waypoint in a procedure with restrictions."""
@@ -220,6 +227,16 @@ class ProcedureLeg:
     outbound_course: float | None = None  # Outbound course / heading (magnetic degrees)
     leg_distance_nm: float | None = None  # Leg distance (NM) or holding time
     vertical_angle: float | None = None  # Vertical path angle (degrees, signed)
+
+    @property
+    def is_hold(self) -> bool:
+        """True for HA/HF/HM legs — hold pattern of any kind."""
+        return self.path_terminator in HOLD_PATH_TERMINATORS
+
+    @property
+    def is_procedure_turn(self) -> bool:
+        """True for PI legs — classical procedure turn."""
+        return self.path_terminator in PROCEDURE_TURN_TERMINATORS
 
     @property
     def restrictions_str(self) -> str:
@@ -246,6 +263,25 @@ class CifpProcedureDetail:
     runway_transitions: dict[str, list[ProcedureLeg]]  # RW* transitions
     missed_approach_legs: list[ProcedureLeg] = field(default_factory=list)
     """Legs after the MAP (climb-out + hold). Empty for SID/STAR."""
+
+    def _all_legs(self) -> list[ProcedureLeg]:
+        legs: list[ProcedureLeg] = list(self.common_legs)
+        legs.extend(self.missed_approach_legs)
+        for trans_legs in self.transitions.values():
+            legs.extend(trans_legs)
+        for trans_legs in self.runway_transitions.values():
+            legs.extend(trans_legs)
+        return legs
+
+    @property
+    def has_hold(self) -> bool:
+        """True if any leg is a hold (HILPT or missed-approach hold)."""
+        return any(leg.is_hold for leg in self._all_legs())
+
+    @property
+    def has_procedure_turn(self) -> bool:
+        """True if any leg is a classical procedure turn (PI)."""
+        return any(leg.is_procedure_turn for leg in self._all_legs())
 
 
 # --- CIFP Download and Management ---
