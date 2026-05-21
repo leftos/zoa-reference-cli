@@ -1,6 +1,6 @@
 # CIFP Parser Drift: zoa-reference-cli vs YAAT
 
-**Status:** identified, not yet fixed.
+**Status:** all 9 actionable items fixed (2026-05-21). See "Resolution" section at the bottom for commit-by-commit log.
 **Authored:** 2026-05-21 (by a Claude code-reviewer agent run from zoa-tutor).
 **Audience:** future agent or human picking up the CIFP parser fix work.
 
@@ -206,3 +206,24 @@ For each item:
 - Investigation tool: Claude Code (Opus 4.7) running a `code-reviewer` agent invoked from `zoa-tutor`
 - Date: 2026-05-21
 - Both repos at the commit shown in the user's local git on that date
+
+## Resolution (2026-05-21)
+
+All 9 actionable items implemented one commit per item. Commits on `main`:
+
+- `b90419b` — item 1: altitude columns + remove ×10 compensator
+- `91d87a2` — item 10: fix-role column off-by-one in `parse_procedure_leg`
+- `3969dc8` — item 2: fly-over flag on `ProcedureLeg`
+- `5b43331` — item 4: outbound course, leg distance, rec_vhf, theta, rho, vertical angle
+- `60f4de7` — item 13: AIRAC cycle math uses UTC date
+- `1fba42d` — item 6: subsection-aware route_type detection (D adds T/V; F matches `parse_approach_record`)
+- `7a82619` — item 7: `missed_approach_legs` split off `common_legs` at the MAP fix
+- `cd7283a` — items 8 + 9: hold and procedure-turn detection (`is_hold` / `is_procedure_turn` / `has_hold` / `has_procedure_turn`)
+- `166efc7` — item 5a: `get_terminal_waypoints(airport)` coord lookup
+- `184cb6f` — item 3: RF-arc geometry (radius + center fix + resolved lat/lon)
+- `75d6368` — item 5b: `get_navaids()` for VHF + NDB with frequency normalization
+- `dc48627` — item 14: `cont_rec_no` filtering + `is_sbas_authorized` flag
+
+Items 11, 12, 13 (NOT-A-DRIFT), 15, 16 (Python is ahead) were left alone. Full FAS data block parsing (LPV/LNAV/VNAV minima decoding) is still deferred — only the SBAS-authorization boolean is exposed.
+
+Test infrastructure: `tests/conftest.py` provides `make_cifp_line()` (132-col ARINC builder). 59 pytest cases cover every column offset and code path. The real FAACIFP18 cache is used only for integration-style sanity checks (SFO/OAK/RNO procedures), not the unit tests.
