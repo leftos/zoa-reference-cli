@@ -384,3 +384,94 @@ def calculate_distance_nm(from_ident: str, to_ident: str) -> tuple[float, str, s
     )
 
     return (distance, from_point.point_type, to_point.point_type)
+
+
+def initial_bearing_deg(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Calculate initial great-circle bearing from point 1 to point 2.
+
+    Uses the forward azimuth formula:
+      θ = atan2(sin(Δlon)·cos(lat2), cos(lat1)·sin(lat2) − sin(lat1)·cos(lat2)·cos(Δlon))
+
+    Args:
+        lat1: Latitude of origin point in decimal degrees
+        lon1: Longitude of origin point in decimal degrees
+        lat2: Latitude of destination point in decimal degrees
+        lon2: Longitude of destination point in decimal degrees
+
+    Returns:
+        Initial bearing in degrees, normalized to [0, 360).
+    """
+    import math
+
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    delta_lon = math.radians(lon2 - lon1)
+
+    x = math.sin(delta_lon) * math.cos(phi2)
+    y = math.cos(phi1) * math.sin(phi2) - math.sin(phi1) * math.cos(phi2) * math.cos(
+        delta_lon
+    )
+
+    bearing = math.degrees(math.atan2(x, y))
+    return bearing % 360.0
+
+
+_CARDINAL_16 = [
+    "N",
+    "NNE",
+    "NE",
+    "ENE",
+    "E",
+    "ESE",
+    "SE",
+    "SSE",
+    "S",
+    "SSW",
+    "SW",
+    "WSW",
+    "W",
+    "WNW",
+    "NW",
+    "NNW",
+]
+
+
+def cardinal_from_bearing(bearing_deg: float) -> str:
+    """Convert a bearing in degrees to a 16-point compass direction.
+
+    Args:
+        bearing_deg: Bearing in degrees (any value; normalized internally).
+
+    Returns:
+        One of the 16 compass point abbreviations (N, NNE, NE, … NNW).
+    """
+    index = round(bearing_deg / 22.5) % 16
+    return _CARDINAL_16[index]
+
+
+def calculate_bearing(from_ident: str, to_ident: str) -> tuple[float, str, str]:
+    """Calculate initial bearing between two named points.
+
+    Args:
+        from_ident: Starting point identifier (fix, airport, or navaid)
+        to_ident: Ending point identifier (fix, airport, or navaid)
+
+    Returns:
+        Tuple of (bearing_deg, from_type, to_type) where bearing_deg is in [0, 360).
+
+    Raises:
+        ValueError: If either identifier is not found
+    """
+    from_point = get_point_coordinates(from_ident)
+    if not from_point:
+        raise ValueError(f"Unknown identifier: {from_ident}")
+
+    to_point = get_point_coordinates(to_ident)
+    if not to_point:
+        raise ValueError(f"Unknown identifier: {to_ident}")
+
+    bearing = initial_bearing_deg(
+        from_point.latitude, from_point.longitude, to_point.latitude, to_point.longitude
+    )
+
+    return (bearing, from_point.point_type, to_point.point_type)

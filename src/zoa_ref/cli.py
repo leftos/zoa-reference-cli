@@ -45,6 +45,7 @@ from .commands import (
     do_vatsim_radar,
 )
 from .descent import is_fix_identifier
+from .distance import compute_bearing, compute_distance
 from .interactive import interactive_mode
 from .playwright_bootstrap import ensure_chromium_installed
 
@@ -285,6 +286,36 @@ def des(first_arg: str, second_arg: str):
         do_fix_descent(first_arg, second_arg)
     else:
         do_descent_calc(first_arg, second_arg)
+
+
+@main.command(help=COMMAND_HELP["distance"].strip())
+@click.argument("from_ident")
+@click.argument("to_ident")
+def distance(from_ident: str, to_ident: str):
+    try:
+        result = compute_distance(from_ident, to_ident)
+    except ValueError as exc:
+        click.echo(str(exc), err=True)
+        raise SystemExit(1) from exc
+    click.echo(f"From: {result.from_ident} ({result.from_type})")
+    click.echo(f"To:   {result.to_ident} ({result.to_type})")
+    click.echo(f"Distance: {result.distance_nm:.1f} NM")
+    click.echo(f"Bearing:  {result.bearing_deg:.1f}° {result.cardinal}")
+
+
+@main.command(help=COMMAND_HELP["bearing"].strip())
+@click.argument("from_ident")
+@click.argument("to_ident")
+def bearing(from_ident: str, to_ident: str):
+    try:
+        result = compute_bearing(from_ident, to_ident)
+    except ValueError as exc:
+        click.echo(str(exc), err=True)
+        raise SystemExit(1) from exc
+    click.echo(f"From: {result.from_ident} ({result.from_type})")
+    click.echo(f"To:   {result.to_ident} ({result.to_type})")
+    click.echo(f"Bearing:  {result.bearing_deg:.1f}° {result.cardinal}")
+    click.echo(f"Distance: {result.distance_nm:.1f} NM")
 
 
 @main.command(help=COMMAND_HELP["approaches"].strip())

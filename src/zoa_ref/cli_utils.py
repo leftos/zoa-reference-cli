@@ -639,6 +639,30 @@ Examples:
 
 The preference is saved to ~/.zoa-ref/hotkey_pref.txt
 """,
+    "distance": """
+distance - Calculate distance between two aviation fixes/airports/navaids
+
+Shows the great-circle distance in nautical miles and the initial bearing
+from the first point to the second, along with a 16-point compass direction.
+
+\b
+Examples:
+  distance KSMF SUU          - Distance and bearing from SMF to SUU
+  distance OAK FMG           - Distance from Oakland to Mustang VOR
+  distance TUDOR KSMF        - Distance from TUDOR fix to Sacramento
+""",
+    "bearing": """
+bearing - Calculate bearing from one aviation fix/airport/navaid to another
+
+Shows the initial great-circle bearing in degrees and compass direction,
+plus the distance in nautical miles.
+
+\b
+Examples:
+  bearing KSMF SUU           - Bearing and distance from SMF to SUU
+  bearing OAK FMG            - Bearing from Oakland to Mustang VOR
+  bearing TUDOR KSMF         - Bearing from TUDOR fix to Sacramento
+""",
 }
 
 

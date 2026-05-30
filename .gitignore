@@ -140,3 +140,4 @@ scripts/
 # Bad CLAUDE pipes
 _nul.7z
 nul
+.tmp/
