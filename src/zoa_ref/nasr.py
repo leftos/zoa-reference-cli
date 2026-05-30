@@ -142,7 +142,9 @@ def _download_nasr_file(url: str, dest_file: Path, quiet: bool = False) -> bool:
         return False
 
 
-def ensure_nasr_data(files: list[str] | None = None, quiet: bool = False) -> Path | None:
+def ensure_nasr_data(
+    files: list[str] | None = None, quiet: bool = False
+) -> Path | None:
     """Download NASR data files if missing or outdated.
 
     Auto-downloads new NASR data when a new cycle begins.
@@ -409,7 +411,9 @@ def _load_navaid_data() -> list[NavaidInfo]:
 
 
 @lru_cache(maxsize=1)
-def _build_navaid_indexes() -> tuple[dict[str, list[NavaidInfo]], dict[str, list[NavaidInfo]]]:
+def _build_navaid_indexes() -> tuple[
+    dict[str, list[NavaidInfo]], dict[str, list[NavaidInfo]]
+]:
     """Build indexes for fast navaid lookup.
 
     Returns:

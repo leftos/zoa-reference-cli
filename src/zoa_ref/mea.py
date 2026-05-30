@@ -61,6 +61,7 @@ def clear_nasr_cache() -> None:
     Deprecated: Use nasr.clear_nasr_cache() directly.
     """
     from zoa_ref.nasr import clear_nasr_cache as _clear
+
     _clear()
 
 

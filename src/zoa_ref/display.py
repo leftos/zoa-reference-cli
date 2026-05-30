@@ -314,7 +314,9 @@ def display_metar(metars: list[MetarInfo]) -> None:
 
         # Temperature / Dewpoint
         if metar.temp_c is not None:
-            dew = f" / Dewpoint: {metar.dewp_c:.1f}C" if metar.dewp_c is not None else ""
+            dew = (
+                f" / Dewpoint: {metar.dewp_c:.1f}C" if metar.dewp_c is not None else ""
+            )
             click.echo(f"  Temperature:     {metar.temp_c:.1f}C{dew}")
 
         # Weather phenomena
@@ -542,11 +544,7 @@ def display_fix_airways(result: FixAirwaysResult) -> None:
             fix_obj = airway.fixes[i]
             if fix_obj.is_navaid:
                 name = get_navaid_name(fix_obj.identifier)
-                label = (
-                    f"{fix_obj.identifier} ({name})"
-                    if name
-                    else fix_obj.identifier
-                )
+                label = f"{fix_obj.identifier} ({name})" if name else fix_obj.identifier
             else:
                 label = fix_obj.identifier
 
@@ -767,7 +765,9 @@ def display_procedure_detail(proc: CifpProcedureDetail) -> None:
     click.echo()
 
 
-def _display_star_horizontal(proc: CifpProcedureDetail, common_fixes: list[ProcedureLeg]) -> None:
+def _display_star_horizontal(
+    proc: CifpProcedureDetail, common_fixes: list[ProcedureLeg]
+) -> None:
     """Display STAR procedure horizontally."""
 
     common_fix_names = {f.fix_identifier for f in common_fixes}
@@ -776,9 +776,13 @@ def _display_star_horizontal(proc: CifpProcedureDetail, common_fixes: list[Proce
     meaningful_transitions: dict[str, list[ProcedureLeg]] = {}
     for name, legs in proc.transitions.items():
         trans_fixes = _get_unique_fixes(legs)
-        trans_only = [f for f in trans_fixes if f.fix_identifier not in common_fix_names]
+        trans_only = [
+            f for f in trans_fixes if f.fix_identifier not in common_fix_names
+        ]
         # Skip if only fix is the transition name itself (redundant)
-        if trans_only and not (len(trans_only) == 1 and trans_only[0].fix_identifier == name):
+        if trans_only and not (
+            len(trans_only) == 1 and trans_only[0].fix_identifier == name
+        ):
             meaningful_transitions[name] = trans_only
 
     # Prepare runway transition data (grouped by identical routes)
@@ -803,12 +807,18 @@ def _display_star_horizontal(proc: CifpProcedureDetail, common_fixes: list[Proce
         continuous_route: list[ProcedureLeg] = list(trans_fixes)
 
         for fix in common_fixes:
-            if not continuous_route or fix.fix_identifier != continuous_route[-1].fix_identifier:
+            if (
+                not continuous_route
+                or fix.fix_identifier != continuous_route[-1].fix_identifier
+            ):
                 continuous_route.append(fix)
 
         rwy_fixes = next(iter(rwy_fixes_map.values()))
         for fix in rwy_fixes:
-            if not continuous_route or fix.fix_identifier != continuous_route[-1].fix_identifier:
+            if (
+                not continuous_route
+                or fix.fix_identifier != continuous_route[-1].fix_identifier
+            ):
                 continuous_route.append(fix)
 
         rwy_names = next(iter(rwy_groups.values()))
@@ -841,7 +851,10 @@ def _display_star_horizontal(proc: CifpProcedureDetail, common_fixes: list[Proce
         # Add runway transition (skip duplicate first fix)
         rwy_fixes = next(iter(rwy_fixes_map.values()))
         for fix in rwy_fixes:
-            if not merged_route or fix.fix_identifier != merged_route[-1].fix_identifier:
+            if (
+                not merged_route
+                or fix.fix_identifier != merged_route[-1].fix_identifier
+            ):
                 merged_route.append(fix)
 
         # Get runway label
@@ -886,7 +899,9 @@ def _display_star_horizontal(proc: CifpProcedureDetail, common_fixes: list[Proce
                 _draw_horizontal_route(rwy_fixes_map[sig], "    ")
 
 
-def _display_sid_horizontal(proc: CifpProcedureDetail, common_fixes: list[ProcedureLeg]) -> None:
+def _display_sid_horizontal(
+    proc: CifpProcedureDetail, common_fixes: list[ProcedureLeg]
+) -> None:
     """Display SID procedure horizontally."""
 
     common_fix_names = {f.fix_identifier for f in common_fixes}
@@ -909,7 +924,9 @@ def _display_sid_horizontal(proc: CifpProcedureDetail, common_fixes: list[Proced
     meaningful_transitions: dict[str, list[ProcedureLeg]] = {}
     for name, legs in proc.transitions.items():
         trans_fixes = _get_unique_fixes(legs)
-        trans_only = [f for f in trans_fixes if f.fix_identifier not in common_fix_names]
+        trans_only = [
+            f for f in trans_fixes if f.fix_identifier not in common_fix_names
+        ]
         if trans_only:
             meaningful_transitions[name] = trans_only
 
@@ -928,7 +945,10 @@ def _display_sid_horizontal(proc: CifpProcedureDetail, common_fixes: list[Proced
 
         # Add common route (skip if first fix duplicates last of previous)
         for fix in common_fixes:
-            if not continuous_route or fix.fix_identifier != continuous_route[-1].fix_identifier:
+            if (
+                not continuous_route
+                or fix.fix_identifier != continuous_route[-1].fix_identifier
+            ):
                 continuous_route.append(fix)
 
         # Add exit transition (if any), skip duplicate first fix
@@ -936,7 +956,10 @@ def _display_sid_horizontal(proc: CifpProcedureDetail, common_fixes: list[Proced
         if meaningful_transitions:
             exit_name, exit_fixes = next(iter(meaningful_transitions.items()))
             for fix in exit_fixes:
-                if not continuous_route or fix.fix_identifier != continuous_route[-1].fix_identifier:
+                if (
+                    not continuous_route
+                    or fix.fix_identifier != continuous_route[-1].fix_identifier
+                ):
                     continuous_route.append(fix)
 
         # Get runway label
@@ -994,7 +1017,9 @@ def _display_sid_horizontal(proc: CifpProcedureDetail, common_fixes: list[Proced
             _draw_horizontal_route(trans_only, "    ")
 
 
-def _display_approach_horizontal(proc: CifpProcedureDetail, common_fixes: list[ProcedureLeg]) -> None:
+def _display_approach_horizontal(
+    proc: CifpProcedureDetail, common_fixes: list[ProcedureLeg]
+) -> None:
     """Display approach procedure horizontally."""
 
     common_fix_names = {f.fix_identifier for f in common_fixes}
@@ -1007,7 +1032,9 @@ def _display_approach_horizontal(proc: CifpProcedureDetail, common_fixes: list[P
         for name, legs in sorted(proc.transitions.items()):
             trans_fixes = _get_unique_fixes(legs)
             # Filter out common route fixes
-            trans_only = [f for f in trans_fixes if f.fix_identifier not in common_fix_names]
+            trans_only = [
+                f for f in trans_fixes if f.fix_identifier not in common_fix_names
+            ]
             if trans_only:
                 click.echo()
                 click.echo(f"  {name}:")

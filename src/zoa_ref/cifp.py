@@ -165,9 +165,17 @@ class AltitudeRestriction:
     def __str__(self) -> str:
         if not self.altitude1:
             return ""
-        alt1_str = f"FL{self.altitude1 // 100}" if self.altitude1 >= 18000 else f"{self.altitude1}"
+        alt1_str = (
+            f"FL{self.altitude1 // 100}"
+            if self.altitude1 >= 18000
+            else f"{self.altitude1}"
+        )
         if self.description == "B" and self.altitude2:
-            alt2_str = f"FL{self.altitude2 // 100}" if self.altitude2 >= 18000 else f"{self.altitude2}"
+            alt2_str = (
+                f"FL{self.altitude2 // 100}"
+                if self.altitude2 >= 18000
+                else f"{self.altitude2}"
+            )
             return f"{alt1_str}-{alt2_str}"
         elif self.description == "+":
             return f"{alt1_str}A"  # At or above
@@ -1098,9 +1106,16 @@ def find_matching_procedures(airport: str, procedure_name: str) -> list[str]:
         variant = approach_pattern.group(3) or ""
 
         type_map = {
-            "ILS": "I", "LOC": "L", "VOR": "V", "RNAV": "H",
-            "RNP": "R", "GPS": "P", "NDB": "N", "LDA": "X",
-            "SDF": "U", "TACAN": "T",
+            "ILS": "I",
+            "LOC": "L",
+            "VOR": "V",
+            "RNAV": "H",
+            "RNP": "R",
+            "GPS": "P",
+            "NDB": "N",
+            "LDA": "X",
+            "SDF": "U",
+            "TACAN": "T",
         }
         type_code = type_map.get(app_type_name, "H")
 
@@ -1120,8 +1135,15 @@ def find_matching_procedures(airport: str, procedure_name: str) -> list[str]:
             base_name = proc_match.group(1)
             num_part = proc_match.group(2)
             word_to_digit = {
-                "ONE": "1", "TWO": "2", "THREE": "3", "FOUR": "4",
-                "FIVE": "5", "SIX": "6", "SEVEN": "7", "EIGHT": "8", "NINE": "9",
+                "ONE": "1",
+                "TWO": "2",
+                "THREE": "3",
+                "FOUR": "4",
+                "FIVE": "5",
+                "SIX": "6",
+                "SEVEN": "7",
+                "EIGHT": "8",
+                "NINE": "9",
             }
             if num_part in word_to_digit:
                 num_part = word_to_digit[num_part]
@@ -1547,7 +1569,9 @@ def parse_procedure_leg(line: str, subsection: str) -> ProcedureLeg | None:
     # The 4-char field is Type / Performance / Phase / Fix-role; pos 0 is the
     # route-description code, NOT the fix role. parse_approach_record reads
     # line[42] directly; this parser must agree.
-    fix_type = WAYPOINT_DESC_CODES.get(waypoint_desc[3], "") if len(waypoint_desc) > 3 else ""
+    fix_type = (
+        WAYPOINT_DESC_CODES.get(waypoint_desc[3], "") if len(waypoint_desc) > 3 else ""
+    )
 
     # Position 2 of desc_code (char 40) = 'Y' marks a fly-over waypoint.
     is_fly_over = len(waypoint_desc) > 1 and waypoint_desc[1] == "Y"

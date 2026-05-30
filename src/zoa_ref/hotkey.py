@@ -285,7 +285,9 @@ def capture_hotkey() -> tuple[int, int] | None:
                 mods = _control_state_to_modifiers(control_state)
                 if mods == 0:
                     # Require at least one modifier
-                    _show_capture(None, hint="Need at least one modifier (Ctrl/Alt/Shift)")
+                    _show_capture(
+                        None, hint="Need at least one modifier (Ctrl/Alt/Shift)"
+                    )
                     continue
                 captured_modifiers = mods
                 captured_vk = vk
@@ -300,7 +302,9 @@ def capture_hotkey() -> tuple[int, int] | None:
 def _show_capture(combo: str | None, hint: str | None = None) -> None:
     """Update the capture display line in-place."""
     if combo:
-        text = f"  Captured: {click.style(combo, bold=True)}  (Enter=confirm, Esc=clear)"
+        text = (
+            f"  Captured: {click.style(combo, bold=True)}  (Enter=confirm, Esc=clear)"
+        )
     elif hint:
         text = f"  {hint}"
     else:
@@ -379,9 +383,7 @@ class HotkeyManager:
     def unregister(self):
         """Unregister the current hotkey and stop the message pump."""
         if self._thread and self._thread_id:
-            ctypes.windll.user32.PostThreadMessageW(
-                self._thread_id, WM_QUIT, 0, 0
-            )
+            ctypes.windll.user32.PostThreadMessageW(self._thread_id, WM_QUIT, 0, 0)
             self._thread.join(timeout=2.0)
         self._registered = False
         self._thread = None

@@ -547,7 +547,14 @@ def clear_all_airac_cache() -> int:
     """
     removed = 0
 
-    for cache_type in ["charts", "analysis", "cifp", "chart_lists", "nasr", "processed"]:
+    for cache_type in [
+        "charts",
+        "analysis",
+        "cifp",
+        "chart_lists",
+        "nasr",
+        "processed",
+    ]:
         cache_base = CACHE_DIR / cache_type
         if cache_base.exists():
             try:

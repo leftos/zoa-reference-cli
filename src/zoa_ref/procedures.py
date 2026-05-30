@@ -195,10 +195,7 @@ class ProcedureQuery:
                     break
                 # If first part maps to a known SOP (e.g., NCT -> NORCAL TRACON),
                 # treat remaining non-keyword parts as section/search terms
-                if (
-                    first_upper in AIRPORT_ALIASES
-                    and part_upper not in proc_keywords
-                ):
+                if first_upper in AIRPORT_ALIASES and part_upper not in proc_keywords:
                     break
                 # If first part is NOT an airport code or proc keyword (e.g., "Class D"),
                 # then this part is likely a section term (even if it's an airport code)

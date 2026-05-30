@@ -1669,7 +1669,9 @@ def do_uses_lookup(
     from .cifp import find_fix_uses
     from .display import display_fix_uses
 
-    result = find_fix_uses(fix_name, airport_filter=airport_filter, type_filter=type_filter)
+    result = find_fix_uses(
+        fix_name, airport_filter=airport_filter, type_filter=type_filter
+    )
     display_fix_uses(result)
 
 
@@ -1688,7 +1690,11 @@ def do_cifp_lookup(airport: str, procedure_name: str) -> None:
         procedure_name: Procedure name (e.g., "SCOLA1", "CNDEL5", "ILS 17L")
                        Can include transition prefix: "LEGGS.BDEGA4"
     """
-    from .cifp import get_procedure_detail, list_all_procedures, find_matching_procedures
+    from .cifp import (
+        get_procedure_detail,
+        list_all_procedures,
+        find_matching_procedures,
+    )
     from .display import display_procedure_detail
     from .fuzzy import fuzzy_match
 
@@ -1814,7 +1820,10 @@ def do_vatsim_radar(airports: list[str] | None, zoom: int | None) -> None:
             if key in airport_refs:
                 lat, lon = airport_refs[key]
                 coords = WaypointInfo(
-                    ident=key, name=None, latitude=lat, longitude=lon,
+                    ident=key,
+                    name=None,
+                    latitude=lat,
+                    longitude=lon,
                     point_type="AIRPORT",
                 )
                 break

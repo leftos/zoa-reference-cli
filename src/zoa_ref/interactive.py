@@ -478,7 +478,9 @@ def _handle_setbrowser_interactive(args: str) -> None:
     do_setbrowser(browser)
 
 
-def _handle_sethotkey_interactive(args: str, ctx: InteractiveContext | None = None) -> None:
+def _handle_sethotkey_interactive(
+    args: str, ctx: InteractiveContext | None = None
+) -> None:
     """Handle 'sethotkey [clear]' command in interactive mode."""
     parsed = parse_interactive_args(args)
     if parsed.show_help:
@@ -520,7 +522,9 @@ def _handle_uses_interactive(args: str) -> None:
     from .cifp import parse_uses_filters
 
     airport_filter, type_filter = parse_uses_filters(parsed.positional[1:])
-    do_uses_lookup(parsed.positional[0], airport_filter=airport_filter, type_filter=type_filter)
+    do_uses_lookup(
+        parsed.positional[0], airport_filter=airport_filter, type_filter=type_filter
+    )
 
 
 # Command registry: maps command prefix to (handler, prefix_length, needs_context)
