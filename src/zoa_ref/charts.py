@@ -48,6 +48,13 @@ CHART_CATEGORY_CODES = {
     "DAU",  # Departure Area (DAU)
 }
 
+# Renamed chart_code values from the API mapped to the value used internally.
+# The FAA changed the arrival-procedure code from "STAR" to "STR"; the rest of
+# the codebase matches "STAR", so the incoming code is translated at ingestion.
+_CHART_CODE_ALIASES = {
+    "STR": "STAR",  # Standard Terminal Arrival Routes
+}
+
 # Known airport codes in ZOA
 ZOA_AIRPORTS = [
     "SFO",
@@ -221,6 +228,35 @@ class ChartInfo:
         return code_map.get(self.chart_code, ChartType.UNKNOWN)
 
 
+def _charts_from_payload(data: dict) -> list[ChartInfo]:
+    """Convert a charts-API JSON payload into ChartInfo objects.
+
+    The payload is keyed by airport code (FAA or ICAO), each mapping to a list
+    of chart records. The ``chart_code`` field is normalized through
+    ``_CHART_CODE_ALIASES`` so downstream code sees the internal value.
+
+    Args:
+        data: Decoded JSON payload from the charts API.
+
+    Returns:
+        List of ChartInfo objects across all airport keys in the payload.
+    """
+    charts = []
+    for _, chart_list in data.items():
+        for chart_data in chart_list:
+            code = chart_data.get("chart_code", "")
+            charts.append(
+                ChartInfo(
+                    chart_name=chart_data.get("chart_name", ""),
+                    chart_code=_CHART_CODE_ALIASES.get(code, code),
+                    pdf_path=chart_data.get("pdf_path", ""),
+                    faa_ident=chart_data.get("faa_ident", ""),
+                    icao_ident=chart_data.get("icao_ident", ""),
+                )
+            )
+    return charts
+
+
 def fetch_charts_from_api(airport: str) -> list[ChartInfo]:
     """
     Fetch charts for an airport from the charts API.
@@ -244,19 +280,7 @@ def fetch_charts_from_api(airport: str) -> list[ChartInfo]:
         print(f"Error parsing API response: {e}")
         return []
 
-    # API returns data keyed by airport code (could be FAA or ICAO)
-    charts = []
-    for _, chart_list in data.items():
-        for chart_data in chart_list:
-            charts.append(
-                ChartInfo(
-                    chart_name=chart_data.get("chart_name", ""),
-                    chart_code=chart_data.get("chart_code", ""),
-                    pdf_path=chart_data.get("pdf_path", ""),
-                    faa_ident=chart_data.get("faa_ident", ""),
-                    icao_ident=chart_data.get("icao_ident", ""),
-                )
-            )
+    charts = _charts_from_payload(data)
 
     # Cleanup old AIRAC caches (runs periodically, low overhead)
     if charts:
