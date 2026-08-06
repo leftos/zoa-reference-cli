@@ -241,6 +241,9 @@ def _format_wind(metar: MetarInfo) -> str:
     if metar.wind_speed == 0:
         return "Calm"
     gust = f"G{metar.wind_gust}" if metar.wind_gust else ""
+    # wdir is "VRB" for variable winds, an int otherwise
+    if isinstance(metar.wind_dir, str):
+        return f"{metar.wind_dir}{metar.wind_speed:02d}{gust}KT"
     return f"{metar.wind_dir:03d}{metar.wind_speed:02d}{gust}KT"
 
 

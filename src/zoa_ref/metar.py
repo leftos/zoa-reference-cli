@@ -17,7 +17,7 @@ class MetarInfo:
     raw: str
     temp_c: float | None
     dewp_c: float | None
-    wind_dir: int | None
+    wind_dir: int | str | None
     wind_speed: int | None
     wind_gust: int | None
     visibility: str
