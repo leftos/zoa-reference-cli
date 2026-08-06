@@ -608,6 +608,20 @@ def search_navaids(query: str) -> NavaidSearchResult:
 # --- AWY.txt Parsing ---
 
 
+def _parse_awy_airway_key(line: str) -> str | None:
+    """Extract the airway key from an AWY record header.
+
+    NASR reuses airway designators across regions (e.g. V334 exists in both
+    California and Alaska). The one-char airway type at position 9 (blank =
+    CONUS, "A" = Alaska, "H" = Hawaii) is appended to keep them distinct,
+    e.g. "V334" vs "V334A".
+    """
+    designator = line[4:9].strip()
+    if not designator:
+        return None
+    return designator + line[9:10].strip()
+
+
 def _parse_awy1_record(line: str) -> tuple[str, AirwayRestriction] | None:
     """Parse an AWY.txt AWY1 record line for MEA/MOCA data.
 
@@ -634,8 +648,7 @@ def _parse_awy1_record(line: str) -> tuple[str, AirwayRestriction] | None:
         return None
 
     try:
-        # Extract airway designator (positions 4-9)
-        airway = line[4:9].strip()
+        airway = _parse_awy_airway_key(line)
         if not airway:
             return None
 
@@ -698,13 +711,14 @@ def _parse_awy2_record(line: str) -> tuple[str, AirwayFix] | None:
         return None
 
     try:
-        # Extract airway designator and sequence number
-        header_match = re.match(r"AWY2([A-Z][A-Z0-9]*)\s*(\d+)", line)
-        if not header_match:
+        airway = _parse_awy_airway_key(line)
+        if not airway:
             return None
 
-        airway = header_match.group(1)
-        sequence = int(header_match.group(2))
+        seq_str = line[10:15].strip()
+        if not seq_str.isdigit():
+            return None
+        sequence = int(seq_str)
 
         # Find latitude and longitude using regex
         lat_match = re.search(r"(\d{2})-(\d{2})-(\d{2}\.?\d*)([NS])", line)
