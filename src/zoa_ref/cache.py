@@ -9,6 +9,7 @@ invalidate when a new cycle begins.
 """
 
 import json
+import os
 import re
 import shutil
 from datetime import date, datetime, timedelta, timezone
@@ -451,6 +452,9 @@ def cleanup_old_airac_caches(keep_cycles: int = 2) -> int:
             except (ValueError, OSError):
                 continue
 
+    # Drop links in the current folder whose target cycle is gone
+    removed += _remove_dangling_current_links()
+
     # Also clean up procedure headings cache
     headings_base = CACHE_DIR / "procedures" / "headings"
     if headings_base.exists():
@@ -593,6 +597,63 @@ def get_processed_pdf_path(filename: str, airac: str) -> Path:
     cache_dir = CACHE_DIR / "processed" / airac
     cache_dir.mkdir(parents=True, exist_ok=True)
     return cache_dir / filename
+
+
+def link_stable_pdf(target: Path) -> Path:
+    """Point a stable, AIRAC-independent link at a processed PDF.
+
+    The browser history for opened PDFs is baked into the AIRAC cycle folder
+    of their file URL, so it stops matching each cycle. This keeps a link at
+    ``processed/current/<name>.pdf`` pointing at the cycle path instead.
+
+    A symlink is preferred; a hardlink or a byte copy stands in where the
+    platform or filesystem refuses one.
+
+    Args:
+        target: The processed PDF to link to (usually under a cycle folder)
+
+    Returns:
+        Path to the link inside the ``processed/current`` folder
+    """
+    current_dir = CACHE_DIR / "processed" / "current"
+    current_dir.mkdir(parents=True, exist_ok=True)
+    link_path = current_dir / target.name
+
+    if link_path.is_symlink() and link_path.resolve() == target.resolve():
+        return link_path
+
+    if link_path.is_symlink() or link_path.exists():
+        link_path.unlink()
+
+    try:
+        link_path.symlink_to(target)
+    except OSError:
+        try:
+            os.link(target, link_path)
+        except OSError:
+            shutil.copy2(target, link_path)
+    return link_path
+
+
+def _remove_dangling_current_links() -> int:
+    """Remove links in the current folder whose target no longer exists.
+
+    Returns:
+        Number of dangling links removed
+    """
+    current_dir = CACHE_DIR / "processed" / "current"
+    if not current_dir.exists():
+        return 0
+
+    removed = 0
+    for entry in current_dir.iterdir():
+        if entry.is_symlink() and not entry.exists():
+            try:
+                entry.unlink()
+                removed += 1
+            except OSError:
+                continue
+    return removed
 
 
 # --- Chart List Caching (for autocomplete) ---

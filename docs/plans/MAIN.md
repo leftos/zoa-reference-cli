@@ -22,5 +22,7 @@ Fresh agents: start here, work top-down (current focus → next up → backlog).
 
 ## Backlog
 
+- [ ] **chore: split markdown lines of 500+ characters** (Grep shows them only as `[Omitted long matching line]`). Dry run `uv run --project ~/.claude/tools/md-line-split python -m md_line_split .` finds 4 lines in 2 files, none needing review: `docs/ARCHITECTURE.md:3`, `docs/plans/cifp-parser-drift-from-yaat.md:28`, `:40`, `:114`. Run with `--apply`, rerun until it prints `would split 0 lines`, commit as `docs:`. Requested by claude-config (inbox 20261006-040152).
+- [ ] **Clear the two `nest_asyncio` DeprecationWarnings in the test run.** `src/zoa_ref/input.py:18` calls `nest_asyncio.apply()` at import time; `nest_asyncio.py:40` and `:71` call `asyncio.get_event_loop_policy`, deprecated and slated for removal in Python 3.16. Either drop `nest_asyncio` (check why prompt_toolkit needs a nested loop) or move `apply()` out of module import so tests don't trigger it.
 - See [cifp-parser-drift-from-yaat.md](./cifp-parser-drift-from-yaat.md) — CIFP parser parity
   with YAAT (all actionable items resolved 2026-05-21; kept for reference).

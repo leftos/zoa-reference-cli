@@ -42,6 +42,7 @@ Stated rule (`CLAUDE.md`): both the CLI and interactive mode use the shared `do_
 - **Charts-API code renames.** The FAA renamed the arrival chart code `STAR` to `STR`; `charts.py` maps it back at the API boundary (`tests/test_charts_chart_code.py` covers it). `approaches.py` still filters on `chart_code == "STAR"`, which `docs/plans/MAIN.md` tracks for removal.
 - **CIFP fixed-column offsets.** `cifp.py` decodes 132-column ARINC 424 records by position; `tests/conftest.py` `make_cifp_line` builds test records column by column, and `tests/test_conftest_fixture.py` checks that fields land in the expected columns. A column change in the parser needs the fixture to agree.
 - **AIRAC cycle drives every download cache.** `nasr.py` and `cifp.py` key their downloads on `get_current_airac_cycle()` from `cache.py`; `tests/test_airac.py` pins the cycle computation (UTC date).
+- **Opened PDFs go through a stable link.** `commands.py` writes each processed chart or SOP PDF to `processed/<AIRAC>/` and opens it through `processed/current/<name>.pdf` (`link_stable_pdf` in `cache.py`, called via `_stable_path`), so its `file://` URL and browser history survive a cycle change. A new open path that skips `_stable_path` gets a URL that changes every cycle.
 - **Import cycle between `cli.py` and `interactive.py`.** Handlers in `interactive.py` import `main` from `cli.py` lazily inside each function, because `cli.py` imports `interactive_mode` at module level; a module-level import back would be circular.
 - **Cross-repo parity.** The CIFP parser was aligned to YAAT's parser (`docs/plans/cifp-parser-drift-from-yaat.md`); a decoder fix in one repo may need the same in the other.
 
@@ -53,6 +54,7 @@ Stated rule (`CLAUDE.md`): both the CLI and interactive mode use the shared `do_
 - `tests/test_conftest_fixture.py`: the `make_cifp_line` fixture itself.
 - `tests/test_nasr_awy.py`: NASR AWY parsing in `nasr.py`.
 - `tests/test_airac.py`: AIRAC cycle math in `cache.py`.
+- `tests/test_stable_pdf_link.py`: the `processed/current/` links in `cache.py` (symlink, hardlink and copy fallbacks, dangling-link cleanup).
 - `tests/test_bearing.py`, `tests/test_bearing_cli.py`: bearing and distance calculation and the `bearing` / `distance` commands through `CliRunner` on `zoa_ref.cli.main`.
 - `tests/test_charts_chart_code.py`: chart-code normalisation in `charts.py`.
 - `tests/test_metar_display.py`: METAR output formatting.

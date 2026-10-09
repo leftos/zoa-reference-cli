@@ -3,38 +3,37 @@
 import re
 import webbrowser
 from collections.abc import Callable
+from pathlib import Path
 
 import click
 
-from .atis import fetch_atis, fetch_all_atis, ATIS_AIRPORTS
-from .cache import get_airac_for_caching, get_processed_pdf_path
-from .frequency import record_airport
+from .atis import ATIS_AIRPORTS, fetch_all_atis, fetch_atis
 from .browser import BrowserSession, _calculate_viewport_size
+from .cache import get_airac_for_caching, get_processed_pdf_path, link_stable_pdf
 from .charts import (
     ChartInfo,
     ChartMatch,
     ChartQuery,
-    lookup_chart,
-    fetch_charts_from_api,
-    find_all_chart_pages,
-    lookup_chart_with_pages,
+    detect_pdf_view_mode,
     download_and_merge_pdfs,
     download_and_rotate_pdf,
-    detect_pdf_view_mode,
     download_pdf,
-    find_airport_page_in_min_chart,
-    search_chart_cifp,
-    is_category_code,
+    fetch_charts_from_api,
     filter_charts_by_category,
+    find_airport_page_in_min_chart,
+    find_all_chart_pages,
+    is_category_code,
+    lookup_chart,
+    lookup_chart_with_pages,
+    search_chart_cifp,
     strip_pdf_metadata,
 )
 from .cli_utils import open_in_browser, wait_for_input_or_close
 from .descent import calculate_descent, calculate_fix_descent
 from .display import (
-    display_routes,
+    display_aircraft,
     display_airlines,
     display_airport_codes,
-    display_aircraft,
     display_atis,
     display_chart_matches,
     display_descent,
@@ -42,35 +41,39 @@ from .display import (
     display_mea,
     display_metar,
     display_navaids,
-    display_procedure_matches,
     display_positions,
-    display_scratchpads,
+    display_procedure_matches,
+    display_routes,
     display_scratchpad_facilities,
+    display_scratchpads,
 )
+from .frequency import record_airport
 from .icao import (
+    CodesPage,
+    open_codes_browser,
+    search_aircraft,
     search_airline,
     search_airport_code,
-    search_aircraft,
-    open_codes_browser,
-    CodesPage,
 )
 from .input import prompt_single_choice
 from .nasr import ensure_nasr_data
 from .navaids import search_navaids
-from .positions import search_positions, open_positions_browser
+from .positions import open_positions_browser, search_positions
 from .procedures import (
-    ProcedureQuery,
+    AIRPORT_ALIASES,
     ProcedureInfo,
     ProcedureMatch,
+    ProcedureQuery,
     fetch_procedures_list,
-    find_procedure_by_name,
     find_heading_page,
+    find_procedure_by_name,
     find_text_in_section,
     list_all_procedures,
-    _download_pdf as download_procedure_pdf,
-    AIRPORT_ALIASES,
 )
-from .routes import search_routes, open_routes_browser
+from .procedures import (
+    _download_pdf as download_procedure_pdf,
+)
+from .routes import open_routes_browser, search_routes
 from .scratchpads import get_scratchpads, list_facilities
 
 
@@ -191,6 +194,23 @@ def sanitize_procedure_filename(procedure_name: str) -> str:
     return f"ZOA_{name}_{doc_type}.pdf"
 
 
+def _stable_path(cache_path: Path) -> Path:
+    """Return a stable, AIRAC-independent path for an opened processed PDF.
+
+    Falls back to the cycle path when the link cannot be created, so the PDF
+    still opens.
+    """
+    try:
+        return link_stable_pdf(cache_path)
+    except OSError as e:
+        click.echo(
+            f"Warning: could not create stable link for {cache_path.name} ({e});"
+            " opening cycle path",
+            err=True,
+        )
+        return cache_path
+
+
 def open_procedure_pdf(procedure: ProcedureInfo, page_num: int = 1) -> None:
     """Open a procedure PDF at a specific page."""
     click.echo(f"Opening: {procedure.name}")
@@ -208,11 +228,13 @@ def open_procedure_pdf(procedure: ProcedureInfo, page_num: int = 1) -> None:
         with open(cache_path, "wb") as f:
             f.write(clean_pdf)
 
+        stable_path = _stable_path(cache_path)
+
         # Open with page fragment
         if page_num > 1:
-            open_in_browser(str(cache_path), page=page_num, view="FitV")
+            open_in_browser(str(stable_path), page=page_num, view="FitV")
         else:
-            open_in_browser(str(cache_path), view="FitV")
+            open_in_browser(str(stable_path), view="FitV")
     else:
         # Fall back to opening URL directly
         click.echo("Failed to download, opening URL directly...", err=True)
@@ -279,8 +301,9 @@ def open_chart_pdf(
             click.echo(f"Opening chart: {chart_name}")
             if page_num:
                 click.echo(f"  Page: {page_num}")
-            open_in_browser(str(cache_path), view=view_mode, page=page_num)
-            return str(cache_path)
+            stable_path = _stable_path(cache_path)
+            open_in_browser(str(stable_path), view=view_mode, page=page_num)
+            return str(stable_path)
         else:
             click.echo("Failed to download chart", err=True)
             # Fall back to opening URL directly (no rotation)
@@ -299,15 +322,16 @@ def open_chart_pdf(
 
         if download_and_merge_pdfs(pdf_urls, str(cache_path), rotation):
             view_mode = detect_pdf_view_mode(str(cache_path))
+            stable_path = _stable_path(cache_path)
             if session is not None:
                 # Playwright mode
                 page = session.new_page()
-                page.goto(f"{cache_path.as_uri()}#zoom={view_mode}&view={view_mode}")
+                page.goto(f"{stable_path.as_uri()}#zoom={view_mode}&view={view_mode}")
             else:
                 # System browser mode
-                open_in_browser(str(cache_path), view=view_mode)
+                open_in_browser(str(stable_path), view=view_mode)
             click.echo(f"Chart found: {chart_name} ({num_pages} pages)")
-            return str(cache_path)
+            return str(stable_path)
         else:
             click.echo("Failed to merge PDF pages, opening first page only")
             pdf_url = pdf_urls[0]
@@ -1288,10 +1312,10 @@ def do_setbrowser(browser: str | None = None) -> None:
                  or None to display current setting, or "clear"/"auto" to clear preference
     """
     from .cli_utils import (
+        VALID_BROWSERS,
+        clear_browser_preference,
         get_browser_preference,
         set_browser_preference,
-        clear_browser_preference,
-        VALID_BROWSERS,
     )
 
     if not browser:
@@ -1344,10 +1368,10 @@ def do_sethotkey(ctx) -> None:
         return
 
     from .hotkey import (
+        HotkeyManager,
         capture_hotkey,
         format_hotkey,
         save_hotkey_preference,
-        HotkeyManager,
     )
 
     # Ensure manager exists
@@ -1552,11 +1576,11 @@ def do_approaches_lookup(
     """
     record_airport(airport)
     from .approaches import (
+        find_approaches_by_fix,
         find_connected_approaches,
         format_connections,
-        is_star_name,
-        find_approaches_by_fix,
         format_fix_approaches,
+        is_star_name,
     )
 
     runways = runways or []
@@ -1691,9 +1715,9 @@ def do_cifp_lookup(airport: str, procedure_name: str) -> None:
                        Can include transition prefix: "LEGGS.BDEGA4"
     """
     from .cifp import (
+        find_matching_procedures,
         get_procedure_detail,
         list_all_procedures,
-        find_matching_procedures,
     )
     from .display import display_procedure_detail
     from .fuzzy import fuzzy_match
