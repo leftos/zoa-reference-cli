@@ -10,49 +10,50 @@ ZOA Reference CLI - command-line lookups for ZOA's (Oakland ARTCC) Reference Too
 
 ```bash
 # Setup
-uv venv && uv pip install -e .
-.venv/Scripts/playwright install
+python install.py                       # Install `zoa` outside the repo (uv tool), on PATH
+python run.py <zoa args>                # Reinstall if src/ changed, then run zoa
+uv run pytest                           # Tests (uses the repo .venv)
 
 # Charts (implicit or explicit)
-.venv/Scripts/zoa OAK CNDEL5            # Implicit chart lookup (opens PDF)
-.venv/Scripts/zoa chart OAK ILS 28R     # Explicit chart lookup
-.venv/Scripts/zoa chart OAK ILS 28R -r  # Rotate 90°
-.venv/Scripts/zoa charts OAK CNDEL5     # Browse on Reference Tool
-.venv/Scripts/zoa list OAK              # List airport charts
-.venv/Scripts/zoa list OAK DP           # List departure procedures (aliases: SID)
-.venv/Scripts/zoa list OAK STAR         # List arrivals (also: IAP/APP, APD/TAXI)
+zoa OAK CNDEL5                          # Implicit chart lookup (opens PDF)
+zoa chart OAK ILS 28R                   # Explicit chart lookup
+zoa chart OAK ILS 28R -r                # Rotate 90°
+zoa charts OAK CNDEL5                   # Browse on Reference Tool
+zoa list OAK                            # List airport charts
+zoa list OAK DP                         # List departure procedures (aliases: SID)
+zoa list OAK STAR                       # List arrivals (also: IAP/APP, APD/TAXI)
 
 # Routes, ATIS, ICAO, Navaids, Positions
-.venv/Scripts/zoa route SFO LAX         # Route lookup
-.venv/Scripts/zoa atis SFO              # Single airport ATIS
-.venv/Scripts/zoa atis --all            # All airports ATIS
-.venv/Scripts/zoa airline UAL           # Airline code lookup
-.venv/Scripts/zoa airport KSFO          # Airport code lookup
-.venv/Scripts/zoa aircraft B738         # Aircraft type lookup
-.venv/Scripts/zoa navaid FMG            # Navaid lookup by identifier
-.venv/Scripts/zoa navaid MUSTANG        # Navaid lookup by name
-.venv/Scripts/zoa position NCT          # ATC position lookup
-.venv/Scripts/zoa scratchpad OAK        # Scratchpad codes lookup
+zoa route SFO LAX                       # Route lookup
+zoa atis SFO                            # Single airport ATIS
+zoa atis --all                          # All airports ATIS
+zoa airline UAL                         # Airline code lookup
+zoa airport KSFO                        # Airport code lookup
+zoa aircraft B738                       # Aircraft type lookup
+zoa navaid FMG                          # Navaid lookup by identifier
+zoa navaid MUSTANG                      # Navaid lookup by name
+zoa position NCT                        # ATC position lookup
+zoa scratchpad OAK                      # Scratchpad codes lookup
 
 # Approaches and Tools
-.venv/Scripts/zoa approaches RNO SCOLA1 # Find approaches for STAR
-.venv/Scripts/zoa apps RNO KLOCK        # Find approaches via fix
-.venv/Scripts/zoa descent 100 020       # Descent calc: 10,000 to 2,000
-.venv/Scripts/zoa des 100 12.5          # Altitude at 12.5nm from FL100
+zoa approaches RNO SCOLA1               # Find approaches for STAR
+zoa apps RNO KLOCK                      # Find approaches via fix
+zoa descent 100 020                     # Descent calc: 10,000 to 2,000
+zoa des 100 12.5                        # Altitude at 12.5nm from FL100
 
 # External Tools
-.venv/Scripts/zoa vis                   # Open airspace visualizer
-.venv/Scripts/zoa tdls RNO              # Open TDLS for facility
-.venv/Scripts/zoa strips NCT            # Open flight strips
+zoa vis                                 # Open airspace visualizer
+zoa tdls RNO                            # Open TDLS for facility
+zoa strips NCT                          # Open flight strips
 
 # SOPs/Procedures
-.venv/Scripts/zoa sop OAK               # Open OAK SOP
-.venv/Scripts/zoa sop OAK 2-2           # Jump to section 2-2
-.venv/Scripts/zoa sop --list            # List all procedures
+zoa sop OAK                             # Open OAK SOP
+zoa sop OAK 2-2                         # Jump to section 2-2
+zoa sop --list                          # List all procedures
 
 # Interactive mode
-.venv/Scripts/zoa                       # Default: system browser
-.venv/Scripts/zoa --playwright          # Managed browser with tab reuse
+zoa                                     # Default: system browser
+zoa --playwright                        # Managed browser with tab reuse
 ```
 
 ## Architecture
@@ -82,6 +83,8 @@ Modules in `src/zoa_ref/`:
 - **config.py**: Centralized constants (cache dir, TTL, base URLs, external tool URLs)
 
 ## Key Patterns
+
+- **Checkout install**: `install.py` installs a snapshot via `uv tool install` outside the repo (the daily cleanup deletes `.venv`); `run.py` reinstalls only when `src/` or `pyproject.toml` changed. Both are stdlib-only and never import `zoa_ref`
 
 - **CLI/Interactive parity**: All command logic lives in `commands.py`. When adding or modifying commands, update the shared `do_*` function—not the CLI or interactive handler directly
 - Chart names normalized: digits → words ("5" → "FIVE"), fuzzy matching

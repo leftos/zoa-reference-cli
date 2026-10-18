@@ -20,6 +20,7 @@ A Python CLI (`zoa`) for quick lookups against ZOA's Reference Tool (charts, rou
 | Change interactive tab completion | `src/zoa_ref/autocomplete.py` (`ZoaCompleter`) → `src/zoa_ref/completers.py` | none |
 | Change constants, URLs or cache paths | `src/zoa_ref/config.py` | `CLAUDE.md` (Data Sources) |
 | Change the standalone build or release | `build_exe.py` → `.github/workflows/release.yml` → `src/zoa_ref/playwright_bootstrap.py` | none |
+| Change the checkout install or `run.py` | `install.py` (`ensure_installed`, `choose_bin_dir`, `offer_aliases`) → `run.py` → `tests/test_install.py` | [`../README.md`](../README.md) (From a checkout) |
 
 ## Layers
 
@@ -29,7 +30,7 @@ Modules are flat in `src/zoa_ref/`; the import graph below was read from the `fr
 - **Shared commands and output** (`commands.py`, `display.py`): `commands.py` owns the `do_*` implementations for both front ends and imports nearly every feature module. `display.py` formats every result type and imports the feature modules for their types only.
 - **CLI support** (`cli_utils.py`, `input.py`, `autocomplete.py`, `completers.py`): help text (`COMMAND_HELP`), `InteractiveContext`, browser preference, prompt session and history, tab completion. `autocomplete.py` and `completers.py` reach into `commands.py`, `charts.py`, `procedures.py`, `navaids.py`, `atis.py` and `cache.py`.
 - **Feature modules** (`charts.py`, `procedures.py`, `routes.py`, `atis.py`, `metar.py`, `icao.py`, `positions.py`, `scratchpads.py`, `frequency.py`, `descent.py`, `distance.py`, `mea.py`, `approaches.py`, `airways.py`, `fuzzy.py`): one lookup each. `charts.py` uses the charts API and `pypdf`; `procedures.py` extracts SOP PDF text. `approaches.py` reads both `charts.py` and `cifp.py`; `charts.py` in turn imports `approaches.py`, `cifp.py`, `fuzzy.py` and `navaids.py`.
-- **Browser** (`browser.py`, `playwright_bootstrap.py`, `hotkey.py`): `BrowserSession` wraps Playwright's sync API; `playwright_bootstrap.py` installs Chromium on first run of a frozen build into `~/.zoa-ref/browsers`; `hotkey.py` is Windows-only (ctypes) global-hotkey focus management.
+- **Browser** (`browser.py`, `playwright_bootstrap.py`, `hotkey.py`): `BrowserSession` wraps Playwright's sync API; `playwright_bootstrap.py`, called from `cli.py`'s `main` on every launch, points Playwright at `~/.zoa-ref/browsers` and downloads Chromium there on first run; `hotkey.py` is Windows-only (ctypes) global-hotkey focus management.
 - **Data** (`cifp.py`, `nasr.py`, `navaids.py`, `waypoints.py`): `cifp.py` downloads and parses FAA CIFP; `nasr.py` downloads and parses NASR (navaids, airways); `navaids.py` re-exports navaid functions from `nasr.py` and adds aliasing; `waypoints.py` builds coordinate lookups from CIFP and navaids. `cifp.py` imports `cache.py` and `navaids.py`; `nasr.py` imports `cache.py`.
 - **Foundation** (`cache.py`, `config.py`): `config.py` holds constants (cache dir, TTL, base URLs) and imports nothing from the package. `cache.py` imports only `config.py` and owns AIRAC math (`AIRAC_EPOCH`, `get_current_airac_cycle`) and the per-cycle caches.
 
@@ -44,6 +45,7 @@ Stated rule (`CLAUDE.md`): both the CLI and interactive mode use the shared `do_
 - **AIRAC cycle drives every download cache.** `nasr.py` and `cifp.py` key their downloads on `get_current_airac_cycle()` from `cache.py`; `tests/test_airac.py` pins the cycle computation (UTC date).
 - **Opened PDFs go through a stable link.** `commands.py` writes each processed chart or SOP PDF to `processed/<AIRAC>/` and opens it through `processed/current/<name>.pdf` (`link_stable_pdf` in `cache.py`, called via `_stable_path`), so its `file://` URL and browser history survive a cycle change. A new open path that skips `_stable_path` gets a URL that changes every cycle.
 - **Import cycle between `cli.py` and `interactive.py`.** Handlers in `interactive.py` import `main` from `cli.py` lazily inside each function, because `cli.py` imports `interactive_mode` at module level; a module-level import back would be circular.
+- **`install.py` runs before any dependency exists.** It and `run.py` use the standard library only and never import `zoa_ref`; the install stamp lives in `~/.zoa-ref/install-stamp.json` and hashes `src/` and `pyproject.toml`, so a new input to the build (a file outside `src/`) also needs adding to `source_hash`.
 - **Cross-repo parity.** The CIFP parser was aligned to YAAT's parser (`docs/plans/cifp-parser-drift-from-yaat.md`); a decoder fix in one repo may need the same in the other.
 
 ## Test locations
@@ -58,6 +60,7 @@ Stated rule (`CLAUDE.md`): both the CLI and interactive mode use the shared `do_
 - `tests/test_bearing.py`, `tests/test_bearing_cli.py`: bearing and distance calculation and the `bearing` / `distance` commands through `CliRunner` on `zoa_ref.cli.main`.
 - `tests/test_charts_chart_code.py`: chart-code normalisation in `charts.py`.
 - `tests/test_metar_display.py`: METAR output formatting.
+- `tests/test_install.py`: the root `install.py` (bin dir choice, source hash and install stamp, alias block upsert, the `uv tool install` call), loaded by file path since it is not in the package.
 - Untested: the browser, interactive loop, hotkey, routes, procedures and ICAO modules have no tests.
 
 ## Deep docs

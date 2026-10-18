@@ -3,6 +3,10 @@
 Index of active and pending work. One checkbox per task; link to subplans for detail.
 Fresh agents: start here, work top-down (current focus → next up → backlog).
 
+## Current focus
+
+- [x] **Install outside the repo and add `run.py`.** `install.py` installs a snapshot with `uv tool install` into a PATH bin dir (alias offered when none fits); `run.py` reinstalls when `src/` changes, then runs `zoa`. Drops the repo-root `zoa` / `zoa.cmd` launchers, which the daily `.venv` cleanup broke.
+
 ## Next up
 
 - [ ] **Source STARs for `approaches`/`apps` from CIFP instead of the charts-API `chart_code`.**

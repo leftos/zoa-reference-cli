@@ -10,15 +10,25 @@ Requires [uv](https://docs.astral.sh/uv/getting-started/installation/) to manage
 
 ```bash
 uv tool install git+https://github.com/leftos/zoa-reference-cli.git
-uvx --from zoa-reference-cli playwright install
 ```
 
-This will install project dependencies and install the Playwright Chromium browser.
+The first run downloads the Chromium browser it needs into `~/.zoa-ref/browsers`.
 
 ### Upgrading
 ```bash
 uv tool upgrade zoa-reference-cli
 ```
+
+### From a checkout
+
+```bash
+python install.py         # install the current source as `zoa`
+python run.py OAK CNDEL5  # reinstall if the source changed, then run zoa with these arguments
+```
+
+`install.py` installs a snapshot of the checkout with `uv tool install` (installing uv first if needed), outside the repo, so deleting the repo's `.venv` or build folders leaves `zoa` working. It puts `zoa` in the first of uv's tool bin dir, `~/.local/bin` or `~/bin` that is on your PATH; if none is, it offers to add a `zoa` alias to your PowerShell profile and `~/.bashrc`.
+
+`run.py` keeps a hash of `src/` and `pyproject.toml` in `~/.zoa-ref/install-stamp.json` and reinstalls only when it changes, so unchanged runs start at once.
 
 ## Usage
 

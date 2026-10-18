@@ -1,7 +1,0 @@
-#!/bin/bash
-SCRIPT_DIR="$(dirname "$0")"
-if [[ -f "$SCRIPT_DIR/.venv/bin/zoa" ]]; then
-    "$SCRIPT_DIR/.venv/bin/zoa" "$@"
-else
-    "$SCRIPT_DIR/.venv/Scripts/zoa" "$@"
-fi
