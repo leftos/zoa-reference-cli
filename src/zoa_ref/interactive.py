@@ -1,5 +1,7 @@
 """Interactive mode handlers and main loop."""
 
+import sys
+import time
 import webbrowser
 
 import click
@@ -566,6 +568,98 @@ INTERACTIVE_COMMANDS: dict[str, tuple] = {
 }
 
 
+class StartupStep:
+    """Prints one startup progress line: the label, then the outcome and time taken.
+
+    The label prints on entry and the outcome on exit, so a slow step shows
+    what it is waiting on. The body may set ``outcome`` to replace "done";
+    an exception prints "failed" and propagates.
+    """
+
+    def __init__(self, label: str):
+        self.label = label
+        self.outcome = "done"
+        self._start = 0.0
+
+    def __enter__(self) -> "StartupStep":
+        click.echo(f"  {self.label}... ", nl=False)
+        self._start = time.perf_counter()
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> bool:
+        elapsed = time.perf_counter() - self._start
+        if exc_type is not None:
+            self.outcome = "failed"
+        click.echo(f"{self.outcome} ({elapsed:.1f}s)")
+        return False
+
+
+def _restore_saved_hotkey(ctx: InteractiveContext) -> None:
+    """Re-register the saved global hotkey, if any (Windows only)."""
+    if sys.platform != "win32":
+        return
+
+    from .hotkey import HotkeyManager, format_hotkey, load_hotkey_preference
+
+    saved = load_hotkey_preference()
+    if not saved:
+        return
+
+    modifiers, vk_code = saved
+    with StartupStep(f"Restoring hotkey {format_hotkey(modifiers, vk_code)}") as step:
+        manager = HotkeyManager()
+        if manager.register(modifiers, vk_code):
+            ctx.hotkey_manager = manager
+        else:
+            step.outcome = "could not register"
+
+
+def _start_interactive(use_playwright: bool):
+    """Load everything interactive mode needs, printing a progress line per step.
+
+    Returns:
+        The interactive context and the prompt session.
+    """
+    click.echo("Starting up...")
+
+    with StartupStep("Prefetching chart lists") as step:
+        chart_cache = ChartListCache()
+        chart_cache.prefetch_airports()  # Uses major airports + user's top 10
+        step.outcome = "running in background"
+
+    with StartupStep("Launching headless browser"):
+        headless_session = BrowserSession(headless=True)
+        headless_session.start()
+
+    with StartupStep("Loading ICAO codes page") as step:
+        codes_page = CodesPage(headless_session)
+        if not codes_page.ensure_ready():
+            step.outcome = "unavailable, will retry on first lookup"
+
+    visible_session = None
+    if use_playwright:
+        with StartupStep("Launching visible browser"):
+            visible_session = headless_session.create_child_session(headless=False)
+
+    ctx = InteractiveContext(
+        headless_session=headless_session,
+        codes_page=codes_page,
+        use_playwright=use_playwright,
+        visible_session=visible_session,
+    )
+
+    _restore_saved_hotkey(ctx)
+
+    with StartupStep("Loading command history"):
+        # Shared history for both auto-suggest and the completion menu
+        HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+        history = NoDuplicatesFileHistory(str(HISTORY_FILE))
+        completer = ZoaCompleter(chart_cache=chart_cache, history=history)
+        prompt_session = create_prompt_session(completer=completer, history=history)
+
+    return ctx, prompt_session
+
+
 def interactive_mode(use_playwright: bool = False):
     """Run in interactive mode for continuous lookups.
 
@@ -579,55 +673,16 @@ def interactive_mode(use_playwright: bool = False):
     click.echo("ZOA Reference CLI - Interactive Mode")
     if use_playwright:
         click.echo("(Using Playwright browser with tab management)")
+
+    startup_start = time.perf_counter()
+    ctx, prompt_session = _start_interactive(use_playwright)
+    click.echo(f"Ready in {time.perf_counter() - startup_start:.1f}s")
+    click.echo()
+
     click.echo("=" * 50)
     print_interactive_help()
     click.echo("=" * 50)
     click.echo()
-
-    # Initialize chart list cache and start background prefetch
-    chart_cache = ChartListCache()
-    chart_cache.prefetch_airports()  # Uses major airports + user's top 10
-
-    # Initialize browser sessions and context
-    headless_session = BrowserSession(headless=True)
-    headless_session.start()
-    codes_page = CodesPage(headless_session)
-    codes_page.ensure_ready()  # Pre-navigate so first lookup is fast
-
-    # Create context with optional visible session for playwright mode
-    ctx = InteractiveContext(
-        headless_session=headless_session,
-        codes_page=codes_page,
-        use_playwright=use_playwright,
-        visible_session=(
-            headless_session.create_child_session(headless=False)
-            if use_playwright
-            else None
-        ),
-    )
-
-    # Restore saved global hotkey if any (Windows only)
-    import sys
-
-    if sys.platform == "win32":
-        from .hotkey import load_hotkey_preference, format_hotkey, HotkeyManager
-
-        saved = load_hotkey_preference()
-        if saved:
-            modifiers, vk_code = saved
-            manager = HotkeyManager()
-            if manager.register(modifiers, vk_code):
-                ctx.hotkey_manager = manager
-                click.echo(f"Hotkey restored: {format_hotkey(modifiers, vk_code)}")
-                click.echo()
-
-    # Create shared history for both auto-suggest and completion menu
-    HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
-    history = NoDuplicatesFileHistory(str(HISTORY_FILE))
-
-    # Create prompt session with history and autocomplete
-    completer = ZoaCompleter(chart_cache=chart_cache, history=history)
-    prompt_session = create_prompt_session(completer=completer, history=history)
 
     ctrl_c_exit = False
     try:
@@ -727,7 +782,6 @@ def interactive_mode(use_playwright: bool = False):
 
         # Suppress asyncio "Task exception was never retrieved" on Ctrl+C exit
         if ctrl_c_exit:
-            import sys
             import os
 
             sys.stderr = open(os.devnull, "w")
