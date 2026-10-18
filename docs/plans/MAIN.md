@@ -7,6 +7,8 @@ Fresh agents: start here, work top-down (current focus → next up → backlog).
 
 - [x] **Install outside the repo and add `run.py`.** `install.py` installs a snapshot with `uv tool install` into a PATH bin dir (alias offered when none fits); `run.py` reinstalls when `src/` changes, then runs `zoa`. Drops the repo-root `zoa` / `zoa.cmd` launchers, which the daily `.venv` cleanup broke.
 
+- [x] **Pin the checkout install to `uv.lock`.** `uv tool install` ignores the lock; `install.py` exports it and passes `--constraints`, and the source hash covers `uv.lock` so a lock bump reinstalls.
+
 ## Next up
 
 - [ ] **Source STARs for `approaches`/`apps` from CIFP instead of the charts-API `chart_code`.**

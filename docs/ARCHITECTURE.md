@@ -45,7 +45,7 @@ Stated rule (`CLAUDE.md`): both the CLI and interactive mode use the shared `do_
 - **AIRAC cycle drives every download cache.** `nasr.py` and `cifp.py` key their downloads on `get_current_airac_cycle()` from `cache.py`; `tests/test_airac.py` pins the cycle computation (UTC date).
 - **Opened PDFs go through a stable link.** `commands.py` writes each processed chart or SOP PDF to `processed/<AIRAC>/` and opens it through `processed/current/<name>.pdf` (`link_stable_pdf` in `cache.py`, called via `_stable_path`), so its `file://` URL and browser history survive a cycle change. A new open path that skips `_stable_path` gets a URL that changes every cycle.
 - **Import cycle between `cli.py` and `interactive.py`.** Handlers in `interactive.py` import `main` from `cli.py` lazily inside each function, because `cli.py` imports `interactive_mode` at module level; a module-level import back would be circular.
-- **`install.py` runs before any dependency exists.** It and `run.py` use the standard library only and never import `zoa_ref`; the install stamp lives in `~/.zoa-ref/install-stamp.json` and hashes `src/` and `pyproject.toml`, so a new input to the build (a file outside `src/`) also needs adding to `source_hash`.
+- **`install.py` runs before any dependency exists.** It and `run.py` use the standard library only and never import `zoa_ref`; the install stamp lives in `~/.zoa-ref/install-stamp.json` and hashes `src/`, `pyproject.toml` and `uv.lock`, so a new input to the build (a file outside `src/`) also needs adding to `source_hash`. `uv tool install` ignores `uv.lock`, so `install.py` exports it to `~/.zoa-ref/install-constraints.txt` and passes that as `--constraints`; without it the installed `zoa` runs newer dependencies than the tests.
 - **Cross-repo parity.** The CIFP parser was aligned to YAAT's parser (`docs/plans/cifp-parser-drift-from-yaat.md`); a decoder fix in one repo may need the same in the other.
 
 ## Test locations
@@ -60,7 +60,7 @@ Stated rule (`CLAUDE.md`): both the CLI and interactive mode use the shared `do_
 - `tests/test_bearing.py`, `tests/test_bearing_cli.py`: bearing and distance calculation and the `bearing` / `distance` commands through `CliRunner` on `zoa_ref.cli.main`.
 - `tests/test_charts_chart_code.py`: chart-code normalisation in `charts.py`.
 - `tests/test_metar_display.py`: METAR output formatting.
-- `tests/test_install.py`: the root `install.py` (bin dir choice, source hash and install stamp, alias block upsert, the `uv tool install` call), loaded by file path since it is not in the package.
+- `tests/test_install.py`: the root `install.py` (bin dir choice, source hash and install stamp, alias block upsert, the lock export and the `uv tool install` call), loaded by file path since it is not in the package.
 - Untested: the browser, interactive loop, hotkey, routes, procedures and ICAO modules have no tests.
 
 ## Deep docs

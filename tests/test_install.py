@@ -43,20 +43,30 @@ def fake_repo(tmp_path: Path) -> Path:
 def install_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """Wire ensure_installed to a fake install that writes its exe into tmp."""
     bin_dir = tmp_path / "bin"
-    calls: list[tuple[list[str], Path, Path]] = []
+    calls: list[tuple[list[str], Path, Path, Path]] = []
+    exports: list[Path] = []
 
-    def fake_install_tool(uv: list[str], repo: Path, target: Path) -> Path:
-        calls.append((uv, repo, target))
+    def fake_install_tool(
+        uv: list[str], repo: Path, target: Path, constraints: Path
+    ) -> Path:
+        calls.append((uv, repo, target, constraints))
         target.mkdir(parents=True, exist_ok=True)
         exe = target / install.exe_name()
         exe.write_text("", newline="\n")
         return exe
 
+    def fake_export_constraints(uv: list[str], repo: Path, dest: Path) -> Path:
+        exports.append(dest)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text("click==8.4.0\n", newline="\n")
+        return dest
+
     monkeypatch.setattr(install, "ensure_uv", lambda: ["uv"])
     monkeypatch.setattr(install, "uv_default_bin_dir", lambda uv: bin_dir)
     monkeypatch.setattr(install, "path_dirs_from_env", lambda: [bin_dir])
     monkeypatch.setattr(install, "install_tool", fake_install_tool)
-    return bin_dir, calls
+    monkeypatch.setattr(install, "export_constraints", fake_export_constraints)
+    return bin_dir, calls, exports
 
 
 # choose_bin_dir
@@ -142,6 +152,19 @@ def test_source_hash_ignores_egg_info(fake_repo: Path) -> None:
     assert install.source_hash(fake_repo) == before
 
 
+def test_source_hash_changes_on_lock_edit(fake_repo: Path) -> None:
+    lock = fake_repo / "uv.lock"
+    lock.write_text("version = 1\n", newline="\n")
+    before = install.source_hash(fake_repo)
+    lock.write_text("version = 2\n", newline="\n")
+    assert install.source_hash(fake_repo) != before
+
+
+def test_source_hash_without_lock_is_stable(fake_repo: Path) -> None:
+    assert not (fake_repo / "uv.lock").exists()
+    assert install.source_hash(fake_repo) == install.source_hash(fake_repo)
+
+
 # upsert_block
 
 
@@ -215,6 +238,7 @@ def test_ensure_installed_skips_when_stamp_matches(
 
     monkeypatch.setattr(install, "install_tool", boom)
     monkeypatch.setattr(install, "ensure_uv", boom)
+    monkeypatch.setattr(install, "export_constraints", boom)
 
     assert install.ensure_installed(fake_repo, force=False, stamp_path=stamp) == exe
 
@@ -222,7 +246,7 @@ def test_ensure_installed_skips_when_stamp_matches(
 def test_ensure_installed_reinstalls_on_hash_mismatch(
     fake_repo: Path, tmp_path: Path, install_env
 ) -> None:
-    bin_dir, calls = install_env
+    bin_dir, calls, _exports = install_env
     stale_exe = tmp_path / "old" / install.exe_name()
     stale_exe.parent.mkdir()
     stale_exe.write_text("", newline="\n")
@@ -244,7 +268,7 @@ def test_ensure_installed_reinstalls_on_hash_mismatch(
 def test_ensure_installed_reinstalls_when_exe_missing(
     fake_repo: Path, tmp_path: Path, install_env
 ) -> None:
-    _bin_dir, calls = install_env
+    _bin_dir, calls, _exports = install_env
     missing_exe = tmp_path / "gone" / install.exe_name()
     stamp = tmp_path / "stamp.json"
     stamp.write_text(
@@ -262,7 +286,7 @@ def test_ensure_installed_reinstalls_when_exe_missing(
 def test_ensure_installed_force_reinstalls(
     fake_repo: Path, tmp_path: Path, install_env
 ) -> None:
-    _bin_dir, calls = install_env
+    _bin_dir, calls, _exports = install_env
     exe = tmp_path / "bin" / install.exe_name()
     exe.parent.mkdir()
     exe.write_text("", newline="\n")
@@ -293,6 +317,70 @@ def test_ensure_installed_offers_alias_when_not_on_path(
     assert offered == [exe]
 
 
+def test_ensure_installed_passes_exported_constraints(
+    fake_repo: Path, tmp_path: Path, install_env
+) -> None:
+    _bin_dir, calls, exports = install_env
+    stamp = tmp_path / "stamp.json"
+
+    install.ensure_installed(fake_repo, force=True, stamp_path=stamp)
+
+    expected = install.constraints_path(stamp)
+    assert exports == [expected]
+    assert expected == tmp_path / "install-constraints.txt"
+    assert calls[0][3] == expected
+
+
+# export_constraints
+
+
+def test_export_constraints_runs_frozen_export(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = tmp_path / "repo"
+    dest = tmp_path / "nested" / "install-constraints.txt"
+    captured: dict = {}
+
+    def fake_run(cmd, *args, **kwargs):
+        captured["cmd"] = cmd
+        return subprocess.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(install.subprocess, "run", fake_run)
+
+    assert install.export_constraints(["uv"], repo, dest) == dest
+
+    cmd = captured["cmd"]
+    assert cmd[:2] == ["uv", "export"]
+    for flag in (
+        "--frozen",
+        "--no-dev",
+        "--no-hashes",
+        "--no-emit-project",
+    ):
+        assert flag in cmd
+    assert cmd[cmd.index("--project") + 1] == str(repo)
+    assert cmd[cmd.index("-o") + 1] == str(dest)
+    assert dest.parent.is_dir()
+
+
+def test_export_constraints_raises_on_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_run(cmd, *args, **kwargs):
+        return subprocess.CompletedProcess(
+            args=cmd, returncode=2, stdout="", stderr="error: boom\n"
+        )
+
+    monkeypatch.setattr(install.subprocess, "run", fake_run)
+
+    with pytest.raises(install.InstallError) as excinfo:
+        install.export_constraints(["uv"], tmp_path / "repo", tmp_path / "c.txt")
+
+    message = str(excinfo.value)
+    assert "boom" in message
+    assert "uv lock" in message
+
+
 # install_tool
 
 
@@ -305,7 +393,9 @@ def test_install_tool_raises_on_uv_failure(
     monkeypatch.setattr(install.subprocess, "run", fake_run)
 
     with pytest.raises(install.InstallError) as excinfo:
-        install.install_tool(["uv"], tmp_path, tmp_path / "bin")
+        install.install_tool(
+            ["uv"], tmp_path, tmp_path / "bin", tmp_path / "constraints.txt"
+        )
 
     message = str(excinfo.value)
     assert "2" in message
@@ -327,16 +417,20 @@ def test_install_tool_sets_uv_tool_bin_dir_and_no_force(
         return subprocess.CompletedProcess(args=cmd, returncode=0)
 
     monkeypatch.setattr(install.subprocess, "run", fake_run)
+    constraints = tmp_path / "install-constraints.txt"
 
-    exe = install.install_tool(["uv"], tmp_path / "repo", bin_dir)
+    exe = install.install_tool(["uv"], tmp_path / "repo", bin_dir, constraints)
 
     assert captured["cmd"] == [
         "uv",
         "tool",
         "install",
         "--reinstall",
+        "--constraints",
+        str(constraints),
         str(tmp_path / "repo"),
     ]
+    assert captured["cmd"][captured["cmd"].index("--constraints") + 1] == str(constraints)
     assert "--force" not in captured["cmd"]
     assert captured["env"]["UV_TOOL_BIN_DIR"] == str(bin_dir)
     assert exe == bin_dir / install.exe_name()

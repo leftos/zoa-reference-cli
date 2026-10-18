@@ -84,7 +84,7 @@ Modules in `src/zoa_ref/`:
 
 ## Key Patterns
 
-- **Checkout install**: `install.py` installs a snapshot via `uv tool install` outside the repo (the daily cleanup deletes `.venv`); `run.py` reinstalls only when `src/` or `pyproject.toml` changed. Both are stdlib-only and never import `zoa_ref`
+- **Checkout install**: `install.py` installs a snapshot via `uv tool install --constraints` (exported from `uv.lock`) outside the repo (the daily cleanup deletes `.venv`); `run.py` reinstalls only when `src/`, `pyproject.toml` or `uv.lock` changed. Both are stdlib-only and never import `zoa_ref`
 
 - **CLI/Interactive parity**: All command logic lives in `commands.py`. When adding or modifying commands, update the shared `do_*` function—not the CLI or interactive handler directly
 - Chart names normalized: digits → words ("5" → "FIVE"), fuzzy matching

@@ -3,9 +3,11 @@
 Installation script for the ZOA Reference CLI.
 
 Installs a snapshot of the app outside this repository with ``uv tool
-install`` into a user bin directory that is already on PATH. An install stamp
-records the source hash and the installed executable, so later runs only
-reinstall when the source has actually changed.
+install`` into a user bin directory that is already on PATH. The install
+follows ``uv.lock``: the lock is exported to a constraints file and passed to
+``uv tool install``, so the installed tool gets the same versions the tests
+run against. An install stamp records the source hash and the installed
+executable, so later runs only reinstall when the source has actually changed.
 
 The script uses only the standard library: it must run on a bare system
 Python 3.10+ before any project dependency exists, and never imports the
@@ -259,12 +261,13 @@ def _is_build_output(relative: Path) -> bool:
 
 
 def source_hash(repo: Path) -> str:
-    """Return a SHA-256 hash over ``pyproject.toml`` and every file under ``src``.
+    """Return a SHA-256 hash over the install inputs.
 
-    Files are visited in sorted order of their relative POSIX path, feeding the
-    relative path followed by the file bytes. Build output is skipped:
-    ``__pycache__`` and ``*.egg-info`` contents (setuptools writes the latter into
-    ``src`` on every build) and ``*.pyc`` files.
+    The inputs are ``pyproject.toml``, ``uv.lock`` when it exists, and every
+    file under ``src``. Files are visited in sorted order of their relative
+    POSIX path, feeding the relative path followed by the file bytes. Build
+    output is skipped: ``__pycache__`` and ``*.egg-info`` contents (setuptools
+    writes the latter into ``src`` on every build) and ``*.pyc`` files.
 
     Args:
         repo: The repository root.
@@ -273,6 +276,9 @@ def source_hash(repo: Path) -> str:
         The lowercase hexadecimal digest.
     """
     files = [repo / "pyproject.toml"]
+    lock = repo / "uv.lock"
+    if lock.is_file():
+        files.append(lock)
     src = repo / "src"
     if src.is_dir():
         for path in src.rglob("*"):
@@ -312,13 +318,61 @@ def write_stamp(path: Path, source_hash: str, exe: Path) -> None:
         handle.write(json.dumps(payload, indent=2) + "\n")
 
 
-def install_tool(uv: list[str], repo: Path, bin_dir: Path) -> Path:
+def constraints_path(stamp_path: Path) -> Path:
+    """Return the constraints file written beside the install stamp."""
+    return stamp_path.parent / "install-constraints.txt"
+
+
+def export_constraints(uv: list[str], repo: Path, dest: Path) -> Path:
+    """Export the locked requirements of ``repo`` to ``dest`` as constraints.
+
+    Runs a frozen ``uv export``, so the file holds exactly the versions pinned
+    in ``uv.lock``.
+
+    Args:
+        uv: The uv command.
+        repo: The repository root whose lock to export.
+        dest: The constraints file to write.
+
+    Returns:
+        ``dest``.
+
+    Raises:
+        InstallError: If ``uv export`` fails.
+    """
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        *uv,
+        "export",
+        "--project",
+        str(repo),
+        "--frozen",
+        "--no-dev",
+        "--no-hashes",
+        "--no-emit-project",
+        "-o",
+        str(dest),
+    ]
+    print_info(f"Running: {' '.join(cmd)}")
+
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise InstallError(
+            f"`uv export` failed with exit code {result.returncode}: "
+            f"{result.stderr.strip()}\n"
+            "uv.lock must exist and be current; run `uv lock` in the repo."
+        )
+    return dest
+
+
+def install_tool(uv: list[str], repo: Path, bin_dir: Path, constraints: Path) -> Path:
     """Install the project as a uv tool into ``bin_dir`` and return its executable.
 
     Args:
         uv: The uv command.
         repo: The repository root to install from.
         bin_dir: The tool bin directory uv should install into.
+        constraints: The constraints file pinning dependency versions.
 
     Returns:
         The path to the installed executable.
@@ -328,7 +382,15 @@ def install_tool(uv: list[str], repo: Path, bin_dir: Path) -> Path:
     """
     env = dict(os.environ)
     env["UV_TOOL_BIN_DIR"] = str(bin_dir)
-    cmd = [*uv, "tool", "install", "--reinstall", str(repo)]
+    cmd = [
+        *uv,
+        "tool",
+        "install",
+        "--reinstall",
+        "--constraints",
+        str(constraints),
+        str(repo),
+    ]
     print_info(f"Running: {' '.join(cmd)}")
 
     result = subprocess.run(cmd, env=env)
@@ -373,10 +435,11 @@ def ensure_installed(
                 return Path(stamped)
 
     uv = ensure_uv()
+    constraints = export_constraints(uv, repo, constraints_path(stamp_path))
     bin_dir, on_path = choose_bin_dir(
         uv_default_bin_dir(uv), Path.home(), path_dirs_from_env()
     )
-    exe = install_tool(uv, repo, bin_dir)
+    exe = install_tool(uv, repo, bin_dir, constraints)
     write_stamp(stamp_path, current_hash, exe)
     if not on_path:
         offer_aliases(exe)
