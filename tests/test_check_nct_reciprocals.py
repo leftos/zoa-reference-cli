@@ -350,6 +350,19 @@ def test_two_receivers_aggregates_across_flow_sets() -> None:
     )
 
 
+def test_two_receivers_lines_keep_pairs_apart_by_qualifier() -> None:
+    rows = [
+        _row("e1", "exit", to="Toga", qualifiers=["HWD only"], dest_or_route=["X"]),
+        _row("n1", "entry", to="Licke", qualifiers=["HWD only"], dest_or_route=["X"]),
+        _row("e2", "exit", to="Toga", qualifiers=["OAK only"], dest_or_route=["X"]),
+        _row("n2", "entry", to="Licke", qualifiers=["OAK only"], dest_or_route=["X"]),
+    ]
+    lines = checker._two_receivers_lines(checker.find_findings({"rows": rows}))
+    assert len(lines) == 2
+    assert sum("HWD only" in line for line in lines) == 1
+    assert sum("OAK only" in line for line in lines) == 1
+
+
 def test_licke_seca_monterey_sfoe_altitude_mismatch(findings: dict[str, Any]) -> None:
     finding = _mismatch(findings, "sop-p27-t0-r2", "sop-p20-t1-r7", "altitude")
     assert finding is not None
