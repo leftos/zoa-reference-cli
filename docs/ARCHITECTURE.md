@@ -8,7 +8,7 @@ A Python CLI (`zoa`) for quick lookups against ZOA's Reference Tool (charts, rou
 |---|---|---|
 | Add or change a command | `src/zoa_ref/commands.py` (the `do_*` function) → `src/zoa_ref/cli.py` (Click command) → `src/zoa_ref/interactive.py` (`_handle_*_interactive` and the `INTERACTIVE_COMMANDS` registry) → `src/zoa_ref/cli_utils.py` (`COMMAND_HELP`, `INTERACTIVE_HELP_COMMANDS`) → `src/zoa_ref/autocomplete.py` (`INTERACTIVE_COMMANDS`) | `CLAUDE.md` (Key Patterns) |
 | Change chart lookup or name matching | `src/zoa_ref/charts.py` (`ChartQuery.parse`) → `src/zoa_ref/fuzzy.py` → `src/zoa_ref/commands.py` (`do_chart_lookup`, `do_list_charts`) → `tests/test_charts_chart_code.py` | `CLAUDE.md` |
-| Fix a CIFP (ARINC 424) parsing bug | `src/zoa_ref/cifp.py` → `tests/conftest.py` (`make_cifp_line`) → the matching `tests/test_cifp_*.py` | [`plans/cifp-parser-drift-from-yaat.md`](plans/cifp-parser-drift-from-yaat.md) |
+| Fix a CIFP (ARINC 424) parsing bug | `src/zoa_ref/cifp.py` → `tests/conftest.py` (`make_cifp_line`) → the matching `tests/test_cifp_*.py` | [`plans/archive/cifp-parser-drift-from-yaat.md`](plans/archive/cifp-parser-drift-from-yaat.md) |
 | Change the `cifp` or `uses` output | `src/zoa_ref/commands.py` (`do_cifp_lookup`, `do_uses_lookup`) → `src/zoa_ref/display.py` → `src/zoa_ref/cifp.py` | none |
 | Change navaid or airway data | `src/zoa_ref/nasr.py` → `src/zoa_ref/navaids.py` → `src/zoa_ref/airways.py` → `tests/test_nasr_awy.py` | none |
 | Change fix coordinates, `distance` or `bearing` | `src/zoa_ref/waypoints.py` → `src/zoa_ref/distance.py` → `tests/test_bearing.py`, `tests/test_bearing_cli.py` | none |
@@ -46,7 +46,7 @@ Stated rule (`CLAUDE.md`): both the CLI and interactive mode use the shared `do_
 - **Opened PDFs go through a stable link.** `commands.py` writes each processed chart or SOP PDF to `processed/<AIRAC>/` and opens it through `processed/current/<name>.pdf` (`link_stable_pdf` in `cache.py`, called via `_stable_path`), so its `file://` URL and browser history survive a cycle change. A new open path that skips `_stable_path` gets a URL that changes every cycle.
 - **Import cycle between `cli.py` and `interactive.py`.** Handlers in `interactive.py` import `main` from `cli.py` lazily inside each function, because `cli.py` imports `interactive_mode` at module level; a module-level import back would be circular.
 - **`install.py` runs before any dependency exists.** It and `run.py` use the standard library only and never import `zoa_ref`; the install stamp lives in `~/.zoa-ref/install-stamp.json` and hashes `src/`, `pyproject.toml` and `uv.lock`, so a new input to the build (a file outside `src/`) also needs adding to `source_hash`. `uv tool install` ignores `uv.lock`, so `install.py` exports it to `~/.zoa-ref/install-constraints.txt` and passes that as `--constraints`; without it the installed `zoa` runs newer dependencies than the tests.
-- **Cross-repo parity.** The CIFP parser was aligned to YAAT's parser (`docs/plans/cifp-parser-drift-from-yaat.md`); a decoder fix in one repo may need the same in the other.
+- **Cross-repo parity.** The CIFP parser was aligned to YAAT's parser (`docs/plans/archive/cifp-parser-drift-from-yaat.md`); a decoder fix in one repo may need the same in the other.
 
 ## Test locations
 
@@ -69,6 +69,6 @@ Stated rule (`CLAUDE.md`): both the CLI and interactive mode use the shared `do_
 - [`GLOSSARY.md`](GLOSSARY.md): project-specific terms.
 - [`plans/MAIN.md`](plans/MAIN.md): the plan index.
 - [`plans/nct-route-lookup.md`](plans/nct-route-lookup.md): design for the NCT entry and exit route lookup.
-- [`plans/cifp-parser-drift-from-yaat.md`](plans/cifp-parser-drift-from-yaat.md): CIFP parser parity review against YAAT, with the resolution log.
+- [`plans/archive/cifp-parser-drift-from-yaat.md`](plans/archive/cifp-parser-drift-from-yaat.md): CIFP parser parity review against YAAT, with the resolution log.
 - [`../CLAUDE.md`](../CLAUDE.md): command reference, module list, key patterns and data sources.
 - [`../README.md`](../README.md): install and usage.
