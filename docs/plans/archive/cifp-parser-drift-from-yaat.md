@@ -25,7 +25,9 @@ Both code paths sit on top of upstream `cifparse` column offsets (the spec-check
 
 ## Verdict
 
-**Meaningfully behind YAAT.** The high-level surface (SIDs, STARs, approaches, fix lookups) is present, but several field-level decoders are flat wrong — most notably an altitude column off-by-one and a `× 10` scaling bug that together corrupt every altitude restriction emitted. YAAT also covers richer leg geometry (RF arcs, fly-over, recommended navaid, rho/theta), terminal-waypoint coordinates, navaid records, procedure-turn / hold-in-lieu detection, and a sane missed-approach split — none of which Python has.
+**Meaningfully behind YAAT.** The high-level surface (SIDs, STARs, approaches, fix lookups) is present, but several field-level decoders are flat wrong — most notably an altitude column off-by-one and a `× 10` scaling bug that together corrupt every altitude restriction emitted.
+
+YAAT also covers richer leg geometry (RF arcs, fly-over, recommended navaid, rho/theta), terminal-waypoint coordinates, navaid records, procedure-turn / hold-in-lieu detection, and a sane missed-approach split — none of which Python has.
 
 For S3 TRACON training, the altitude bug is the headline problem: STAR/approach restrictions read out of `zoa-reference-cli` will not match the chart.
 
@@ -37,7 +39,9 @@ For S3 TRACON training, the altitude bug is the headline problem: STAR/approach 
 - **YAAT ref:** `CifpParser.cs:491-499, 853-874`
 - **zoa-ref-cli ref:** `cifp.py:1230-1232, 1264-1266, 1151-1197`
 
-Per `cifparse` `PrimaryIndices` (the upstream reference checked into YAAT), `alt_desc = (82, 83)`, `alt_1 = (84, 89)`, `alt_2 = (89, 94)`. YAAT matches this exactly. zoa-ref-cli uses `line[82]` (OK), `line[83:88]` (off by one), `line[88:93]` (off by one). The 83rd column in ARINC is the `atc` indicator, not the start of `alt_1`. Worse, `_parse_altitude` in `cifp.py:1194-1195` then does `val * 10`, presumably to "fix" the visibly wrong numbers — `cifparse`'s `_get_altitude_fl` returns the integer feet directly (`"01700"` → `1700`).
+Per `cifparse` `PrimaryIndices` (the upstream reference checked into YAAT), `alt_desc = (82, 83)`, `alt_1 = (84, 89)`, `alt_2 = (89, 94)`. YAAT matches this exactly. zoa-ref-cli uses `line[82]` (OK), `line[83:88]` (off by one), `line[88:93]` (off by one).
+
+The 83rd column in ARINC is the `atc` indicator, not the start of `alt_1`. Worse, `_parse_altitude` in `cifp.py:1194-1195` then does `val * 10`, presumably to "fix" the visibly wrong numbers — `cifparse`'s `_get_altitude_fl` returns the integer feet directly (`"01700"` → `1700`).
 
 **Net effect:** every non-FL altitude restriction parsed by `zoa-ref-cli` reads a shifted source field and inflates it 10×, then sometimes prints `f"FL{alt // 100}"` for `alt >= 18000`, so a 1,700 ft restriction can render as `FL170`. FAF/IF altitudes for SFO/OAK/SJC approaches are all in this range and will be garbage.
 
@@ -111,7 +115,9 @@ YAAT enumerates IF/TF/CF/DF/RF/AF/HA/HF/HM/PI/CA/FA/VA/VM/VI/CI/Other. Python ju
 - **YAAT ref:** `CifpParser.cs:466-484` (fix role from `line[42]`, turn direction from `line[43]`)
 - **zoa-ref-cli ref:** `cifp.py:1259-1260` (waypoint_desc = `line[39:43]`, turn_direction = `line[43]`)
 
-zoa-ref-cli's enhanced parser reads `waypoint_desc` as a 4-char span and then uses `waypoint_desc[0]` (col 39) — which is the route-description code, not the fix-role code. YAAT and `parse_approach_record` (in the same file, `cifp.py:461`) both correctly use col 42. So the legacy `parse_approach_record` is right, but the new `parse_procedure_leg` reads fix-role from col 39 and will misclassify IAF/IF/FAF/MAP. This is the same kind of bug as item 1 — two parsers in one file using different offsets.
+zoa-ref-cli's enhanced parser reads `waypoint_desc` as a 4-char span and then uses `waypoint_desc[0]` (col 39) — which is the route-description code, not the fix-role code. YAAT and `parse_approach_record` (in the same file, `cifp.py:461`) both correctly use col 42.
+
+So the legacy `parse_approach_record` is right, but the new `parse_procedure_leg` reads fix-role from col 39 and will misclassify IAF/IF/FAF/MAP. This is the same kind of bug as item 1 — two parsers in one file using different offsets.
 
 ### 11. Approach `routetype` and runway transitions vs feeders — NOT-A-DRIFT
 

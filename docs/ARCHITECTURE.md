@@ -1,6 +1,8 @@
 # zoa-reference-cli — architecture
 
-A Python CLI (`zoa`) for quick lookups against ZOA's Reference Tool (charts, routes, ATIS, ICAO codes, SOPs) plus FAA CIFP and NASR data (procedures, navaids, airways). One package, `src/zoa_ref/`, in four layers: entry points (`cli.py`, `interactive.py`), shared command implementations (`commands.py`, `display.py`), feature modules (charts, procedures, routes, approaches, and so on) and a data layer (`cifp.py`, `nasr.py`, `cache.py`, `config.py`). The rule that shapes it: command logic lives once in `commands.py`, and both the Click CLI and the interactive loop call it, so the two front ends stay at parity. `cache.py` and `config.py` sit at the bottom and are AIRAC-cycle aware (28-day cycles); the data modules download once per cycle and cache under `~/.zoa-ref/`.
+A Python CLI (`zoa`) for quick lookups against ZOA's Reference Tool (charts, routes, ATIS, ICAO codes, SOPs) plus FAA CIFP and NASR data (procedures, navaids, airways). One package, `src/zoa_ref/`, in four layers: entry points (`cli.py`, `interactive.py`), shared command implementations (`commands.py`, `display.py`), feature modules (charts, procedures, routes, approaches, and so on) and a data layer (`cifp.py`, `nasr.py`, `cache.py`, `config.py`).
+
+The rule that shapes it: command logic lives once in `commands.py`, and both the Click CLI and the interactive loop call it, so the two front ends stay at parity. `cache.py` and `config.py` sit at the bottom and are AIRAC-cycle aware (28-day cycles); the data modules download once per cycle and cache under `~/.zoa-ref/`.
 
 ## Task Index
 
@@ -45,7 +47,9 @@ Stated rule (`CLAUDE.md`): both the CLI and interactive mode use the shared `do_
 - **AIRAC cycle drives every download cache.** `nasr.py` and `cifp.py` key their downloads on `get_current_airac_cycle()` from `cache.py`; `tests/test_airac.py` pins the cycle computation (UTC date).
 - **Opened PDFs go through a stable link.** `commands.py` writes each processed chart or SOP PDF to `processed/<AIRAC>/` and opens it through `processed/current/<name>.pdf` (`link_stable_pdf` in `cache.py`, called via `_stable_path`), so its `file://` URL and browser history survive a cycle change. A new open path that skips `_stable_path` gets a URL that changes every cycle.
 - **Import cycle between `cli.py` and `interactive.py`.** Handlers in `interactive.py` import `main` from `cli.py` lazily inside each function, because `cli.py` imports `interactive_mode` at module level; a module-level import back would be circular.
-- **`install.py` runs before any dependency exists.** It and `run.py` use the standard library only and never import `zoa_ref`; the install stamp lives in `~/.zoa-ref/install-stamp.json` and hashes `src/`, `pyproject.toml` and `uv.lock`, so a new input to the build (a file outside `src/`) also needs adding to `source_hash`. `uv tool install` ignores `uv.lock`, so `install.py` exports it to `~/.zoa-ref/install-constraints.txt` and passes that as `--constraints`; without it the installed `zoa` runs newer dependencies than the tests.
+- **`install.py` runs before any dependency exists.** It and `run.py` use the standard library only and never import `zoa_ref`; the install stamp lives in `~/.zoa-ref/install-stamp.json` and hashes `src/`, `pyproject.toml` and `uv.lock`, so a new input to the build (a file outside `src/`) also needs adding to `source_hash`.
+
+  `uv tool install` ignores `uv.lock`, so `install.py` exports it to `~/.zoa-ref/install-constraints.txt` and passes that as `--constraints`; without it the installed `zoa` runs newer dependencies than the tests.
 - **Cross-repo parity.** The CIFP parser was aligned to YAAT's parser (`docs/plans/archive/cifp-parser-drift-from-yaat.md`); a decoder fix in one repo may need the same in the other.
 
 ## Test locations
