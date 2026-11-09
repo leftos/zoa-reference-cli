@@ -22,7 +22,9 @@ New NCT controllers struggle to find the right entry and exit route. The answer 
 - **Conflicts: show both, and check.** Where an exit row and its reciprocal entry row disagree, the lookup prints both versions with a warning. A reciprocal checker compares all such pairs and produces an errata list for the facility.
 - **Flow: a persistent setting.** A `flow` command stores the active flows and injects them into later lookups, and `--flow` overrides per call. When a flow is not set, the lookup warns and assumes SFOW, SMFS and RNOS. Every answer prints the flow it used.
 - **Flow combinations: OAKE and SJCE need SFOW.** OAK and SJC can run east only while SFO runs west, so `zoa flow` accepts OAKE and SJCE, alone or together, only beside SFOW, and refuses them beside SFOE. The SOP §1-6 plans "SFOE / SJCW" and "SFOE / OAKW" are not settable flows: OAK and SJC can't run west while SFO runs east. OAKE and SJCE are refused beside SFO10 and SFO19 too, since those are SFOE.
-- **SFO10 and SFO19: settable subsets of SFOE.** `zoa flow` can set either, one at a time, and either one implies SFOE. Where rows define an SFO10 and an SFO19 variation, or an SFO10 and an SFOE variation, an active SFO10 prefers the SFO10 row; the same holds for SFO19. Under plain SFOE, which doesn't say which runway, rows of all three kinds apply and an answer names each row's flow.
+- **Specific flows: SFO10 and SFO19 under SFOE, OAKE and SJCE under SFOW.** Each specific flow is a subset of its parent and implies it, so `zoa flow OAKE` also sets SFOW. SFO10 and SFO19 are set one at a time.
+
+  If a sector has a table for an active specific flow, that table replaces the sector's table for the parent flow. Otherwise a row tagged with the active specific flow replaces the row for its parent or for a sibling, matched on origin, destination and class, even when the two rows name different receiving sectors. Under plain SFOE, which doesn't say which runway, SFOE, SFO10 and SFO19 rows all apply and an answer names each row's flow. Under plain SFOW, OAKE and SJCE rows don't apply, since SFOW alone means OAK and SJC run west.
 - **Combined sectors: show the chain.** The answer names the SOP's receiving sector, its handoff symbol and its "combines to" chain, such as "Licke (combines to Toga, then Morgan)". Naming who is actually online waits for the VATSIM feed.
 - **No LLM answers.** A confidently wrong altitude is worse than a slow search, so every answer is a real row with its section and page.
 
@@ -49,7 +51,6 @@ One row per handoff, in a form the checker and lookup can both use:
 | `from_airports` | `LVK`, `HWD`, for a LOA departure filed by airport rather than sector |
 | `table_flows` | `SMFS`, from the table's title |
 | `flows` | `SFOW`, from the row's label or destination |
-| `not_flows` | `SJCE`, flows that hide the row when active |
 | `dest_or_route` | `SFO`, `V111`, `EMZOH` |
 | `route` | `SERFR STAR`, for a LOA arrival, which has both a destination and a route |
 | `qualifiers` | `HWD only`, conditions moved out of a label or destination |
@@ -61,7 +62,7 @@ One row per handoff, in a form the checker and lookup can both use:
 
 The draft's rows also carry `doubts`, what the extractor found suspect, for the data review. The reviewed file drops them.
 
-A row applies when all three flow conditions hold: `table_flows` is empty or names an active flow, `flows` is empty or names an active flow, and `not_flows` names no active flow. A row naming SFO10 or SFO19 also applies under plain SFOE. Among rows for the same sector, destination and class, one naming the active SFO10 or SFO19 replaces those naming only SFOE.
+A row applies when both flow conditions hold: `table_flows` is empty or names an active flow, and `flows` is empty or names an active flow. A `flow_parents` block beside the rows records which flows are subsets of which, and the Specific flows decision above says how an answer narrows the rows that apply.
 
 A cell splits into several `dest_or_route` items only when every item is a recognisable destination or route. Otherwise it stays whole with a doubt, so a condition such as "East of or on T263" is never broken into false items.
 
