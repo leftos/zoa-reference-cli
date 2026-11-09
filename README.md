@@ -132,6 +132,19 @@ zoa proc OAK                       # 'proc' is an alias for 'sop'
 
 The tool extracts PDF text and matches section headings to open documents at the correct page. Multi-step lookups let you search for text within a specific section.
 
+### NCT Handoff Lookup
+
+Look up the NCT SOP or LOA handoff row for a destination, fix, airway or complex:
+
+```bash
+zoa xfer morgan SFO J                # Morgan's exit row for jets to SFO
+zoa xfer cedar SFO --entry           # Rows into Cedar instead of out of it
+zoa xfer grove SJC J --flow SJCE     # Use the SJCE flow
+zoa xfer zoa SFO                     # The LOA's ZOA side
+```
+
+The sector is an NCT sector, or `zoa` for the LOA's ZOA side. The aircraft class is optional; without it every class prints. When no flow is given, the lookup assumes SFOW, SMFS and RNOS and says so on stderr.
+
 ### Airline Lookup
 
 Search for airlines by ICAO code, telephony, or name:
@@ -283,6 +296,7 @@ Available interactive commands:
 - `scratchpad <facility>` / `scratch <facility>` - Look up scratchpads
 - `approaches <airport> <star|fix>` / `apps` - Find approaches for STAR/fix
 - `descent <alt> <alt|nm>` / `des` - Descent calculator
+- `xfer <sector> <target> [class] [-f <flows>] [-e]` - Look up an NCT handoff row
 - `vis` - Open airspace visualizer
 - `tdls [facility]` - Open TDLS
 - `strips [facility]` - Open flight strips
@@ -317,6 +331,10 @@ Available interactive commands:
 ### Position Command
 - `--browser` - Open browser instead of CLI display
 - `--no-cache` - Bypass cache and fetch fresh data
+
+### Xfer Command
+- `-f, --flow FLOWS` - Flows to use, such as `SFOW,SMFN`
+- `-e, --entry` - Rows into the sector instead of out of it
 
 ### Scratchpad Command
 - `--list` - List available facilities

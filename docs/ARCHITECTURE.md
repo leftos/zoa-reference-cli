@@ -22,7 +22,13 @@ The rule that shapes it: command logic lives once in `commands.py`, and both the
 | Change interactive tab completion | `src/zoa_ref/autocomplete.py` (`ZoaCompleter`) → `src/zoa_ref/completers.py` | none |
 | Change constants, URLs or cache paths | `src/zoa_ref/config.py` | none |
 | Change the standalone build or release | `build_exe.py` → `.github/workflows/release.yml` → `src/zoa_ref/playwright_bootstrap.py` | none |
+| Prove an install route ships the data file | `pyproject.toml` (package data) → `build_exe.py` (`--add-data`) → run `zoa xfer morgan SFO J` from a built wheel and from the frozen exe, with `PLAYWRIGHT_BROWSERS_PATH` set so `main` doesn't download Chromium | none |
 | Change the checkout install or `run.py` | `install.py` (`ensure_installed`, `choose_bin_dir`, `offer_aliases`) → `run.py` → `tests/test_install.py` | [`../README.md`](../README.md) (From a checkout) |
+| Change how NCT handoff data is drafted from the PDFs | `tools/extract_nct_routes.py` (`capture_pdf`, then `normalize`) → `tests/test_extract_nct_routes.py` → `tests/fixtures/nct_extract/` | [`plans/nct-route-lookup.md`](plans/nct-route-lookup.md) |
+| Correct a value in the NCT data, or review a new SOP or LOA version | `tools/nct_corrections.json` → `tools/apply_nct_review.py` → `src/zoa_ref/data/nct_routes.json` → `tests/test_nct_routes_data.py` | [`plans/nct-data-rulings.md`](plans/nct-data-rulings.md) |
+| Change which NCT rows apply under a flow, or how conflicts are judged | `src/zoa_ref/nct_routes.py` → `tests/test_nct_routes.py` | [`plans/nct-route-lookup.md`](plans/nct-route-lookup.md) |
+| Change what `zoa xfer` answers or how it prints | `src/zoa_ref/nct_routes.py` (`lookup`) → `src/zoa_ref/display.py` (`format_xfer_line`, `display_xfer`) → `src/zoa_ref/commands.py` (`do_xfer_lookup`) → the five command registries → `tests/test_nct_xfer.py` | [`plans/nct-route-lookup.md`](plans/nct-route-lookup.md) |
+| Regenerate the NCT errata list | `tools/check_nct_reciprocals.py` → `tools/nct_errata_known.md` (the hand-found items) → `docs/nct-errata.md` (generated) → `tests/test_check_nct_reciprocals.py` | [`nct-errata.md`](nct-errata.md) |
 
 ## Layers
 
@@ -31,15 +37,27 @@ Modules are flat in `src/zoa_ref/`; the import graph below was read from the `fr
 - **Entry points** (`cli.py`, `interactive.py`): `cli.py` holds the Click group (`main`, with `ImplicitChartGroup` from `cli_utils.py` so `zoa OAK CNDEL5` becomes a chart lookup) and one command per feature. `interactive.py` holds the prompt loop, `_handle_*_interactive` handlers and the `INTERACTIVE_COMMANDS` prefix registry. Both delegate to `commands.py`. `interactive.py` imports `main` from `cli.py` inside each handler, and `cli.py` imports `interactive` at module level.
 - **Shared commands and output** (`commands.py`, `display.py`): `commands.py` owns the `do_*` implementations for both front ends and imports nearly every feature module. `display.py` formats every result type and imports the feature modules for their types only.
 - **CLI support** (`cli_utils.py`, `input.py`, `autocomplete.py`, `completers.py`): help text (`COMMAND_HELP`), `InteractiveContext`, browser preference, prompt session and history, tab completion. `autocomplete.py` and `completers.py` reach into `commands.py`, `charts.py`, `procedures.py`, `navaids.py`, `atis.py` and `cache.py`.
-- **Feature modules** (`charts.py`, `procedures.py`, `routes.py`, `atis.py`, `metar.py`, `icao.py`, `positions.py`, `scratchpads.py`, `frequency.py`, `descent.py`, `distance.py`, `mea.py`, `approaches.py`, `airways.py`, `fuzzy.py`): one lookup each. `charts.py` uses the charts API and `pypdf`; `procedures.py` extracts SOP PDF text. `approaches.py` reads both `charts.py` and `cifp.py`; `charts.py` in turn imports `approaches.py`, `cifp.py`, `fuzzy.py` and `navaids.py`.
+- **Feature modules** (`charts.py`, `procedures.py`, `routes.py`, `atis.py`, `metar.py`, `icao.py`, `positions.py`, `scratchpads.py`, `frequency.py`, `descent.py`, `distance.py`, `mea.py`, `approaches.py`, `airways.py`, `fuzzy.py`, `nct_routes.py`): one lookup each. `nct_routes.py` is the core over the reviewed NCT handoff data. It decides which rows apply under the active flows (`applicable_rows`, `rows_for`, `row_applies`, `VALID_FLOW_SETS`).
+
+  It also decides which rows are reciprocal or in conflict (`find_reciprocals`, `conflicts`, `conflicts_by_row`, `conflicts_in_file`), and `lookup` answers an `XferQuery` with an `XferAnswer`: the rows that match the target, with a catch-all row answering only for the classes no named row covers. `do_xfer_lookup` in `commands.py` is the one command that uses it, as `zoa xfer`; `display.py` prints the answer (`format_xfer_line`, `display_xfer`). `charts.py` uses the charts API and `pypdf`; `procedures.py` extracts SOP PDF text. `approaches.py` reads both `charts.py` and `cifp.py`; `charts.py` in turn imports `approaches.py`, `cifp.py`, `fuzzy.py` and `navaids.py`.
 - **Browser** (`browser.py`, `playwright_bootstrap.py`, `hotkey.py`): `BrowserSession` wraps Playwright's sync API; `playwright_bootstrap.py`, called from `cli.py`'s `main` on every launch, points Playwright at `~/.zoa-ref/browsers` and downloads Chromium there on first run; `hotkey.py` is Windows-only (ctypes) global-hotkey focus management.
 - **Data** (`cifp.py`, `nasr.py`, `navaids.py`, `waypoints.py`): `cifp.py` downloads and parses FAA CIFP; `nasr.py` downloads and parses NASR (navaids, airways); `navaids.py` re-exports navaid functions from `nasr.py` and adds aliasing; `waypoints.py` builds coordinate lookups from CIFP and navaids. `cifp.py` imports `cache.py` and `navaids.py`; `nasr.py` imports `cache.py`.
 - **Foundation** (`cache.py`, `config.py`): `config.py` holds constants (cache dir, TTL, base URLs) and imports nothing from the package. `cache.py` imports only `config.py` and owns AIRAC math (`AIRAC_EPOCH`, `get_current_airac_cycle`) and the per-cycle caches.
 
 Stated rule (`CLAUDE.md`): both the CLI and interactive mode use the shared `do_*` functions in `commands.py`, so new command logic goes there and not in a CLI or interactive handler.
 
+- **Dev tools** (`tools/`): scripts that are not part of the package and don't ship. `tools/extract_nct_routes.py` drafts NCT handoff data from the SOP and LOA PDFs, using `pdfplumber` from the `extract` dependency group: `uv run --group extract python tools/extract_nct_routes.py --sop <pdf> --loa <pdf> --out <json>`. `tools/apply_nct_review.py` applies `tools/nct_corrections.json` to that draft and writes the reviewed `src/zoa_ref/data/nct_routes.json`.
+
+  `tools/check_nct_reciprocals.py` writes the errata list, `docs/nct-errata.md`, from that data and `tools/nct_errata_known.md`: `uv run python tools/check_nct_reciprocals.py [--out PATH]`. It prints one summary line and exits 0 even when it finds mismatches. `nct_routes.py` judges each pair; the tool aggregates and renders that, and its one judgement of its own pairs the lines `nct_routes.py` left uncovered into two-receiver claims. Nothing in `src/zoa_ref/` may import from `tools/`.
+
 ## Integration Footguns
 
+- **NCT corrections are bound to one draft.** `tools/nct_corrections.json` opens with an `expect_draft` hash, so any change to the extractor's output fails `tools/apply_nct_review.py` until the draft is reviewed again and the hash updated. A new document version needs that review; `docs/plans/nct-data-rulings.md` is its starting point.
+- **The errata list is generated and compared byte for byte.** `docs/nct-errata.md` is never edited by hand, and `tests/test_check_nct_reciprocals.py` fails when it is stale. A change to `src/zoa_ref/data/nct_routes.json`, to the matching in `nct_routes.py` or to `tools/nct_errata_known.md` needs `tools/check_nct_reciprocals.py` rerun.
+- **`rows_for` needs every row.** It decides which tables a specific flow displaces from the rows it is given, so passing it a pre-filtered list changes the answer. A lookup narrows with `applicable_rows` over all rows and filters by sector, destination or class afterwards, and judges a row's conflicts with `conflicts_in_file`, which reads the whole packaged file for the same reason.
+- **Piped output is UTF-8.** NCT rows print arrows that a legacy code page can't encode, so `main` in `cli.py` calls `_use_utf8_output` to reconfigure stdout and stderr for every command.
+- **A data file ships two ways.** Anything under `src/zoa_ref/data/` needs `[tool.setuptools.package-data]` in `pyproject.toml` for the wheel and the `--add-data` argument in `build_exe.py` for the standalone build.
+- **The NCT extractor lists its non-handoff pages.** `SOP_NON_HANDOFF_PAGES` and `LOA_NON_HANDOFF_PAGES` in `tools/extract_nct_routes.py` name the pages whose ruled grids are not handoff tables, and any other unrecognised grid fails the run. A new document version with shifted pages fails until a person checks those pages and updates the lists.
 - **A command lives in five registries.** Adding a command means a `@main.command` in `cli.py`, an entry in `INTERACTIVE_COMMANDS` in `interactive.py`, `COMMAND_HELP` and `INTERACTIVE_HELP_COMMANDS` in `cli_utils.py`, and `INTERACTIVE_COMMANDS` (a plain list) in `autocomplete.py`. No test enforces that they agree, so a missed one shows up as a command missing in interactive mode, help or tab completion.
 - **Unknown first argument means a chart query.** `ImplicitChartGroup.parse_args` in `cli_utils.py` rewrites any first argument that is not a registered command into `chart <args>` (and `OAK sop` into `sop OAK`), so a mistyped command runs a chart lookup instead of erroring.
 - **Charts-API code renames.** The FAA renamed the arrival chart code `STAR` to `STR`; `charts.py` maps it back at the API boundary (`tests/test_charts_chart_code.py` covers it). `approaches.py` takes STARs from CIFP and uses the charts API only for approach charts, so a STAR code rename can't reach it; its `chart_code == "IAP"` filter still could.
@@ -68,6 +86,12 @@ Stated rule (`CLAUDE.md`): both the CLI and interactive mode use the shared `do_
 - `tests/test_install.py`: the root `install.py` (bin dir choice, source hash and install stamp, alias block upsert, the lock export and the `uv tool install` call), loaded by file path since it is not in the package.
 - `tests/test_input_nested_loops.py`: that importing `input.py` leaves asyncio unpatched and interactive startup patches it before any browser.
 - `tests/test_procedure_query.py`: section and search term parsing in `ProcedureQuery` (`procedures.py`).
+- `tests/test_extract_nct_routes.py`: the dev-only `tools/extract_nct_routes.py`, loaded by file path, fed saved page captures from `tests/fixtures/nct_extract/` so it needs neither the PDFs nor `pdfplumber`.
+- `tests/test_apply_nct_review.py`: the corrections applier and its guards, on small synthetic drafts.
+- `tests/test_nct_routes_data.py`: the committed `src/zoa_ref/data/nct_routes.json` against the owner's rulings and values typed from the pages.
+- `tests/test_nct_routes.py`: the core in `nct_routes.py` (which rows apply under each flow set, specific-flow displacement, reciprocals and conflicts).
+- `tests/test_nct_xfer.py`: `zoa xfer`: target matching, catch-all and airport-filed rows, flow assumption, and the output lines.
+- `tests/test_check_nct_reciprocals.py`: the errata tool, including that the committed `docs/nct-errata.md` is current.
 - Untested: the browser, interactive loop, hotkey, routes and ICAO modules have no tests, and in `procedures.py` only the query parsing does.
 
 ## Deep docs
@@ -75,6 +99,8 @@ Stated rule (`CLAUDE.md`): both the CLI and interactive mode use the shared `do_
 - [`GLOSSARY.md`](GLOSSARY.md): project-specific terms.
 - [`plans/MAIN.md`](plans/MAIN.md): the plan index.
 - [`plans/nct-route-lookup.md`](plans/nct-route-lookup.md): design for the NCT entry and exit route lookup.
+- [`plans/nct-data-rulings.md`](plans/nct-data-rulings.md): the owner's rulings on the NCT data, the starting point for reviewing a new document version.
+- [`nct-errata.md`](nct-errata.md): generated list of NCT SOP and LOA cells that disagree with their reciprocal, rows with no reciprocal and the items found by hand.
 - [`plans/archive/cifp-parser-drift-from-yaat.md`](plans/archive/cifp-parser-drift-from-yaat.md): CIFP parser parity review against YAAT, with the resolution log.
 - [`../CLAUDE.md`](../CLAUDE.md): overview, install and test commands, and the parity and checkout-install rules.
 - [`../.claude/rules/charts.md`](../.claude/rules/charts.md): notes on chart, SOP, approach and descent behaviour, loaded when those modules are read.

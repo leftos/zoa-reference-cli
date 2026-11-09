@@ -46,6 +46,7 @@ from .display import (
     display_routes,
     display_scratchpad_facilities,
     display_scratchpads,
+    display_xfer,
 )
 from .frequency import record_airport
 from .icao import (
@@ -58,6 +59,16 @@ from .icao import (
 from .input import prompt_single_choice
 from .nasr import ensure_nasr_data
 from .navaids import search_navaids
+from .nct_routes import (
+    DEFAULT_FLOWS,
+    FlowError,
+    UnknownClassError,
+    UnknownSectorError,
+    XferQuery,
+    flow_names,
+    lookup,
+    parse_flows,
+)
 from .positions import open_positions_browser, search_positions
 from .procedures import (
     AIRPORT_ALIASES,
@@ -1675,6 +1686,51 @@ def do_mea_lookup(route: str, altitude: int | None = None) -> None:
 
     result = get_mea_for_route(route, altitude_ft)
     display_mea(result)
+
+
+def resolve_xfer_flows(flow_arg: str | None) -> tuple[frozenset[str], bool]:
+    """Work out which flows an NCT handoff lookup uses.
+
+    Args:
+        flow_arg: The flows typed with the command. None, or text naming no flow, counts as none.
+
+    Returns:
+        The flows, and whether they were assumed rather than given.
+
+    Raises:
+        FlowError: The typed flows aren't flows or can't run together.
+    """
+    if flow_arg is None or not flow_names(flow_arg):
+        return DEFAULT_FLOWS, True
+    return parse_flows(flow_arg), False
+
+
+def do_xfer_lookup(
+    sector: str, target: str, aircraft: str, flow_arg: str | None, entry: bool
+) -> bool:
+    """Look up an NCT handoff row and print the answer.
+
+    Args:
+        sector: An NCT sector, or zoa for the LOA's ZOA side.
+        target: A destination, fix, airway or complex.
+        aircraft: An aircraft class, or blank for every class.
+        flow_arg: The flows to use, or None to assume the defaults and say so.
+        entry: Read rows into the sector instead of out of it.
+
+    Returns:
+        False after printing an error, True after printing an answer.
+    """
+    query = XferQuery(sector, target, aircraft, entry)
+    try:
+        chosen, assumed = resolve_xfer_flows(flow_arg)
+        answer = lookup(query, chosen)
+    except (FlowError, UnknownSectorError, UnknownClassError) as exc:
+        click.echo(str(exc), err=True)
+        return False
+    if assumed:
+        click.echo("Flow not set: assuming SFOW, SMFS, RNOS.", err=True)
+    display_xfer(query, answer, chosen)
+    return True
 
 
 def do_uses_lookup(

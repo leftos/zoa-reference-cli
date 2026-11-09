@@ -1,0 +1,13 @@
+- **Monterey altitudes:** p20 and p25 print MRY Runway 10 at 5,000 and Monterey CX at 7,000; p27 prints Monterey CX at 5,000 and Monterey Runway 10 at 7,000. Landing MRY reads `5,000 7,000` on p46, with Runway 10 paired to the second line.
+- **SOP p7:** the Combined row prints symbol `4D` for Departure Combined (Sutro), while p16 and p103 print `4U`, and p143 gives `4D` to Diablo.
+- **SOP p55:** the P-ACP headed `Cedar SFOW` sits under `4-13 Cedar - SFOE`.
+- **SOP p84:** `sop-p84-t1-r6` has destination `V224` and info `On route or RV south V244`.
+- **SOP p105:** a blank sector on `All others`, where p111 prints Sunol.
+- **SOP p131:** a blank class on `SUUTR`, where p134 prints J.
+- **SOP p136:** the Reno rows print a runway with no flow, `RNO (Runway 17)` and `RNO (Rwy 35)`, where p135 prints the same handoffs under `Silver (RNOS)` and `Silver (RNON)`.
+- **SOP p2 and p98:** the v1.12 change note says SFO10 procedures were deleted, but Grove SFO10 tables remain.
+- **LOA p1:** `flight flight plan` in §2(q).
+- **LOA p15:** `CCR * WINE COUNTRY`, where the row above prints `&`.
+- **LOA p16:** `SJC (SJCW)`, a plan that doesn't exist in practice, on a route Table 1-1 prints as `SJC (SFOW)`.
+- **LOA p22:** `OAK (SFOW) HWD`, with `OAK (SFOE)` alone on the row below.
+- **Seca's handoff code:** `Q2S` in the LOA (LOA p11), but symbol `1S` in the SOP (SOP p18).

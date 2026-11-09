@@ -21,6 +21,9 @@ build = [
 dev = [
     "pytest>=8.0.0",
 ]
+extract = [
+    "pdfplumber>=0.11.10",
+]
 
 [project.scripts]
 zoa = "zoa_ref.cli:main"
@@ -31,6 +34,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+zoa_ref = ["data/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

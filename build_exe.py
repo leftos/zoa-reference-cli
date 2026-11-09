@@ -109,6 +109,7 @@ def main() -> int:
         "--hidden-import=nest_asyncio",
         "--hidden-import=greenlet",
         f"--paths={src_dir}",
+        f"--add-data={src_dir / 'zoa_ref' / 'data'}:zoa_ref/data",
         str(entry_script),
     ]
 

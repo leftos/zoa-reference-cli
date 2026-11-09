@@ -38,6 +38,7 @@ from .commands import (
     do_cifp_lookup,
     do_uses_lookup,
     do_vatsim_radar,
+    do_xfer_lookup,
 )
 from .descent import is_fix_identifier
 from .icao import CodesPage
@@ -468,6 +469,29 @@ def _handle_mea_interactive(args: str) -> None:
     do_mea_lookup(route, altitude)
 
 
+def _handle_xfer_interactive(args: str) -> None:
+    """Handle 'xfer <sector> <target> [class] [-f <flows>] [-e]' command in interactive mode."""
+    parsed = parse_interactive_args(
+        args,
+        flag_defs={"entry": ("-e", "--entry")},
+        option_defs={"flow": ("-f", "--flow")},
+    )
+    if parsed.show_help or not 2 <= len(parsed.positional) <= 3:
+        from .cli import main
+
+        print_command_help("xfer", main)
+        return
+
+    sector, target, *aircraft = parsed.positional
+    do_xfer_lookup(
+        sector,
+        target,
+        aircraft[0] if aircraft else "",
+        parsed.options.get("flow"),
+        parsed.flags.get("entry", False),
+    )
+
+
 def _handle_setbrowser_interactive(args: str) -> None:
     """Handle 'setbrowser [browser]' command in interactive mode."""
     parsed = parse_interactive_args(args)
@@ -554,6 +578,7 @@ INTERACTIVE_COMMANDS: dict[str, tuple] = {
     "approaches ": (_handle_approaches_interactive, 11, False),
     "apps ": (_handle_approaches_interactive, 5, False),
     "mea ": (_handle_mea_interactive, 4, False),
+    "xfer ": (_handle_xfer_interactive, 5, False),
     "cifp ": (_handle_cifp_interactive, 5, False),
     "uses ": (_handle_uses_interactive, 5, False),
     "position ": (_handle_position_interactive, 9, True),
