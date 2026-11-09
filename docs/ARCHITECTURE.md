@@ -46,7 +46,7 @@ Stated rule (`CLAUDE.md`): both the CLI and interactive mode use the shared `do_
 
 - **Dev tools** (`tools/`): scripts that are not part of the package and don't ship. `tools/extract_nct_routes.py` drafts NCT handoff data from the SOP and LOA PDFs, using `pdfplumber` from the `extract` dependency group: `uv run --group extract python tools/extract_nct_routes.py --sop <pdf> --loa <pdf> --out <json>`. `tools/apply_nct_review.py` applies `tools/nct_corrections.json` to that draft and writes the reviewed `src/zoa_ref/data/nct_routes.json`.
 
-  `tools/check_nct_reciprocals.py` writes the errata list, `docs/nct-errata.md`, from that data and `tools/nct_errata_known.md`: `uv run python tools/check_nct_reciprocals.py [--out PATH]`. It prints one summary line and exits 0 even when it finds mismatches. It holds no judgement: it aggregates and renders what `nct_routes.py` decides. Nothing in `src/zoa_ref/` may import from `tools/`.
+  `tools/check_nct_reciprocals.py` writes the errata list, `docs/nct-errata.md`, from that data and `tools/nct_errata_known.md`: `uv run python tools/check_nct_reciprocals.py [--out PATH]`. It prints one summary line and exits 0 even when it finds mismatches. `nct_routes.py` judges each pair; the tool aggregates and renders that, and its one judgement of its own pairs the lines `nct_routes.py` left uncovered into two-receiver claims. Nothing in `src/zoa_ref/` may import from `tools/`.
 
 ## Integration Footguns
 

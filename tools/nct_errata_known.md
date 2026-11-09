@@ -4,6 +4,7 @@
 - **SOP p84:** `sop-p84-t1-r6` has destination `V224` and info `On route or RV south V244`.
 - **SOP p105:** a blank sector on `All others`, where p111 prints Sunol.
 - **SOP p131:** a blank class on `SUUTR`, where p134 prints J.
+- **SOP p136:** the Reno rows print a runway with no flow, `RNO (Runway 17)` and `RNO (Rwy 35)`, where p135 prints the same handoffs under `Silver (RNOS)` and `Silver (RNON)`.
 - **SOP p2 and p98:** the v1.12 change note says SFO10 procedures were deleted, but Grove SFO10 tables remain.
 - **LOA p1:** `flight flight plan` in §2(q).
 - **LOA p15:** `CCR * WINE COUNTRY`, where the row above prints `&`.

@@ -9,6 +9,8 @@ from typing import Any
 
 import pytest
 
+from zoa_ref.nct_routes import applicable_rows, load_data
+
 DATA = (
     Path(__file__).resolve().parents[1] / "src" / "zoa_ref" / "data" / "nct_routes.json"
 )
@@ -160,6 +162,21 @@ def test_sjcw_is_sfow(rows: dict[str, dict[str, Any]]) -> None:
 def test_blank_cells_filled(rows: dict[str, dict[str, Any]]) -> None:
     assert rows["sop-p105-t0-r8"]["to"] == "Sunol"
     assert rows["sop-p131-t0-r14"]["aircraft"] == ["J"]
+
+
+def test_p136_reno_rows_carry_their_runway_flow() -> None:
+    rows = {row["id"]: row for row in load_data()["rows"]}
+    assert rows["sop-p136-t0-r0"]["flows"] == ["RNOS"]
+    assert rows["sop-p136-t1-r0"]["flows"] == ["RNON"]
+    assert rows["sop-p136-t1-r1"]["flows"] == ["RNON"]
+    rwy35 = {"SFOW", "SMFS", "RNON"}
+    rwy17 = {"SFOW", "SMFS", "RNOS"}
+    under_35 = {row["id"] for row in applicable_rows(rwy35)}
+    under_17 = {row["id"] for row in applicable_rows(rwy17)}
+    assert "sop-p136-t1-r0" in under_35
+    assert "sop-p136-t0-r0" not in under_35
+    assert "sop-p136-t0-r0" in under_17
+    assert "sop-p136-t1-r0" not in under_17
 
 
 def test_empty_rows_dropped(

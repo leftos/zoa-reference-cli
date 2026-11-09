@@ -6,6 +6,7 @@ A later document version gets the same review, and these rulings are its startin
 
 ## Decided by question
 
+- **Reno runways: Runway 17 is RNOS, Runway 35 is RNON.** SOP p136's rows print a runway with no flow, and p135 prints the same handoffs at the same altitudes under `Silver (RNOS)` and `Silver (RNON)`. So `sop-p136-t0-r0` takes RNOS, and `sop-p136-t1-r0` and `r1` take RNON. `sop-p57-t0-r1` keeps its `SQL Departures Only`: that destination cell is merged across both rows on the page.
 - **Two altitudes in one cell: pair by line where aligned.** Where a cell's two lines sit beside two destinations, each destination takes its own line, in the order printed. That covers SOP p20 and p25 (MRY Runway 10 at 5,000, Monterey CX at 7,000) and p27 (Monterey CX at 5,000, Monterey Runway 10 at 7,000). p27's opposite order goes on the errata list.
 
   Every other such cell answers with both altitudes, including p46, where both lines sit beside Landing MRY and none beside Monterey CX, and the slash cells such as `5,000/ 7,000`. They are written uniformly as `5,000 / 7,000`, so an unprinted separator or a missing comma (`7000`, p84) doesn't reach the answer.

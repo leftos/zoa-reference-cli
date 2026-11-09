@@ -16,14 +16,18 @@ from zoa_ref.nct_routes import (
     FIELDS,
     VALID_FLOW_SETS,
     Mismatch,
+    RowConflicts,
     conflicts_by_row,
+    item_key,
     load_data,
+    qualifier_key,
 )
 
 Row = dict[str, Any]
 FlowSets = set[frozenset[str]]
 Findings = dict[str, list[dict[str, Any]]]
 FoundMismatches = dict[tuple[str, str, str], tuple[Mismatch, FlowSets]]
+FoundTwoReceivers = dict[tuple[str, str], tuple[dict[str, Any], FlowSets]]
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 KNOWN_PATH = Path(__file__).with_name("nct_errata_known.md")
@@ -33,6 +37,11 @@ NO_RECIPROCAL_NOTE = (
     "Only one side prints a row with these limits. Tables list only what overrides en "
     "route at any altitude, so a line can be deliberate; a reader checks it against the "
     "other sector's table."
+)
+TWO_RECEIVERS_NOTE = (
+    "One sector's exit table names one receiver and the other sector's entry table "
+    "claims the same item and class, and neither side prints the other. A reader "
+    "checks which receiver is right."
 )
 BAY_PARENTS = {"SFOW", "SFOE"}
 BAY_FLOWS = BAY_PARENTS | {"OAKE", "SJCE", "SFO10", "SFO19"}
@@ -46,16 +55,20 @@ def find_findings(data: dict[str, Any]) -> Findings:
         data: The route data, of which only ``rows`` is read.
 
     Returns:
-        ``mismatches``, one per pair and field, and ``no_reciprocal``, one per row and
-        flow column for the items and classes no reciprocal covers, both in file order.
+        ``mismatches``, one per pair and field; ``two_receivers``, one per exit and entry
+        row of one sector that each claim the same item and class from another receiver;
+        and ``no_reciprocal``, one per row and flow column for the items and classes no
+        reciprocal covers.
     """
     mismatches: FoundMismatches = {}
     missing: dict[tuple[str, str, str], FlowSets] = defaultdict(set)
+    two_receivers: FoundTwoReceivers = {}
     for chosen in VALID_FLOW_SETS:
-        _record(data["rows"], chosen, mismatches, missing)
+        _record(data["rows"], chosen, mismatches, missing, two_receivers)
     by_id = {row["id"]: row for row in data["rows"]}
     return {
         "mismatches": _mismatch_findings(mismatches),
+        "two_receivers": _two_receivers_findings(two_receivers),
         "no_reciprocal": _missing_findings(missing, by_id),
     }
 
@@ -86,6 +99,14 @@ def render(findings: Findings, known_text: str, source: dict[str, Any]) -> str:
         "| From | To | Item | Class | Qualifiers | Flows | Field | Exit cell and page | Entry cell and page |",
         "|---|---|---|---|---|---|---|---|---|",
         *_mismatch_lines(findings),
+        "",
+        "## Two receivers claimed",
+        "",
+        TWO_RECEIVERS_NOTE,
+        "",
+        "| From | Exit names | Entry claims | Items | Class | Flows | Exit altitude and page | Entry altitude and page |",
+        "|---|---|---|---|---|---|---|---|",
+        *_two_receivers_lines(findings),
         "",
         "## No reciprocal row",
         "",
@@ -123,7 +144,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         handle.write(render(findings, known_text, data["source"]))
     print(
         f"{len(_mismatch_lines(findings))} mismatched cells, "
-        f"{len(_missing_lines(findings))} no-reciprocal lines, wrote {out}"
+        f"{len(_missing_lines(findings))} no-reciprocal lines, "
+        f"{len(_two_receivers_lines(findings))} two-receiver lines, wrote {out}"
     )
     return 0
 
@@ -133,14 +155,47 @@ def _record(
     chosen: frozenset[str],
     mismatches: FoundMismatches,
     missing: dict[tuple[str, str, str], FlowSets],
+    two_receivers: FoundTwoReceivers,
 ) -> None:
     """Add what the core judged under one flow set to the running aggregates."""
-    for row_id, found in conflicts_by_row(all_rows, chosen).items():
-        for item, aircraft in found.uncovered:
+    found = conflicts_by_row(all_rows, chosen)
+    for row_id, judged in found.items():
+        for item, aircraft in judged.uncovered:
             missing[row_id, item, aircraft].add(chosen)
-        for mismatch in found.mismatches:
+        for mismatch in judged.mismatches:
             key = (mismatch.exit_row["id"], mismatch.entry_row["id"], mismatch.field)
             mismatches.setdefault(key, (mismatch, set()))[1].add(chosen)
+    _collect_two_receivers(found, all_rows, chosen, two_receivers)
+
+
+def _collect_two_receivers(
+    found: dict[str, RowConflicts],
+    all_rows: list[Row],
+    chosen: frozenset[str],
+    two_receivers: FoundTwoReceivers,
+) -> None:
+    """Group one flow set's uncovered items, pairing their exit and entry rows into the running dict."""
+    by_id = {row["id"]: row for row in all_rows}
+    groups: dict[
+        tuple[str, str, str, frozenset[str]], dict[str, dict[str, list[str]]]
+    ] = defaultdict(lambda: {"exit": defaultdict(list), "entry": defaultdict(list)})
+    for row_id, judged in found.items():
+        row = by_id[row_id]
+        quals = frozenset(qualifier_key(name) for name in row["qualifiers"])
+        for item, aircraft in judged.uncovered:
+            key = (row["from"], item_key(item), aircraft, quals)
+            _append_unique(groups[key][row["direction"]][row_id], item)
+    for (_, _, aircraft, _), sides in groups.items():
+        for exit_id, items in sides["exit"].items():
+            for entry_id in sides["entry"]:
+                tally, flow_sets = two_receivers.setdefault(
+                    (exit_id, entry_id),
+                    (_two_receivers_tally(by_id[exit_id], by_id[entry_id]), set()),
+                )
+                flow_sets.add(chosen)
+                for item in items:
+                    _append_unique(tally["items"], item)
+                _append_unique(tally["classes"], aircraft)
 
 
 def _mismatch_findings(found: FoundMismatches) -> list[dict[str, Any]]:
@@ -221,6 +276,38 @@ def _missing_finding(
     }
 
 
+def _two_receivers_tally(exit_row: Row, entry_row: Row) -> dict[str, Any]:
+    """Build one pair's fixed cells, with its items and classes still to collect."""
+    return {
+        "exit_id": exit_row["id"],
+        "entry_id": entry_row["id"],
+        "from": exit_row["from"],
+        "exit_to": exit_row["to"],
+        "entry_to": entry_row["to"],
+        "items": [],
+        "classes": [],
+        "exit_value": exit_row["altitude"],
+        "entry_value": entry_row["altitude"],
+        "exit_page": exit_row["page"],
+        "entry_page": entry_row["page"],
+    }
+
+
+def _two_receivers_findings(found: FoundTwoReceivers) -> list[dict[str, Any]]:
+    """Build the two-receiver findings, by exit page and row id."""
+    findings = [
+        dict(tally, flows=_flow_label(flow_sets)) for tally, flow_sets in found.values()
+    ]
+    return sorted(
+        findings,
+        key=lambda finding: (
+            finding["exit_page"],
+            _id_order(finding["exit_id"]),
+            _id_order(finding["entry_id"]),
+        ),
+    )
+
+
 def _flow_label(flow_sets: FlowSets) -> str:
     """Name the Bay choices found, adding an SMF or RNO flow found under one value only."""
     by_bay: dict[frozenset[str], FlowSets] = defaultdict(set)
@@ -264,6 +351,13 @@ def _missing_lines(findings: Findings) -> list[str]:
     )
 
 
+def _two_receivers_lines(findings: Findings) -> list[str]:
+    """Render the two-receiver table's rows, collapsing identical lines."""
+    return list(
+        dict.fromkeys(_two_receivers_line(item) for item in findings["two_receivers"])
+    )
+
+
 def _mismatch_line(finding: dict[str, Any]) -> str:
     """Render one mismatch as a table row."""
     return _table_line(
@@ -293,6 +387,20 @@ def _missing_line(finding: dict[str, Any]) -> str:
     )
 
 
+def _two_receivers_line(finding: dict[str, Any]) -> str:
+    """Render one two-receiver finding as a table row."""
+    return _table_line(
+        finding["from"],
+        finding["exit_to"],
+        finding["entry_to"],
+        ", ".join(finding["items"]),
+        _classes_cell(finding["classes"]),
+        finding["flows"],
+        _cell_and_page(finding["exit_value"], finding["exit_page"]),
+        _cell_and_page(finding["entry_value"], finding["entry_page"]),
+    )
+
+
 def _pair_qualifiers(mismatch: Mismatch) -> str:
     """Render a pair's qualifiers once when they match, otherwise as exit / entry."""
     exit_text = ", ".join(mismatch.exit_row["qualifiers"])
@@ -310,6 +418,12 @@ def _classes_cell(classes: list[str]) -> str:
 def _cell_and_page(value: str, page: int) -> str:
     """Render a printed cell with its page, naming a blank one."""
     return f"{value or BLANK_CELL} (p{page})"
+
+
+def _append_unique(values: list[str], text: str) -> None:
+    """Append a text once, keeping its first-seen order."""
+    if text not in values:
+        values.append(text)
 
 
 def _table_line(*cells: str) -> str:

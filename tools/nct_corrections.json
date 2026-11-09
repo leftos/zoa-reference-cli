@@ -124,5 +124,8 @@
   {"op": "split_to", "id": "loa-p18-t0-r9", "expect": "Sutro (SFOW) Grove (SFOE)", "parts": [{"to": "Sutro", "flows": ["SFOW"]}, {"to": "Grove", "flows": ["SFOE"]}], "why": "A to naming two sectors by flow becomes one row per sector."},
   {"op": "split_to", "id": "loa-p18-t0-r16", "expect": "Sutro (SFOW) Boulder (SFOE)", "parts": [{"to": "Sutro", "flows": ["SFOW"]}, {"to": "Boulder", "flows": ["SFOE"]}], "why": "A to naming two sectors by flow becomes one row per sector."},
   {"op": "split_to", "id": "loa-p19-t0-r0", "expect": "Sutro (SFOW) Boulder (SFOE)", "parts": [{"to": "Sutro", "flows": ["SFOW"]}, {"to": "Boulder", "flows": ["SFOE"]}], "why": "A to naming two sectors by flow becomes one row per sector."},
-  {"op": "split_to", "id": "loa-p19-t0-r1", "expect": "Sutro (SFOW) Grove (SFOE)", "parts": [{"to": "Sutro", "flows": ["SFOW"]}, {"to": "Grove", "flows": ["SFOE"]}], "why": "A to naming two sectors by flow becomes one row per sector."}
+  {"op": "split_to", "id": "loa-p19-t0-r1", "expect": "Sutro (SFOW) Grove (SFOE)", "parts": [{"to": "Sutro", "flows": ["SFOW"]}, {"to": "Grove", "flows": ["SFOE"]}], "why": "A to naming two sectors by flow becomes one row per sector."},
+  {"op": "set", "id": "sop-p136-t0-r0", "field": "flows", "expect": [], "value": ["RNOS"], "why": "Runway 17 is RNOS, as p135 prints this handoff at this altitude under Silver (RNOS) (ruling)."},
+  {"op": "set", "id": "sop-p136-t1-r0", "field": "flows", "expect": [], "value": ["RNON"], "why": "Runway 35 is RNON, as p135 prints this handoff at this altitude under Silver (RNON) (ruling)."},
+  {"op": "set", "id": "sop-p136-t1-r1", "field": "flows", "expect": [], "value": ["RNON"], "why": "Runway 35 is RNON, as p135 prints this handoff at this altitude under Silver (RNON) (ruling)."}
 ]

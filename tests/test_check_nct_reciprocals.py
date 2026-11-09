@@ -51,6 +51,15 @@ def _mismatch(
     return None
 
 
+def _two_receiver(
+    findings: dict[str, list[dict[str, Any]]], exit_id: str, entry_id: str
+) -> dict[str, Any] | None:
+    for finding in findings["two_receivers"]:
+        if (finding["exit_id"], finding["entry_id"]) == (exit_id, entry_id):
+            return finding
+    return None
+
+
 def _row(row_id: str, direction: str, **overrides: Any) -> dict[str, Any]:
     """Build a synthetic Grove to Toga row carrying every key a real row has."""
     row: dict[str, Any] = {
@@ -158,7 +167,9 @@ def test_blank_altitude_against_a_printed_one_is_reported() -> None:
     rows = [_row("e", "exit", altitude=""), _row("n", "entry", altitude="5,000")]
     found = checker.find_findings({"rows": rows})["mismatches"]
     assert [item["field"] for item in found] == ["altitude"]
-    assert "(blank) (p1)" in _render({"mismatches": found, "no_reciprocal": []})
+    assert "(blank) (p1)" in _render(
+        {"mismatches": found, "no_reciprocal": [], "two_receivers": []}
+    )
 
 
 def test_cell_separator_is_escaped() -> None:
@@ -197,7 +208,8 @@ def test_conflicts_names_every_tool_finding() -> None:
     for chosen in VALID_FLOW_SETS:
         mismatches: dict[Any, Any] = {}
         missing: dict[Any, Any] = defaultdict(set)
-        checker._record(rows, chosen, mismatches, missing)
+        two_receivers: dict[Any, Any] = {}
+        checker._record(rows, chosen, mismatches, missing, two_receivers)
         for row_id in {row_id for key in mismatches for row_id in key[:2]}:
             named = {key for key in mismatches if row_id in key[:2]}
             absent += sorted(named - _mismatch_keys(by_id[row_id], chosen))
@@ -231,6 +243,111 @@ def test_cedar_t263_rows_have_no_reciprocal(
     found = [item for item in findings["no_reciprocal"] if item["id"] == row_id]
     assert found
     assert {"T263", "PXN", "AVE"} <= {name for item in found for name in item["items"]}
+
+
+def test_two_receivers_finds_exactly_the_three_real_pairs(
+    findings: dict[str, Any],
+) -> None:
+    found = {(item["exit_id"], item["entry_id"]) for item in findings["two_receivers"]}
+    assert found == {
+        ("sop-p55-t0-r2", "sop-p23-t0-r5"),
+        ("sop-p96-t0-r11", "sop-p111-t1-r1"),
+        ("sop-p96-t0-r12", "sop-p111-t1-r1"),
+    }
+
+
+def test_two_receivers_grove_valley_against_richmond(
+    findings: dict[str, Any],
+) -> None:
+    finding = _two_receiver(findings, "sop-p96-t0-r11", "sop-p111-t1-r1")
+    assert finding is not None
+    assert finding["from"] == "Grove"
+    assert finding["exit_to"] == "Valley"
+    assert finding["entry_to"] == "Richmond"
+    assert set(finding["items"]) == {"SAC", "V334"}
+    assert set(finding["classes"]) == {"P"}
+    assert finding["exit_value"] == "5,000"
+    assert finding["entry_value"] == "10,000"
+    assert finding["exit_page"] == 96
+    assert finding["entry_page"] == 111
+    assert finding["flows"] == "SFOW+OAKE, SFOW+OAKE+SJCE"
+
+
+def test_two_receivers_cedar_t263(findings: dict[str, Any]) -> None:
+    finding = _two_receiver(findings, "sop-p55-t0-r2", "sop-p23-t0-r5")
+    assert finding is not None
+    assert finding["exit_to"] == "Valley"
+    assert finding["entry_to"] == "Morgan"
+    assert set(finding["items"]) == {"T263", "PXN", "AVE"}
+    assert finding["flows"] == "SFOE, SFOE+SFO10, SFOE+SFO19"
+
+
+def test_two_receivers_skips_a_covered_split() -> None:
+    rows = [
+        _row("e1", "exit", to="Toga", dest_or_route=["X"]),
+        _row("n1", "entry", to="Toga", dest_or_route=["X"]),
+        _row("e2", "exit", to="Licke", dest_or_route=["X"]),
+        _row("n2", "entry", to="Licke", dest_or_route=["X"]),
+    ]
+    assert checker.find_findings({"rows": rows})["two_receivers"] == []
+
+
+def test_two_receivers_skips_different_qualifiers() -> None:
+    rows = [
+        _row("e", "exit", to="Toga", qualifiers=["HWD only"], dest_or_route=["X"]),
+        _row("n", "entry", to="Licke", qualifiers=["OAK only"], dest_or_route=["X"]),
+    ]
+    assert checker.find_findings({"rows": rows})["two_receivers"] == []
+
+
+def test_two_receivers_skips_the_same_receiver() -> None:
+    rows = [
+        _row("e", "exit", to="Toga", aircraft=["J"], dest_or_route=["X"]),
+        _row("n", "entry", to="Toga", aircraft=["J"], dest_or_route=["X"]),
+    ]
+    assert checker.find_findings({"rows": rows})["two_receivers"] == []
+
+
+def test_two_receivers_skips_no_shared_class() -> None:
+    rows = [
+        _row("e", "exit", to="Toga", aircraft=["J"], dest_or_route=["X"]),
+        _row("n", "entry", to="Licke", aircraft=["P"], dest_or_route=["X"]),
+    ]
+    assert checker.find_findings({"rows": rows})["two_receivers"] == []
+
+
+def test_two_receivers_finds_a_synthetic_pair() -> None:
+    rows = [
+        _row("e", "exit", to="Toga", aircraft=["J"], dest_or_route=["X"]),
+        _row("n", "entry", to="Licke", aircraft=["J"], dest_or_route=["X"]),
+    ]
+    found = checker.find_findings({"rows": rows})["two_receivers"]
+    assert len(found) == 1
+    assert found[0]["exit_to"] == "Toga"
+    assert found[0]["entry_to"] == "Licke"
+    assert found[0]["items"] == ["X"]
+
+
+def test_two_receivers_aggregates_across_flow_sets() -> None:
+    rows = [
+        _row("e", "exit", to="Toga", aircraft=["J"], dest_or_route=["A", "B"]),
+        _row("n", "entry", to="Licke", aircraft=["J"], dest_or_route=["A", "B"]),
+        _row(
+            "t",
+            "entry",
+            to="Toga",
+            aircraft=["J"],
+            dest_or_route=["A"],
+            flows=["SFOW"],
+        ),
+    ]
+    found = checker.find_findings({"rows": rows})["two_receivers"]
+    assert len(found) == 1
+    assert (found[0]["exit_id"], found[0]["entry_id"]) == ("e", "n")
+    assert found[0]["items"] == ["B", "A"]
+    assert found[0]["flows"] == (
+        "SFOW, SFOW+OAKE, SFOW+SJCE, SFOW+OAKE+SJCE, SFOE, SFOE+SFO10, SFOE+SFO19"
+    )
 
 
 def test_licke_seca_monterey_sfoe_altitude_mismatch(findings: dict[str, Any]) -> None:
