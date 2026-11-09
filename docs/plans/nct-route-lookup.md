@@ -28,7 +28,7 @@ New NCT controllers struggle to find the right entry and exit route. The answer 
 
   SFO10 and SFO19 replace only row by row, never a whole table: Grove's SFO10 section (SOP p98) holds a few rows and has no counterpart for most of Grove's SFOE rows, which keep answering.
 
-  A gap in an explicit table means no specific instructions. Where a sector has a table for the active flow (SFOW, SFOE, OAKE or SJCE) with no row for the destination, nothing falls back to another flow's table. The answer says there are no specific instructions, so the aircraft is handed off en route at whatever altitude.
+- **Tables are overrides, not exhaustive.** Every table, for every flow, lists only what needs overriding where "en route, any altitude" doesn't work. So a gap means no specific instructions, and nothing falls back to another flow's table. When no row applies, the answer says so: hand off en route at any altitude.
 
   Under plain SFOE, which doesn't say which runway, SFOE, SFO10 and SFO19 rows all apply and an answer names each row's flow. Under plain SFOW, OAKE and SJCE rows don't apply, since SFOW alone means OAK and SJC run west.
 - **Combined sectors: show the chain.** The answer names the SOP's receiving sector, its handoff symbol and its "combines to" chain, such as "Licke (combines to Toga, then Morgan)". Naming who is actually online waits for the VATSIM feed.
