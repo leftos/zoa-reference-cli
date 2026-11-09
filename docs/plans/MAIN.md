@@ -26,7 +26,7 @@ Fresh agents: start here, work top-down (current focus → next up → backlog).
   - Origin: surfaced while fixing the STAR→STR rename (boundary-normalization fix shipped
     separately; this is the deferred architectural improvement the user asked to track).
 
-- [ ] **NCT entry and exit route lookup (`zoa xfer`, `zoa flow`).** Design in [nct-route-lookup.md](./nct-route-lookup.md): a reviewed data file from the NCT SOP and NCT-ZOA LOA, a terse typed lookup for use on position, a persistent flow setting and a reciprocal checker for errata. Its Decisions came from the owner; the owner reviews the written design before its Steps start.
+- [ ] **NCT entry and exit route lookup (`zoa xfer`, `zoa flow`).** `branch: feat/nct-xfer`. Design in [nct-route-lookup.md](./nct-route-lookup.md): a reviewed data file from the NCT SOP and NCT-ZOA LOA, a terse typed lookup for use on position, a persistent flow setting and a reciprocal checker for errata. The owner approved the design on 2026-11-08 and asked for all seven Steps, pausing for the data review.
 
 ## Backlog
 
