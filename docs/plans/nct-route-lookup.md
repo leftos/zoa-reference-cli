@@ -21,6 +21,7 @@ New NCT controllers struggle to find the right entry and exit route. The answer 
 - **Staleness: warn.** When a downloaded PDF no longer matches the stamped source, the lookup warns and keeps answering from the reviewed data.
 - **Conflicts: show both, and check.** Where an exit row and its reciprocal entry row disagree, the lookup prints both versions with a warning. A reciprocal checker compares all such pairs and produces an errata list for the facility.
 - **Flow: a persistent setting.** A `flow` command stores the active flows and injects them into later lookups, and `--flow` overrides per call. When a flow is not set, the lookup warns and assumes SFOW, SMFS and RNOS. Every answer prints the flow it used.
+- **Flow combinations: OAKE and SJCE need SFOW.** OAK and SJC can run east only while SFO runs west, so `zoa flow` accepts OAKE and SJCE, alone or together, only beside SFOW, and refuses them beside SFOE. The SOP §1-6 plans "SFOE / SJCW" and "SFOE / OAKW" are not settable flows: OAK and SJC can't run west while SFO runs east.
 - **Combined sectors: show the chain.** The answer names the SOP's receiving sector, its handoff symbol and its "combines to" chain, such as "Licke (combines to Toga, then Morgan)". Naming who is actually online waits for the VATSIM feed.
 - **No LLM answers.** A confidently wrong altitude is worse than a slow search, so every answer is a real row with its section and page.
 
@@ -44,13 +45,22 @@ One row per handoff, in a form the checker and lookup can both use:
 | Field | Example |
 |---|---|
 | `from` / `to` | `Morgan` / `Cedar`, or a ZOA sector |
-| `flows` | `SFOW` (empty means every flow) |
+| `from_airports` | `LVK`, `HWD`, for a LOA departure filed by airport rather than sector |
+| `table_flows` | `SMFS`, from the table's title |
+| `flows` | `SFOW`, from the row's label or destination |
 | `dest_or_route` | `SFO`, `V111`, `EMZOH` |
+| `route` | `SERFR STAR`, for a LOA arrival, which has both a destination and a route |
+| `qualifiers` | `HWD only`, conditions moved out of a label or destination |
 | `aircraft` | `T, J` |
 | `altitude` | `14,000` |
 | `info` | `RV ALWYS/MOD` |
 | `restrictions` | control limits and conditions on the row |
 | `source` | `SOP §3-4 p22` |
+| `doubts` | what the extractor found suspect in the row, for the data review |
+
+A row applies when both flow conditions hold: `table_flows` is empty or names an active flow, and `flows` is empty or names an active flow.
+
+A cell splits into several `dest_or_route` items only when every item is a recognisable destination or route. Otherwise it stays whole with a doubt, so a condition such as "East of or on T263" is never broken into false items.
 
 Beside the rows:
 
