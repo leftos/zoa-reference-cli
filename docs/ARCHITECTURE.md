@@ -65,6 +65,7 @@ Stated rule (`CLAUDE.md`): both the CLI and interactive mode use the shared `do_
 - `tests/test_charts_chart_code.py`: chart-code normalisation in `charts.py`.
 - `tests/test_metar_display.py`: METAR output formatting.
 - `tests/test_install.py`: the root `install.py` (bin dir choice, source hash and install stamp, alias block upsert, the lock export and the `uv tool install` call), loaded by file path since it is not in the package.
+- `tests/test_input_nested_loops.py`: that importing `input.py` leaves asyncio unpatched and interactive startup patches it before any browser.
 - `tests/test_procedure_query.py`: section and search term parsing in `ProcedureQuery` (`procedures.py`).
 - Untested: the browser, interactive loop, hotkey, routes and ICAO modules have no tests, and in `procedures.py` only the query parsing does.
 

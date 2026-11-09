@@ -14,9 +14,6 @@ from prompt_toolkit.key_binding import KeyBindings
 if sys.platform == "win32":
     import msvcrt
 
-# Allow nested event loops (needed because Playwright's sync API uses asyncio)
-nest_asyncio.apply()
-
 HISTORY_FILE = Path.home() / ".zoa-ref" / "history"
 
 
@@ -60,6 +57,11 @@ def create_key_bindings() -> KeyBindings:
         event.current_buffer.reset()
 
     return bindings
+
+
+def enable_nested_event_loops() -> None:
+    """Let prompt_toolkit run its own event loop while Playwright's sync API holds one."""
+    nest_asyncio.apply()
 
 
 def create_prompt_session(

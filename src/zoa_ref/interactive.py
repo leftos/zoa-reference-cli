@@ -43,6 +43,7 @@ from .descent import is_fix_identifier
 from .icao import CodesPage
 from .input import (
     create_prompt_session,
+    enable_nested_event_loops,
     prompt_with_history,
     NoDuplicatesFileHistory,
     HISTORY_FILE,
@@ -620,6 +621,7 @@ def _start_interactive(use_playwright: bool):
     Returns:
         The interactive context and the prompt session.
     """
+    enable_nested_event_loops()
     click.echo("Starting up...")
 
     with StartupStep("Prefetching chart lists") as step:
