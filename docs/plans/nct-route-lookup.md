@@ -118,6 +118,8 @@ Decisions for the remaining steps (orchestrator's, open to the owner):
 - **A lookup matches any token inside an item,** so `SHOEY` finds `BSR or SHOEY V27 HADLY SAU`, and a destination also matches rows naming its complex or a phrase such as `Landing NCT`.
 - **Catch-all rows answer only when nothing else does (owner).** Within one sector, direction and flow, an `All others` row answers a destination only if no other row of that table names it. So `zoa xfer woodside SFO` prints Woodside's `All Others` row to Sutro.
 - **One line per row (owner).** An answer is the design's comma-separated line: receiver, altitude, info, then qualifiers and restrictions when present, then source. The class list leads the line only when no class was asked for, and a flow-tagged row names its flow beside the receiver. A `Flows:` line closes every answer.
+
+  A row matched by a word inside a longer destination prints that destination after the receiver, so a controller can see why there are two rows: `Licke (SJCE), VFR SJC Arrivals, At or above 2,500, RV Tesla Plant, SOP §5-7 p91`. Lines for an exact match, or a match through a complex, don't print it.
 - **Step 4 proves both install routes.** A real `build_exe.py` run with the `--add-data` argument, then `zoa xfer` from the frozen build, as well as the wheel. `build_exe.py` passes a literal `:` separator, which is unproven with a Windows drive path until that run.
 
 ## Known conflicts
