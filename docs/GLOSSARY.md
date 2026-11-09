@@ -13,4 +13,5 @@ Terms the docs and plans use in a project-specific or uncommon sense.
 - **P-ACP**: Pre-Arranged Coordination Procedure, which lets one controller's aircraft enter another's airspace without coordinating each one (SOP §1-18).
 - **Reciprocal check**: comparing a sector's exit row with the neighbouring sector's matching entry row to find where the two tables disagree.
 - **RV**: in an NCT exit route, the aircraft can be direct or on a vector (SOP §1-13).
+- **Specific flow**: a flow that is a subset of another and replaces it where the two differ: SFO10 and SFO19 under SFOE, OAKE and SJCE under SFOW.
 - **ZOA**: Oakland ARTCC, also called Oakland Center.

@@ -24,6 +24,7 @@ The rule that shapes it: command logic lives once in `commands.py`, and both the
 | Change the standalone build or release | `build_exe.py` → `.github/workflows/release.yml` → `src/zoa_ref/playwright_bootstrap.py` | none |
 | Change the checkout install or `run.py` | `install.py` (`ensure_installed`, `choose_bin_dir`, `offer_aliases`) → `run.py` → `tests/test_install.py` | [`../README.md`](../README.md) (From a checkout) |
 | Change how NCT handoff data is drafted from the PDFs | `tools/extract_nct_routes.py` (`capture_pdf`, then `normalize`) → `tests/test_extract_nct_routes.py` → `tests/fixtures/nct_extract/` | [`plans/nct-route-lookup.md`](plans/nct-route-lookup.md) |
+| Correct a value in the NCT data, or review a new SOP or LOA version | `tools/nct_corrections.json` → `tools/apply_nct_review.py` → `src/zoa_ref/data/nct_routes.json` → `tests/test_nct_routes_data.py` | [`plans/nct-data-rulings.md`](plans/nct-data-rulings.md) |
 
 ## Layers
 
@@ -39,10 +40,12 @@ Modules are flat in `src/zoa_ref/`; the import graph below was read from the `fr
 
 Stated rule (`CLAUDE.md`): both the CLI and interactive mode use the shared `do_*` functions in `commands.py`, so new command logic goes there and not in a CLI or interactive handler.
 
-- **Dev tools** (`tools/`): scripts that are not part of the package and don't ship. `tools/extract_nct_routes.py` drafts NCT handoff data from the SOP and LOA PDFs, using `pdfplumber` from the `extract` dependency group: `uv run --group extract python tools/extract_nct_routes.py --sop <pdf> --loa <pdf> --out <json>`. Nothing in `src/zoa_ref/` may import from `tools/`.
+- **Dev tools** (`tools/`): scripts that are not part of the package and don't ship. `tools/extract_nct_routes.py` drafts NCT handoff data from the SOP and LOA PDFs, using `pdfplumber` from the `extract` dependency group: `uv run --group extract python tools/extract_nct_routes.py --sop <pdf> --loa <pdf> --out <json>`. `tools/apply_nct_review.py` applies `tools/nct_corrections.json` to that draft and writes the reviewed `src/zoa_ref/data/nct_routes.json`. Nothing in `src/zoa_ref/` may import from `tools/`.
 
 ## Integration Footguns
 
+- **NCT corrections are bound to one draft.** `tools/nct_corrections.json` opens with an `expect_draft` hash, so any change to the extractor's output fails `tools/apply_nct_review.py` until the draft is reviewed again and the hash updated. A new document version needs that review; `docs/plans/nct-data-rulings.md` is its starting point.
+- **A data file ships two ways.** Anything under `src/zoa_ref/data/` needs `[tool.setuptools.package-data]` in `pyproject.toml` for the wheel and the `--add-data` argument in `build_exe.py` for the standalone build.
 - **The NCT extractor lists its non-handoff pages.** `SOP_NON_HANDOFF_PAGES` and `LOA_NON_HANDOFF_PAGES` in `tools/extract_nct_routes.py` name the pages whose ruled grids are not handoff tables, and any other unrecognised grid fails the run. A new document version with shifted pages fails until a person checks those pages and updates the lists.
 - **A command lives in five registries.** Adding a command means a `@main.command` in `cli.py`, an entry in `INTERACTIVE_COMMANDS` in `interactive.py`, `COMMAND_HELP` and `INTERACTIVE_HELP_COMMANDS` in `cli_utils.py`, and `INTERACTIVE_COMMANDS` (a plain list) in `autocomplete.py`. No test enforces that they agree, so a missed one shows up as a command missing in interactive mode, help or tab completion.
 - **Unknown first argument means a chart query.** `ImplicitChartGroup.parse_args` in `cli_utils.py` rewrites any first argument that is not a registered command into `chart <args>` (and `OAK sop` into `sop OAK`), so a mistyped command runs a chart lookup instead of erroring.
@@ -73,6 +76,8 @@ Stated rule (`CLAUDE.md`): both the CLI and interactive mode use the shared `do_
 - `tests/test_input_nested_loops.py`: that importing `input.py` leaves asyncio unpatched and interactive startup patches it before any browser.
 - `tests/test_procedure_query.py`: section and search term parsing in `ProcedureQuery` (`procedures.py`).
 - `tests/test_extract_nct_routes.py`: the dev-only `tools/extract_nct_routes.py`, loaded by file path, fed saved page captures from `tests/fixtures/nct_extract/` so it needs neither the PDFs nor `pdfplumber`.
+- `tests/test_apply_nct_review.py`: the corrections applier and its guards, on small synthetic drafts.
+- `tests/test_nct_routes_data.py`: the committed `src/zoa_ref/data/nct_routes.json` against the owner's rulings and values typed from the pages.
 - Untested: the browser, interactive loop, hotkey, routes and ICAO modules have no tests, and in `procedures.py` only the query parsing does.
 
 ## Deep docs
@@ -80,6 +85,7 @@ Stated rule (`CLAUDE.md`): both the CLI and interactive mode use the shared `do_
 - [`GLOSSARY.md`](GLOSSARY.md): project-specific terms.
 - [`plans/MAIN.md`](plans/MAIN.md): the plan index.
 - [`plans/nct-route-lookup.md`](plans/nct-route-lookup.md): design for the NCT entry and exit route lookup.
+- [`plans/nct-data-rulings.md`](plans/nct-data-rulings.md): the owner's rulings on the NCT data, the starting point for reviewing a new document version.
 - [`plans/archive/cifp-parser-drift-from-yaat.md`](plans/archive/cifp-parser-drift-from-yaat.md): CIFP parser parity review against YAAT, with the resolution log.
 - [`../CLAUDE.md`](../CLAUDE.md): overview, install and test commands, and the parity and checkout-install rules.
 - [`../.claude/rules/charts.md`](../.claude/rules/charts.md): notes on chart, SOP, approach and descent behaviour, loaded when those modules are read.
