@@ -281,6 +281,7 @@ Examples:
   sop OAK 2-2                    - Open OAK SOP at section 2-2
   sop "NORCAL TRACON"            - Open NORCAL TRACON SOP
   sop SJC "IFR Departures" SJCE  - Find SJCE in IFR Departures section
+  sop NCT licke sfoe exit        - Jump to a sector's exit routes table (or entry)
   sop --list                     - List all available procedures
 
 Alias: 'proc' is an alias for 'sop'

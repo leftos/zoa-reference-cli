@@ -125,6 +125,7 @@ zoa sop OAK                        # Open Oakland ATCT SOP
 zoa sop OAK 2-2                    # Open OAK SOP at section 2-2
 zoa sop "NORCAL TRACON"            # Open NORCAL TRACON SOP
 zoa sop SJC "IFR Departures" SJCE  # Find SJCE in IFR Departures section
+zoa sop NCT licke sfoe exit        # Jump to a sector's exit routes table (or entry)
 zoa sop --list                     # List all available procedures
 zoa proc OAK                       # 'proc' is an alias for 'sop'
 ```

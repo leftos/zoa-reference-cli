@@ -88,6 +88,9 @@ class ProcedureMatch:
     score: float
 
 
+_ROUTE_TABLE_SUFFIX = re.compile(r"^(.+)\s+(exit|entry)$", re.IGNORECASE)
+
+
 @dataclass
 class ProcedureQuery:
     """Parsed procedure query."""
@@ -109,6 +112,7 @@ class ProcedureQuery:
             "OAK ATCT 2-2"               -> proc="OAK ATCT", section="2-2", search=None
             ("SJC", "2-2", "SJCE")       -> proc="SJC", section="2-2", search="SJCE"
             ("SJC", "IFR Departures", "SJCE") -> proc="SJC", section="IFR Departures", search="SJCE"
+            ("NCT", "licke sfoe exit")   -> proc="NCT", section="licke sfoe", search="exit"
         """
         # Handle tuple input (preserves quoted strings from CLI)
         if isinstance(query, tuple):
@@ -249,6 +253,13 @@ class ProcedureQuery:
                 section_term=new_section_term,
                 search_term=new_search_term,
             )
+
+        # A quoted "licke sfoe exit" means the same as unquoted licke sfoe exit:
+        # the sector's section, then its Exit or Entry Routes table.
+        if section_term and not search_term:
+            suffix_match = _ROUTE_TABLE_SUFFIX.match(section_term)
+            if suffix_match:
+                section_term, search_term = suffix_match.groups()
 
         return cls(
             procedure_term=procedure_term,

@@ -13,7 +13,7 @@ A Python CLI (`zoa`) for quick lookups against ZOA's Reference Tool (charts, rou
 | Change navaid or airway data | `src/zoa_ref/nasr.py` → `src/zoa_ref/navaids.py` → `src/zoa_ref/airways.py` → `tests/test_nasr_awy.py` | none |
 | Change fix coordinates, `distance` or `bearing` | `src/zoa_ref/waypoints.py` → `src/zoa_ref/distance.py` → `tests/test_bearing.py`, `tests/test_bearing_cli.py` | none |
 | Change `approaches` / `apps` | `src/zoa_ref/approaches.py` → `src/zoa_ref/commands.py` (`do_approaches_lookup`) | [`plans/MAIN.md`](plans/MAIN.md) (STAR sourcing task) |
-| Change SOP / procedure lookup | `src/zoa_ref/procedures.py` (`ProcedureQuery.parse`) → `src/zoa_ref/cache.py` (PDF and heading caches) → `src/zoa_ref/commands.py` | none |
+| Change SOP / procedure lookup | `src/zoa_ref/procedures.py` (`ProcedureQuery.parse`) → `src/zoa_ref/cache.py` (PDF and heading caches) → `src/zoa_ref/commands.py` → `tests/test_procedure_query.py` | none |
 | Change METAR, ATIS or ICAO lookups | `src/zoa_ref/metar.py`, `src/zoa_ref/atis.py`, `src/zoa_ref/icao.py` → `src/zoa_ref/display.py` → `tests/test_metar_display.py` | none |
 | Change AIRAC-cycle caching | `src/zoa_ref/cache.py` → `src/zoa_ref/config.py` → `tests/test_airac.py` | none |
 | Change browser handling or the hotkey | `src/zoa_ref/browser.py` → `src/zoa_ref/playwright_bootstrap.py` → `src/zoa_ref/hotkey.py` → `src/zoa_ref/cli_utils.py` (`open_in_browser`) | none |
@@ -61,11 +61,14 @@ Stated rule (`CLAUDE.md`): both the CLI and interactive mode use the shared `do_
 - `tests/test_charts_chart_code.py`: chart-code normalisation in `charts.py`.
 - `tests/test_metar_display.py`: METAR output formatting.
 - `tests/test_install.py`: the root `install.py` (bin dir choice, source hash and install stamp, alias block upsert, the lock export and the `uv tool install` call), loaded by file path since it is not in the package.
-- Untested: the browser, interactive loop, hotkey, routes, procedures and ICAO modules have no tests.
+- `tests/test_procedure_query.py`: section and search term parsing in `ProcedureQuery` (`procedures.py`).
+- Untested: the browser, interactive loop, hotkey, routes and ICAO modules have no tests, and in `procedures.py` only the query parsing does.
 
 ## Deep docs
 
-- [`plans/MAIN.md`](plans/MAIN.md): the plan index (the open task is sourcing STARs from CIFP for `approaches`).
+- [`GLOSSARY.md`](GLOSSARY.md): project-specific terms.
+- [`plans/MAIN.md`](plans/MAIN.md): the plan index.
+- [`plans/nct-route-lookup.md`](plans/nct-route-lookup.md): design for the NCT entry and exit route lookup.
 - [`plans/cifp-parser-drift-from-yaat.md`](plans/cifp-parser-drift-from-yaat.md): CIFP parser parity review against YAAT, with the resolution log.
 - [`../CLAUDE.md`](../CLAUDE.md): command reference, module list, key patterns and data sources.
 - [`../README.md`](../README.md): install and usage.
