@@ -23,6 +23,7 @@ The rule that shapes it: command logic lives once in `commands.py`, and both the
 | Change constants, URLs or cache paths | `src/zoa_ref/config.py` | none |
 | Change the standalone build or release | `build_exe.py` → `.github/workflows/release.yml` → `src/zoa_ref/playwright_bootstrap.py` | none |
 | Change the checkout install or `run.py` | `install.py` (`ensure_installed`, `choose_bin_dir`, `offer_aliases`) → `run.py` → `tests/test_install.py` | [`../README.md`](../README.md) (From a checkout) |
+| Change how NCT handoff data is drafted from the PDFs | `tools/extract_nct_routes.py` (`capture_pdf`, then `normalize`) → `tests/test_extract_nct_routes.py` → `tests/fixtures/nct_extract/` | [`plans/nct-route-lookup.md`](plans/nct-route-lookup.md) |
 
 ## Layers
 
@@ -38,8 +39,11 @@ Modules are flat in `src/zoa_ref/`; the import graph below was read from the `fr
 
 Stated rule (`CLAUDE.md`): both the CLI and interactive mode use the shared `do_*` functions in `commands.py`, so new command logic goes there and not in a CLI or interactive handler.
 
+- **Dev tools** (`tools/`): scripts that are not part of the package and don't ship. `tools/extract_nct_routes.py` drafts NCT handoff data from the SOP and LOA PDFs, using `pdfplumber` from the `extract` dependency group: `uv run --group extract python tools/extract_nct_routes.py --sop <pdf> --loa <pdf> --out <json>`. Nothing in `src/zoa_ref/` may import from `tools/`.
+
 ## Integration Footguns
 
+- **The NCT extractor lists its non-handoff pages.** `SOP_NON_HANDOFF_PAGES` and `LOA_NON_HANDOFF_PAGES` in `tools/extract_nct_routes.py` name the pages whose ruled grids are not handoff tables, and any other unrecognised grid fails the run. A new document version with shifted pages fails until a person checks those pages and updates the lists.
 - **A command lives in five registries.** Adding a command means a `@main.command` in `cli.py`, an entry in `INTERACTIVE_COMMANDS` in `interactive.py`, `COMMAND_HELP` and `INTERACTIVE_HELP_COMMANDS` in `cli_utils.py`, and `INTERACTIVE_COMMANDS` (a plain list) in `autocomplete.py`. No test enforces that they agree, so a missed one shows up as a command missing in interactive mode, help or tab completion.
 - **Unknown first argument means a chart query.** `ImplicitChartGroup.parse_args` in `cli_utils.py` rewrites any first argument that is not a registered command into `chart <args>` (and `OAK sop` into `sop OAK`), so a mistyped command runs a chart lookup instead of erroring.
 - **Charts-API code renames.** The FAA renamed the arrival chart code `STAR` to `STR`; `charts.py` maps it back at the API boundary (`tests/test_charts_chart_code.py` covers it). `approaches.py` takes STARs from CIFP and uses the charts API only for approach charts, so a STAR code rename can't reach it; its `chart_code == "IAP"` filter still could.
@@ -68,6 +72,7 @@ Stated rule (`CLAUDE.md`): both the CLI and interactive mode use the shared `do_
 - `tests/test_install.py`: the root `install.py` (bin dir choice, source hash and install stamp, alias block upsert, the lock export and the `uv tool install` call), loaded by file path since it is not in the package.
 - `tests/test_input_nested_loops.py`: that importing `input.py` leaves asyncio unpatched and interactive startup patches it before any browser.
 - `tests/test_procedure_query.py`: section and search term parsing in `ProcedureQuery` (`procedures.py`).
+- `tests/test_extract_nct_routes.py`: the dev-only `tools/extract_nct_routes.py`, loaded by file path, fed saved page captures from `tests/fixtures/nct_extract/` so it needs neither the PDFs nor `pdfplumber`.
 - Untested: the browser, interactive loop, hotkey, routes and ICAO modules have no tests, and in `procedures.py` only the query parsing does.
 
 ## Deep docs

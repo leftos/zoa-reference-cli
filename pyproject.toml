@@ -21,6 +21,9 @@ build = [
 dev = [
     "pytest>=8.0.0",
 ]
+extract = [
+    "pdfplumber>=0.11.10",
+]
 
 [project.scripts]
 zoa = "zoa_ref.cli:main"
