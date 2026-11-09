@@ -559,7 +559,75 @@ def test_border_gap_with_rows_below_is_unconsumed() -> None:
     ]
     page["v_edges"].append({"x": left, "top": 160.0, "bottom": 175.0})
     unconsumed = _one_page(page).coverage["SOP"].unconsumed
-    assert [item for item in unconsumed if "p40" in item and "below" in item]
+    assert [item for item in unconsumed if "p40" in item and "a ruled row" in item]
+
+
+def test_border_gap_with_an_unruled_last_row_is_unconsumed() -> None:
+    page = _table_page(
+        "Morgan Exit Routes",
+        rows_of_cells=(
+            ("Valley", "V111", "P", "7,000", "Direct KARNN"),
+            ("Seca", "MRY", "T", "9,000", "Direct MRY"),
+        ),
+    )
+    left = SOP_EDGES[0]
+    page["v_edges"] = [
+        edge if edge["x"] != left else {"x": left, "top": TABLE_TOP, "bottom": 145.0}
+        for edge in page["v_edges"]
+    ]
+    page["h_edges"] = [edge for edge in page["h_edges"] if edge["y"] <= 146.0]
+    unconsumed = _one_page(page).coverage["SOP"].unconsumed
+    assert [item for item in unconsumed if "p40" in item and "a row of text" in item]
+
+
+def test_note_below_a_table_is_unconsumed() -> None:
+    page = _table_page("Morgan Exit Routes")
+    page["words"].append(_word("Note", 60.0, 170.0))
+    unconsumed = _one_page(page).coverage["SOP"].unconsumed
+    assert [item for item in unconsumed if "p40" in item and "a row of text" in item]
+
+
+def test_row_straddling_the_border_stop_is_unconsumed() -> None:
+    page = _table_page(
+        "Morgan Exit Routes",
+        rows_of_cells=(
+            ("Valley", "V111", "P", "7,000", "Direct KARNN"),
+            ("Seca", "MRY", "T", "9,000", "Direct MRY"),
+        ),
+    )
+    left = SOP_EDGES[0]
+    page["v_edges"] = [
+        edge if edge["x"] != left else {"x": left, "top": TABLE_TOP, "bottom": 148.0}
+        for edge in page["v_edges"]
+    ]
+    page["h_edges"] = [edge for edge in page["h_edges"] if edge["y"] <= 146.0]
+    unconsumed = _one_page(page).coverage["SOP"].unconsumed
+    assert [item for item in unconsumed if "p40" in item and "a row of text" in item]
+
+
+def test_staggered_row_below_a_table_is_unconsumed() -> None:
+    page = _table_page("Morgan Exit Routes")
+    page["words"].append(_word("MRY", 160.0, 170.0))
+    page["words"].append(_word("9,000", 360.0, 185.0))
+    unconsumed = _one_page(page).coverage["SOP"].unconsumed
+    assert [item for item in unconsumed if "a row of text" in item]
+
+
+def test_footer_below_a_table_is_allowed() -> None:
+    page = _table_page("Morgan Exit Routes")
+    page["words"].append(_word("oakartcc.org", 60.0, 745.0))
+    page["words"].append(_word("Simulation", 310.0, 745.0))
+    unconsumed = _one_page(page).coverage["SOP"].unconsumed
+    assert not [item for item in unconsumed if "a row of text" in item]
+
+
+def test_text_under_a_heading_below_a_table_is_allowed() -> None:
+    page = _table_page("Morgan Exit Routes")
+    page["words"] += _text_words("Seca Exit Routes", 36.0, 200.0)
+    page["words"].append(_word("North", 60.0, 250.0))
+    page["words"].append(_word("South", 310.0, 250.0))
+    unconsumed = _one_page(page).coverage["SOP"].unconsumed
+    assert not [item for item in unconsumed if "a row of text" in item]
 
 
 def test_unconsumed_table_exits_nonzero_and_writes_nothing(

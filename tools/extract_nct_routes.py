@@ -766,19 +766,31 @@ def _is_title_or_heading(text: str) -> bool:
     return any(pattern.match(text) for pattern in patterns)
 
 
+def _refuse_dropped_text_below(page: Page, grid: Grid, stop: float) -> None:
+    """Refuse a page whose text past the table's end the grid would drop."""
+    ceiling = min(stop, FOOTER_TOP)
+    past = [word for word in page["words"] if _center_y(word) > grid.bottom]
+    for line in text_lines(past):
+        if line.top >= ceiling:
+            continue
+        raise ExtractError(
+            f"p{page['number']}: a row of text at y={line.top} sits below where the "
+            "table's left border stops, so it would be lost"
+        )
+
+
 def _handoff_grid(page: Page, header: Header, limit: float) -> Grid:
     """Build a handoff table's grid, refusing one whose left border stopped above more rows."""
     grid = build_grid(page, header, limit)
-    clusters = _cluster_rules(
-        page, (grid.bottom, _stop_below(page, grid.bottom, limit))
-    )
-    for y, rules in clusters.items():
+    stop = _stop_below(page, grid.bottom, limit)
+    for y, rules in _cluster_rules(page, (grid.bottom, stop)).items():
         crossed = sum(1 for band in grid.bands if _covers_band(rules, band))
         if crossed >= MIN_GRID_COLUMNS:
             raise ExtractError(
                 f"p{page['number']}: a ruled row at y={y} sits below where the table's "
                 "left border stops, so its rows would be lost"
             )
+    _refuse_dropped_text_below(page, grid, stop)
     return grid
 
 
