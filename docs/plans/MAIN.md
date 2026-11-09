@@ -26,7 +26,7 @@ Fresh agents: start here, work top-down (current focus → next up → backlog).
   - Origin: surfaced while fixing the STAR→STR rename (boundary-normalization fix shipped
     separately; this is the deferred architectural improvement the user asked to track).
 
-- [ ] **NCT entry and exit route lookup (`zoa xfer`, `zoa flow`).** `branch: feat/nct-xfer`. Design in [nct-route-lookup.md](./nct-route-lookup.md): a reviewed data file from the NCT SOP and NCT-ZOA LOA, a terse typed lookup for use on position, a persistent flow setting and a reciprocal checker for errata. The owner approved the design on 2026-11-08 and asked for all seven Steps, pausing for the data review.
+- [ ] **NCT entry and exit route lookup (`zoa xfer`, `zoa flow`).** `branch: feat/nct-xfer`. Design in [nct-route-lookup.md](./nct-route-lookup.md): a reviewed data file from the NCT SOP and NCT-ZOA LOA, a terse typed lookup for use on position, a persistent flow setting and a reciprocal checker for errata. The owner approved the design on 2026-11-08 and asked for all seven Steps, pausing for the data review. Step 1 (extractor) landed on `feat/nct-xfer`.
 
 ## Backlog
 
@@ -39,5 +39,6 @@ Fresh agents: start here, work top-down (current focus → next up → backlog).
   Before landing, `rg -n "CLAUDE\.md" docs .claude` and repoint back-links, including ARCHITECTURE's Task Index and Deep docs rows that name `CLAUDE.md` sections. One docs commit. Requested by claude-config (inbox 20261103-050522).
 - [ ] **Stop the CIFP tests depending on the current AIRAC's procedure names.** `tests/test_cifp_terminators.py:80`, `tests/test_cifp_missed_approach.py:38` and `tests/test_cifp_continuation.py:64` look up `OAK CNDEL5`, falling back to `SFO OFFSH3`, in the cached live CIFP. Cycle 2611 has `CNDEL6` and neither name, so all three fail with `detail is None`. Build the SID from `make_cifp_line` instead, so a new cycle can't break them.
 - [ ] **Clear the `ruff check` findings.** `uvx ruff check src tests` reports 129 findings, 41 of them auto-fixable. Examples are the `try`/`except`/`pass` blocks in `src/zoa_ref/procedures.py` (`_extract_pdf_bookmarks`, `_search_pdf_text_for_heading`, `find_text_in_section`), which hide PDF failures as "not found". Fix the auto-fixable set in its own commit, then the rest by rule.
+- [ ] **Catch a last unruled row below a border gap in the NCT extractor.** On `feat/nct-xfer`, `_body_bottom` in `tools/extract_nct_routes.py` ends a table where its left border stops, and the check beside it looks only for ruled rows below that point. A final row with no closing rule would vanish with exit 0. No table in SOP v1.13 or LOA CHG08 hits this; SOP p33, p96 and p105 end open-bottomed but don't stop short. Found by review of the extractor.
 - See [cifp-parser-drift-from-yaat.md](./cifp-parser-drift-from-yaat.md) — CIFP parser parity
   with YAAT (all actionable items resolved 2026-05-21; kept for reference).
