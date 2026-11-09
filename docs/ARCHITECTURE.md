@@ -9,7 +9,7 @@ The rule that shapes it: command logic lives once in `commands.py`, and both the
 | Task | Files, in order | Deep doc |
 |---|---|---|
 | Add or change a command | `src/zoa_ref/commands.py` (the `do_*` function) → `src/zoa_ref/cli.py` (Click command) → `src/zoa_ref/interactive.py` (`_handle_*_interactive` and the `INTERACTIVE_COMMANDS` registry) → `src/zoa_ref/cli_utils.py` (`COMMAND_HELP`, `INTERACTIVE_HELP_COMMANDS`) → `src/zoa_ref/autocomplete.py` (`INTERACTIVE_COMMANDS`) | `CLAUDE.md` (Key Patterns) |
-| Change chart lookup or name matching | `src/zoa_ref/charts.py` (`ChartQuery.parse`) → `src/zoa_ref/fuzzy.py` → `src/zoa_ref/commands.py` (`do_chart_lookup`, `do_list_charts`) → `tests/test_charts_chart_code.py` | `CLAUDE.md` |
+| Change chart lookup or name matching | `src/zoa_ref/charts.py` (`ChartQuery.parse`) → `src/zoa_ref/fuzzy.py` → `src/zoa_ref/commands.py` (`do_chart_lookup`, `do_list_charts`) → `tests/test_charts_chart_code.py` | [`../.claude/rules/charts.md`](../.claude/rules/charts.md) |
 | Fix a CIFP (ARINC 424) parsing bug | `src/zoa_ref/cifp.py` → `tests/conftest.py` (`make_cifp_line`) → the matching `tests/test_cifp_*.py` | [`plans/archive/cifp-parser-drift-from-yaat.md`](plans/archive/cifp-parser-drift-from-yaat.md) |
 | Change the `cifp` or `uses` output | `src/zoa_ref/commands.py` (`do_cifp_lookup`, `do_uses_lookup`) → `src/zoa_ref/display.py` → `src/zoa_ref/cifp.py` | none |
 | Change navaid or airway data | `src/zoa_ref/nasr.py` → `src/zoa_ref/navaids.py` → `src/zoa_ref/airways.py` → `tests/test_nasr_awy.py` | none |
@@ -20,7 +20,7 @@ The rule that shapes it: command logic lives once in `commands.py`, and both the
 | Change AIRAC-cycle caching | `src/zoa_ref/cache.py` → `src/zoa_ref/config.py` → `tests/test_airac.py` | none |
 | Change browser handling or the hotkey | `src/zoa_ref/browser.py` → `src/zoa_ref/playwright_bootstrap.py` → `src/zoa_ref/hotkey.py` → `src/zoa_ref/cli_utils.py` (`open_in_browser`) | none |
 | Change interactive tab completion | `src/zoa_ref/autocomplete.py` (`ZoaCompleter`) → `src/zoa_ref/completers.py` | none |
-| Change constants, URLs or cache paths | `src/zoa_ref/config.py` | `CLAUDE.md` (Data Sources) |
+| Change constants, URLs or cache paths | `src/zoa_ref/config.py` | none |
 | Change the standalone build or release | `build_exe.py` → `.github/workflows/release.yml` → `src/zoa_ref/playwright_bootstrap.py` | none |
 | Change the checkout install or `run.py` | `install.py` (`ensure_installed`, `choose_bin_dir`, `offer_aliases`) → `run.py` → `tests/test_install.py` | [`../README.md`](../README.md) (From a checkout) |
 
@@ -74,5 +74,6 @@ Stated rule (`CLAUDE.md`): both the CLI and interactive mode use the shared `do_
 - [`plans/MAIN.md`](plans/MAIN.md): the plan index.
 - [`plans/nct-route-lookup.md`](plans/nct-route-lookup.md): design for the NCT entry and exit route lookup.
 - [`plans/archive/cifp-parser-drift-from-yaat.md`](plans/archive/cifp-parser-drift-from-yaat.md): CIFP parser parity review against YAAT, with the resolution log.
-- [`../CLAUDE.md`](../CLAUDE.md): command reference, module list, key patterns and data sources.
+- [`../CLAUDE.md`](../CLAUDE.md): overview, install and test commands, and the parity and checkout-install rules.
+- [`../.claude/rules/charts.md`](../.claude/rules/charts.md): notes on chart, SOP, approach and descent behaviour, loaded when those modules are read.
 - [`../README.md`](../README.md): install and usage.
