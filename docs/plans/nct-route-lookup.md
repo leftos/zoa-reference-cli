@@ -28,6 +28,8 @@ New NCT controllers struggle to find the right entry and exit route. The answer 
 
   SFO10 and SFO19 replace only row by row, never a whole table: Grove's SFO10 section (SOP p98) holds a few rows and has no counterpart for most of Grove's SFOE rows, which keep answering.
 
+  A complex and its airports narrow by what was asked. Grove's HWD departures print `San Jose CX` under SFOW and `SJC` under SJCE, so under SFOW+SJCE, asking for SJC gives only the SJCE row, and asking for PAO or NUQ still gives the complex row, since the SJCE row says nothing about them. Asking for the complex itself prints both.
+
 - **Tables are overrides, not exhaustive.** Every table, for every flow, lists only what needs overriding where "en route, any altitude" doesn't work. So a gap means no specific instructions, and nothing falls back to another flow's table. When no row applies, the answer says so: hand off en route at any altitude.
 
   Under plain SFOE, which doesn't say which runway, SFOE, SFO10 and SFO19 rows all apply and an answer names each row's flow. Under plain SFOW, OAKE and SJCE rows don't apply, since SFOW alone means OAK and SJC run west.
