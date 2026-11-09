@@ -14,6 +14,8 @@ from dataclasses import dataclass
 
 from zoa_ref.charts import fetch_charts_from_api
 
+MIN_STAR_PREFIX = 4
+
 
 @dataclass
 class ApproachConnection:
@@ -210,6 +212,8 @@ def resolve_star(airport: str, star_name: str) -> StarAnalysis | None:
     Returns:
         The STAR's analysis. A number that doesn't exist resolves to the only
         STAR with the same base name, since a cycle change bumps the number.
+        A longer name resolves to the only STAR whose base name it starts with
+        (at least MIN_STAR_PREFIX letters), as FERNANDO7 does for FERN7.
         None when no STAR matches or several share the base name.
     """
     from zoa_ref.cifp import get_all_stars
@@ -222,15 +226,26 @@ def resolve_star(airport: str, star_name: str) -> StarAnalysis | None:
     if base_name is None:
         return None
 
+    identifiers = get_all_stars(airport)
     candidates = [
         identifier
-        for identifier in get_all_stars(airport)
+        for identifier in identifiers
         if _star_base_name(identifier) == base_name
     ]
-    if len(candidates) != 1:
+    if candidates:
+        return analyze_star(airport, candidates[0]) if len(candidates) == 1 else None
+
+    prefixed = [
+        identifier
+        for identifier in identifiers
+        if (identifier_base := _star_base_name(identifier)) is not None
+        and len(identifier_base) >= MIN_STAR_PREFIX
+        and base_name.startswith(identifier_base)
+    ]
+    if len(prefixed) != 1:
         return None
 
-    return analyze_star(airport, candidates[0])
+    return analyze_star(airport, prefixed[0])
 
 
 def find_connected_approaches(

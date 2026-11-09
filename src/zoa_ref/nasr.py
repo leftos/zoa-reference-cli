@@ -483,17 +483,27 @@ def get_all_navaid_identifiers(name: str) -> list[str]:
 
     Since multiple navaids can share the same name (e.g., "CONCORD" exists
     as both CCR and CON in different locations), this returns all matching
-    identifiers.
+    identifiers. A name typed without its spaces ("BIGSUR" for "BIG SUR")
+    matches the name that has them.
 
     Args:
-        name: Navaid name (e.g., "CONCORD")
+        name: Navaid name (e.g., "CONCORD", "BIGSUR")
 
     Returns:
         List of navaid identifiers (e.g., ["CCR", "CON"]).
     """
     _, name_to_navaids = _build_navaid_indexes()
     navaids = name_to_navaids.get(name.upper(), [])
-    return [n.ident for n in navaids]
+    if navaids:
+        return [n.ident for n in navaids]
+
+    compact = name.upper().replace(" ", "")
+    return [
+        navaid.ident
+        for navaid_name, matches in name_to_navaids.items()
+        if navaid_name.replace(" ", "") == compact
+        for navaid in matches
+    ]
 
 
 def get_navaid_name(ident: str) -> str | None:

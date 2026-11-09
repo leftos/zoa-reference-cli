@@ -110,6 +110,59 @@ def test_navaid_name_typed(cifp, monkeypatch):
     assert star.waypoints == ["WESLA"]
 
 
+def test_chart_name_starting_with_the_identifier(cifp, monkeypatch):
+    write, _ = cifp
+    write(["FERN7"])
+    _patch_charts(monkeypatch, [_iap_chart()])
+
+    star, _connections = find_connected_approaches(AIRPORT, "FERNANDO7")
+
+    assert star is not None
+    assert star.waypoints == ["WESLA"]
+
+
+def test_chart_name_with_a_stale_digit(cifp, monkeypatch):
+    write, _ = cifp
+    write(["FERN7"])
+    _patch_charts(monkeypatch, [_iap_chart()])
+
+    star, _connections = find_connected_approaches(AIRPORT, "FERNANDO6")
+
+    assert star is not None
+
+
+def test_short_identifier_prefix_is_not_found(cifp, monkeypatch):
+    write, _ = cifp
+    write(["BSR3"])
+    _patch_charts(monkeypatch, [_iap_chart()])
+
+    star, _connections = find_connected_approaches(AIRPORT, "BSRFOO3")
+
+    assert star is None
+
+
+def test_two_identifiers_sharing_the_prefix_are_not_found(cifp, monkeypatch):
+    write, _ = cifp
+    write(["FERN7", "FERNA2"])
+    _patch_charts(monkeypatch, [_iap_chart()])
+
+    star, _connections = find_connected_approaches(AIRPORT, "FERNANDO7")
+
+    assert star is None
+
+
+def test_same_base_wins_over_a_prefix(cifp, monkeypatch):
+    write, _ = cifp
+    write(["FERNA2", "FERN7"])
+    _patch_charts(monkeypatch, [_iap_chart()])
+
+    star, _connections = find_connected_approaches(AIRPORT, "FERNA6")
+
+    assert star is not None
+    assert star.name == "FERNA2"
+    assert star.waypoints == ["WESLA"]
+
+
 def test_stale_number_resolves_to_only_same_base(cifp, monkeypatch):
     write, _ = cifp
     write(["SCOLA1"])
