@@ -171,6 +171,7 @@ INTERACTIVE_HELP_COMMANDS = [
     "Tools:",
     "  descent|des <arg1> <arg2>  - Descent calculator (altitudes or fixes)",
     "  mea <route> [-a <alt>]     - MEA/MOCA for route (alt in hundreds)",
+    "  xfer <sector> <target> [class] [-f <flows>] [-e] - NCT handoff row",
     "Settings:",
     "  setbrowser [browser]      - Set preferred browser (e.g., setbrowser firefox)",
     "  sethotkey [clear]         - Set global hotkey to focus this terminal",
@@ -525,6 +526,21 @@ Examples:
 When an altitude is specified, only segments exceeding that
 altitude are listed. If all segments are at or below the
 specified altitude, the route is marked as SAFE.
+""",
+    "xfer": """
+Look up an NCT handoff row by sector and destination or route.
+
+    \b
+    SECTOR is an NCT sector, or zoa for the LOA's ZOA side.
+    TARGET is a destination, fix, airway or complex.
+    CLASS is an aircraft class such as J; without it every class prints.
+
+    \b
+    Examples:
+      zoa xfer morgan SFO J
+      zoa xfer cedar SFO --entry
+      zoa xfer grove SJC J --flow SJCE
+      zoa xfer zoa SFO
 """,
     "uses": """
 uses - Find which procedures use a fix/waypoint

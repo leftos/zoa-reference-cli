@@ -1,5 +1,7 @@
 """CLI interface for ZOA Reference Tool lookups."""
 
+import io
+import sys
 import webbrowser
 
 import click
@@ -43,11 +45,19 @@ from .commands import (
     do_cifp_lookup,
     do_uses_lookup,
     do_vatsim_radar,
+    do_xfer_lookup,
 )
 from .descent import is_fix_identifier
 from .distance import compute_bearing, compute_distance
 from .interactive import interactive_mode
 from .playwright_bootstrap import ensure_chromium_installed
+
+
+def _use_utf8_output() -> None:
+    """Write UTF-8 to a pipe too, since NCT rows print arrows a legacy code page can't."""
+    for stream in (sys.stdout, sys.stderr):
+        if isinstance(stream, io.TextIOWrapper):
+            stream.reconfigure(encoding="utf-8")
 
 
 @click.group(cls=ImplicitChartGroup, invoke_without_command=True)
@@ -76,6 +86,8 @@ def main(ctx, playwright: bool):
 
         zoa --playwright         - Interactive mode with managed browser
     """
+    _use_utf8_output()
+
     # Set console title
     set_console_title("ZOA Ref CLI")
 
@@ -345,6 +357,22 @@ def apps(airport: str, star_or_fix: str, runways: tuple[str, ...]):
 )
 def mea(route: tuple[str, ...], altitude: int | None):
     do_mea_lookup(" ".join(route), altitude)
+
+
+@main.command(help=COMMAND_HELP["xfer"].strip())
+@click.argument("sector")
+@click.argument("target")
+@click.argument("aircraft", required=False, default="")
+@click.option("--flow", "-f", default=None, help="Flows to use, such as SFOW,SMFN")
+@click.option(
+    "--entry",
+    "-e",
+    is_flag=True,
+    help="Rows into the sector instead of out of it",
+)
+def xfer(sector: str, target: str, aircraft: str, flow: str | None, entry: bool):
+    if not do_xfer_lookup(sector, target, aircraft, flow, entry):
+        raise SystemExit(1)
 
 
 @main.command(help=COMMAND_HELP["cifp"].strip())

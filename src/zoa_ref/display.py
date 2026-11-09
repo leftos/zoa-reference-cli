@@ -1,5 +1,7 @@
 """Display and formatting functions for CLI output."""
 
+from collections.abc import Set as AbstractSet
+
 import click
 
 from .airways import AirwaySearchResult, FixAirwaysResult
@@ -10,6 +12,15 @@ from .descent import DescentResult, DescentMode, FixDescentResult
 from .icao import AirlineSearchResult, AirportSearchResult, AircraftSearchResult
 from .mea import MeaResult
 from .navaids import NavaidSearchResult
+from .nct_routes import (
+    FLOW_ORDER,
+    Mismatch,
+    Row,
+    XferAnswer,
+    XferQuery,
+    matched_items,
+    row_flow_names,
+)
 from .positions import PositionSearchResult
 from .procedures import ProcedureMatch
 from .routes import RouteSearchResult
@@ -566,6 +577,98 @@ def display_fix_airways(result: FixAirwaysResult) -> None:
         )
 
     click.echo()
+
+
+def _xfer_classes(row: Row, answer: XferAnswer) -> str:
+    """Return the classes a row answers for, as a line opens with them."""
+    return " ".join(answer.shown_classes[row["id"]]) or "All"
+
+
+def _xfer_first_field(row: Row, query: XferQuery) -> str:
+    """Return who a line names: the other sector, or both sides for the LOA's ZOA side."""
+    if query.sector.casefold() != "zoa" and row["from"]:
+        return row["from"] if query.entry else row["to"]
+    if row["direction"] == "loa_departure":
+        origin = row["from"] or "/".join(row["from_airports"])
+        return f"{origin} to {row['to']}".strip()
+    return f"{row['from']} to {row['to'] or 'first sector entered'}"
+
+
+def format_xfer_line(
+    row: Row,
+    query: XferQuery,
+    answer: XferAnswer,
+    chosen: AbstractSet[str],
+    class_width: int,
+) -> str:
+    """Format one answered row as a single terse line.
+
+    Args:
+        row: The row to print.
+        query: What was asked. Classes lead the line only when no class was asked for.
+        answer: The answer holding the row, which says the classes it answers for.
+        chosen: The chosen flows, holding the parent of any specific flow.
+        class_width: The width to pad the classes to, the widest in the answer.
+
+    Returns:
+        The row's fields joined by commas, each left out when blank.
+    """
+    flows = "/".join(row_flow_names(row, chosen))
+    first = _xfer_first_field(row, query) + (f" ({flows})" if flows else "")
+    fields = (
+        first,
+        " or ".join(matched_items(row, query)),
+        " or ".join(row["route"]),
+        row["altitude"],
+        row["info"],
+        *row["qualifiers"],
+        row["restrictions"],
+        row["source"],
+    )
+    line = ", ".join(field for field in fields if field)
+    if query.aircraft:
+        return line
+    return f"{_xfer_classes(row, answer).ljust(class_width)}  {line}"
+
+
+def _display_xfer_mismatch(row: Row, mismatch: Mismatch) -> None:
+    """Print both versions of a cell an exit row and its entry row disagree on."""
+    exit_row, entry_row, field = mismatch.exit_row, mismatch.entry_row, mismatch.field
+    other_table = "entry" if row["direction"] == "exit" else "exit"
+    for line in (
+        f"Warning: the {other_table} table disagrees on {field}:",
+        f"{exit_row['from']} exit, SOP p{exit_row['page']}: {exit_row[field] or '(blank)'}",
+        f"{entry_row['to']} entry, SOP p{entry_row['page']}: {entry_row[field] or '(blank)'}",
+    ):
+        click.secho(f"  {line}", fg="yellow")
+
+
+def display_xfer(
+    query: XferQuery, answer: XferAnswer, chosen: AbstractSet[str]
+) -> None:
+    """Print an NCT handoff answer, closing with the flows it used.
+
+    Args:
+        query: What was asked.
+        answer: What the lookup found.
+        chosen: The flows the lookup used.
+    """
+    class_width = max(
+        (len(_xfer_classes(row, answer)) for row in answer.rows), default=0
+    )
+    for row in answer.rows:
+        click.echo(format_xfer_line(row, query, answer, chosen, class_width))
+        for mismatch in answer.mismatches.get(row["id"], []):
+            _display_xfer_mismatch(row, mismatch)
+    if not answer.rows:
+        click.echo("No specific instructions: hand off en route at any altitude.")
+    if not answer.matches_anywhere:
+        click.echo(
+            f"No row matches {query.target} anywhere in the SOP or LOA: check the spelling.",
+            err=True,
+        )
+    names = " ".join(flow for flow in FLOW_ORDER if flow in chosen)
+    click.echo(f"Flows: {names}")
 
 
 def display_mea(result: MeaResult) -> None:

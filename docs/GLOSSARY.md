@@ -2,6 +2,8 @@
 
 Terms the docs and plans use in a project-specific or uncommon sense.
 
+- **Airport-filed row**: an LOA departure row that names its departure airports instead of a sending sector. A `zoa xfer` lookup out of a sector prints one only when no named row answers.
+- **Catch-all row**: a row whose destination is `All others` or a bare `All`. `zoa xfer` prints it only when no other row names the target, and only for the classes no named row covers.
 - **Combine chain**: the sectors a position falls back to when it isn't staffed, from the SOP's "combines to" column, such as Licke to Toga to Morgan.
 - **CX**: complex, a named group of airports from NCT SOP §1-4. "San Jose CX" includes SJC, NUQ, PAO, RHV and E16.
 - **Doubt**: a note the NCT extractor attaches to a draft row or P-ACP line saying what looks wrong in it, such as two altitudes in one cell, for the data review to settle.

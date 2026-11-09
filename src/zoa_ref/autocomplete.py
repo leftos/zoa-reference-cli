@@ -51,6 +51,7 @@ INTERACTIVE_COMMANDS = [
     "pos",
     "scratchpad",
     "scratch",
+    "xfer",
     "vis",
     "tdls",
     "strips",

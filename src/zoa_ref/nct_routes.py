@@ -39,6 +39,32 @@ VALID_FLOW_SETS: tuple[frozenset[str], ...] = tuple(
 
 FIELDS = ("altitude", "info", "restrictions")
 
+FLOW_ORDER = (
+    "SFOW",
+    "SFOE",
+    "SFO10",
+    "SFO19",
+    "OAKE",
+    "SJCE",
+    "SMFS",
+    "SMFN",
+    "RNOS",
+    "RNON",
+)
+DEFAULT_FLOWS = frozenset({"SFOW", "SMFS", "RNOS"})
+
+
+class FlowError(ValueError):
+    """A flow name that doesn't exist, or flows that can't run together."""
+
+
+class UnknownSectorError(ValueError):
+    """A sector no row of the file names."""
+
+
+class UnknownClassError(ValueError):
+    """An aircraft class no row of the file carries."""
+
 
 class Mismatch(NamedTuple):
     """An exit row and its reciprocal entry row disagreeing on one field."""
@@ -60,6 +86,95 @@ class RowConflicts(NamedTuple):
     mismatches: list[Mismatch]
     uncovered: list[tuple[str, str]]
 
+
+class XferQuery(NamedTuple):
+    """What a controller asked: a sector, a destination or route, a class, a direction."""
+
+    sector: str
+    target: str
+    aircraft: str
+    entry: bool
+
+
+class XferAnswer(NamedTuple):
+    """The rows answering a query, each row's disagreements and the classes each row answers for.
+
+    A row with a blank class shows no classes. ``matches_anywhere`` tells whether any
+    row of the file names the target.
+    """
+
+    rows: list[Row]
+    mismatches: dict[str, list[Mismatch]]
+    matches_anywhere: bool
+    shown_classes: dict[str, list[str]]
+
+
+class _Target(NamedTuple):
+    """What a lookup target can mean: its spellings, a complex it names, complexes it belongs to."""
+
+    names: frozenset[str]
+    queried_complex: str | None
+    member_of: frozenset[str]
+    complexes: dict[str, frozenset[str]]
+    aliases: dict[str, str]
+
+
+class _Lookup(NamedTuple):
+    """What one lookup reads while judging its catch-all rows."""
+
+    query: XferQuery
+    target: _Target
+    chosen: AbstractSet[str]
+    applicable: list[Row]
+
+
+_FLOW_GROUPS = (
+    (frozenset({"SFOW", "SFOE"}), "SFOW"),
+    (frozenset({"SMFS", "SMFN"}), "SMFS"),
+    (frozenset({"RNOS", "RNON"}), "RNOS"),
+)
+_FLOWS_SPLIT = re.compile(r"[,\s]+")
+_ZOA_SECTOR = "zoa"
+_NOISE_WORDS = frozenset(
+    {
+        "all",
+        "and",
+        "arrivals",
+        "at",
+        "cx",
+        "departures",
+        "direct",
+        "dp",
+        "dps",
+        "from",
+        "landing",
+        "of",
+        "on",
+        "only",
+        "or",
+        "others",
+        "rv",
+        "sid",
+        "star",
+        "the",
+        "to",
+        "via",
+    }
+)
+_TOKEN_SPLIT = re.compile(r"[\s/,&().:;]+")
+_POSSESSIVE = re.compile(r"['’]s$")
+_EXCEPT_ON_FLOW = re.compile(r"\bon\s+(\S+)$")
+_EXCEPT_PREFIX = "except"
+_NOT_MATCH_TEXT_PREFIXES = (_EXCEPT_PREFIX, "excluding")
+_CATCH_ALL_PREFIX = "all others"
+_BARE_ALL = "all"
+_LANDING_NCT = "landing nct"
+_COMPLEX_SUFFIX = " cx"
+_MATCH_DIRECT = 0
+_MATCH_QUERIED_COMPLEX = 1
+_MATCH_THROUGH_COMPLEX = 2
+_MATCH_COMPLEX_NAME = 3
+_MATCH_PHRASE = 4
 
 _BLANK_CLASS = ""
 _RUNWAY_FLOWS = frozenset({"SFO10", "SFO19"})
@@ -265,6 +380,589 @@ def conflicts_by_row(
         Each such row's id mapped to what ``conflicts`` returns for it, in file order.
     """
     return _judge([row for row in rows_for(all_rows, chosen) if row["doc"] == "SOP"])
+
+
+def conflicts_in_file(row: Row, chosen: AbstractSet[str]) -> RowConflicts:
+    """Judge one row against its reciprocals in the whole packaged file.
+
+    Args:
+        row: The row to judge.
+        chosen: The chosen flows, holding the parent of any specific flow.
+
+    Returns:
+        What ``conflicts`` returns for the row over every row of the file.
+    """
+    return conflicts(row, load_data()["rows"], chosen)
+
+
+def flow_names(text: str) -> list[str]:
+    """Split typed flows into the names they hold, as typed.
+
+    Args:
+        text: Flow names separated by commas or whitespace.
+
+    Returns:
+        The names, which is none for a text of only separators.
+    """
+    return [name for name in _FLOWS_SPLIT.split(text.strip()) if name]
+
+
+def parse_flows(text: str) -> frozenset[str]:
+    """Read a typed list of flows into a complete flow set.
+
+    Args:
+        text: Flow names separated by commas or whitespace, in any case.
+
+    Returns:
+        The named flows with each one's parent, and the default flow of any group
+        (Bay, Sacramento, Reno) the text doesn't name.
+
+    Raises:
+        FlowError: A name isn't a flow, or the flows can't run together.
+    """
+    parents = load_data()["flow_parents"]
+    named: set[str] = set()
+    for name in flow_names(text):
+        if name.upper() not in FLOW_ORDER:
+            known = ", ".join(FLOW_ORDER)
+            raise FlowError(f"Unknown flow '{name}'. Known: {known}.")
+        named.add(name.upper())
+    named |= {parents[flow] for flow in named if flow in parents}
+    for group, default in _FLOW_GROUPS:
+        if named.isdisjoint(group):
+            named.add(default)
+    chosen = frozenset(named)
+    if chosen not in VALID_FLOW_SETS:
+        raise FlowError(
+            "Those flows can't run together: OAKE and SJCE need SFOW, SFO10 and SFO19 need SFOE "
+            "and are set one at a time, and SMF and RNO each take one flow."
+        )
+    return chosen
+
+
+def row_flow_names(row: Row, chosen: AbstractSet[str]) -> list[str]:
+    """Name the flows an answer has to print beside a row.
+
+    Args:
+        row: A row that answers under the flows.
+        chosen: The chosen flows, holding the parent of any specific flow.
+
+    Returns:
+        The row's tags that are active specific flows. Plain SFOE doesn't say which
+        runway, so SFOE, SFO10 and SFO19 count too under it.
+    """
+    named = chosen & load_data()["flow_parents"].keys()
+    if "SFOE" in chosen and not chosen & _RUNWAY_FLOWS:
+        named = named | _RUNWAY_FLOWS | {"SFOE"}
+    return [flow for flow in _tags(row) if flow in named]
+
+
+def lookup(query: XferQuery, chosen: AbstractSet[str]) -> XferAnswer:
+    """Answer a handoff query from the rows that apply under the chosen flows.
+
+    Args:
+        query: The sector, target, class and direction asked for.
+        chosen: The chosen flows, holding the parent of any specific flow.
+
+    Returns:
+        The rows that answer, in file order with catch-alls last, the disagreements worth warning of,
+        whether the target matches any row of the file under any flow, and the classes
+        each row answers for.
+
+    Raises:
+        UnknownSectorError: No row names the sector.
+        UnknownClassError: No row carries the class.
+    """
+    _check_sector(query.sector)
+    _check_class(query.aircraft)
+    target = _resolve_target(query.target)
+    context = _Lookup(query, target, chosen, applicable_rows(chosen))
+    row_set = _query_rows(context.applicable, query)
+    named = _named_rows(row_set, target, _reads_airports(query), chosen)
+    filed = [] if _rows_for_class(named, query.aircraft) else _airport_filed(context)
+    shown = _shown_classes(row_set, named, context)
+    shown |= {row["id"]: list(row["aircraft"]) for row in filed}
+    rows = sorted(
+        (row for row in [*row_set, *filed] if row["id"] in shown), key=_is_catch_all
+    )
+    return XferAnswer(
+        rows,
+        _worth_warning(rows, target, query.aircraft, chosen),
+        _matches_anywhere(target),
+        shown,
+    )
+
+
+def matched_items(row: Row, query: XferQuery) -> list[str]:
+    """Name the destinations a line has to print for it to say what it answers.
+
+    Args:
+        row: An answered row.
+        query: What was asked.
+
+    Returns:
+        A longer destination holding the target as a word, or a complex's name without
+        ``CX``. Every destination of a row matched only by a qualifier or an airport.
+        A bare ``All`` row's item. Nothing for an exact match, a match through a
+        complex, a phrase, a route, an ``All others`` row or a target naming a complex
+        through a destination.
+    """
+    target = _resolve_target(query.target)
+    if _is_catch_all(row):
+        return [item for item in row["dest_or_route"] if item_key(item) == _BARE_ALL]
+    matched = _matched_destinations(row, target)
+    if matched:
+        return _longer_items(matched, target)
+    if any(_item_kind(item, target) is not None for item in row["route"]):
+        return []
+    return list(row["dest_or_route"])
+
+
+def _matched_destinations(row: Row, target: _Target) -> list[str]:
+    """Return the destination items of a row that match a target."""
+    return [
+        item for item in row["dest_or_route"] if _item_kind(item, target) is not None
+    ]
+
+
+def _longer_items(matched: list[str], target: _Target) -> list[str]:
+    """Keep matched destinations that say more than the target or its complex."""
+    if target.queried_complex is not None:
+        return [
+            item
+            for item in matched
+            if _holds_bare_name(item.casefold(), target.queried_complex)
+        ]
+    exact = {item_key(name) for name in target.names}
+    return [
+        item
+        for item in matched
+        if item_key(item) not in exact
+        and _item_kind(item, target) in (_MATCH_DIRECT, _MATCH_COMPLEX_NAME)
+    ]
+
+
+def _holds_bare_name(text: str, key: str) -> bool:
+    """Tell whether a casefolded text holds a complex's name other than as ``<name> CX``."""
+    return _holds(text, key) and not _holds(text, f"{key}{_COMPLEX_SUFFIX}")
+
+
+def _reads_airports(query: XferQuery) -> bool:
+    """Tell whether a query matches rows on the airports they depart from."""
+    return query.sector.casefold() == _ZOA_SECTOR and query.entry
+
+
+def _matches_anywhere(target: _Target) -> bool:
+    """Tell whether any row of the file, under any flow, names a target."""
+    return any(_row_kind(row, target, True) is not None for row in load_data()["rows"])
+
+
+def _check_sector(sector: str) -> None:
+    """Refuse a sector that no row names, since a typo isn't a lack of instructions."""
+    known = {_ZOA_SECTOR}
+    for row in load_data()["rows"]:
+        if row["doc"] == "SOP":
+            known |= {row["from"], row["to"]}
+        elif row["direction"] == "loa_arrival":
+            known.add(row["to"])
+        else:
+            known.add(row["from"])
+    known.discard("")
+    if sector.casefold() not in {name.casefold() for name in known}:
+        names = ", ".join(sorted(known, key=str.casefold))
+        raise UnknownSectorError(f"Unknown sector '{sector}'. Known: {names}.")
+
+
+def _check_class(aircraft: str) -> None:
+    """Refuse a class that no row carries, since a typo isn't a lack of instructions."""
+    if not aircraft:
+        return
+    known = {
+        class_key(printed) for row in load_data()["rows"] for printed in row["aircraft"]
+    }
+    if class_key(aircraft) not in known:
+        names = ", ".join(sorted(name.upper() for name in known))
+        raise UnknownClassError(f"Unknown aircraft class '{aircraft}'. Known: {names}.")
+
+
+def _resolve_target(text: str) -> _Target:
+    """Work out what a typed target can mean in the file's complexes and aliases."""
+    complexes = _folded_complexes()
+    aliases = {
+        alias.casefold(): resolved.casefold().removesuffix(_COMPLEX_SUFFIX)
+        for alias, resolved in load_data()["aliases"].items()
+    }
+    folded = " ".join(text.casefold().split())
+    names = {folded}
+    if len(folded) == 4 and folded.startswith("k"):
+        names.add(folded[1:])
+    bare = folded.removesuffix(_COMPLEX_SUFFIX)
+    queried = bare if bare in complexes else aliases.get(bare)
+    member_of = frozenset(
+        key for key, airports in complexes.items() if not airports.isdisjoint(names)
+    )
+    return _Target(frozenset(names), queried, member_of, complexes, aliases)
+
+
+def _folded_complexes() -> dict[str, frozenset[str]]:
+    """Return each complex's casefolded name and member airports."""
+    return {
+        key.casefold(): frozenset(airport.casefold() for airport in airports)
+        for key, airports in load_data()["complexes"].items()
+    }
+
+
+def _query_rows(rows: Iterable[Row], query: XferQuery) -> list[Row]:
+    """Keep the rows a query reads: one sector's rows in a direction, or one LOA side."""
+    sector = query.sector.casefold()
+    if sector == _ZOA_SECTOR:
+        wanted = "loa_departure" if query.entry else "loa_arrival"
+        return [row for row in rows if row["direction"] == wanted]
+    return [row for row in rows if _sector_reads(row, sector, query.entry)]
+
+
+def _sector_reads(row: Row, sector: str, entry: bool) -> bool:
+    """Tell whether a row is a sector's own, in the direction asked."""
+    field, directions = (
+        ("to", ("entry", "loa_arrival"))
+        if entry
+        else ("from", ("exit", "loa_departure"))
+    )
+    return row["direction"] in directions and row[field].casefold() == sector
+
+
+def _airport_filed(context: _Lookup) -> list[Row]:
+    """Return the airport-filed LOA rows a lookup out of a sector falls to."""
+    query = context.query
+    if query.entry or query.sector.casefold() == _ZOA_SECTOR:
+        return []
+    return [
+        row
+        for row in context.applicable
+        if _is_airport_filed(row)
+        and has_class(row, query.aircraft)
+        and _filed_row_names_target(row, context)
+    ]
+
+
+def _target_airports(target: _Target) -> frozenset[str]:
+    """Return the airports a target stands for: its spellings, or its complex's members."""
+    if target.queried_complex is None:
+        return target.names
+    return target.complexes[target.queried_complex]
+
+
+def _filed_row_names_target(row: Row, context: _Lookup) -> bool:
+    """Tell whether an airport-filed row names a target that isn't its own departure airport."""
+    target = context.target
+    own_airports = {airport.casefold() for airport in row["from_airports"]}
+    return (
+        _target_airports(target).isdisjoint(own_airports)
+        and not _is_excluded(row, target, context.chosen)
+        and _row_kind(row, target, False) is not None
+    )
+
+
+def _tokens(text: str) -> set[str]:
+    """Split a text into its casefolded words, without possessives or noise words."""
+    words = (_POSSESSIVE.sub("", word) for word in _TOKEN_SPLIT.split(text.casefold()))
+    return {word for word in words if word and word not in _NOISE_WORDS}
+
+
+def _holds(text: str, phrase: str) -> bool:
+    """Tell whether a casefolded text holds a phrase on word boundaries."""
+    return re.search(rf"(?<!\w){re.escape(phrase)}(?!\w)", text) is not None
+
+
+def _holds_complex(text: str, key: str, aliases: dict[str, str]) -> bool:
+    """Tell whether a casefolded text names a complex, directly or by an alias."""
+    return _holds(text, f"{key}{_COMPLEX_SUFFIX}") or any(
+        resolved == key and _holds(text, alias) for alias, resolved in aliases.items()
+    )
+
+
+def _item_kind(item: str, target: _Target) -> int | None:
+    """Return how an item matches a target, the strongest way first, or None."""
+    tokens = _tokens(item)
+    text = item.casefold()
+    if _is_direct(text, tokens, target):
+        return _MATCH_DIRECT
+    if _matches_queried_complex(text, tokens, target):
+        return _MATCH_QUERIED_COMPLEX
+    return _member_kind(item, text, target)
+
+
+def _is_direct(text: str, tokens: set[str], target: _Target) -> bool:
+    """Tell whether a text holds the target itself: a word, or consecutive words."""
+    if not target.names.isdisjoint(tokens):
+        return True
+    spelled = _RWY.sub("runway", text)
+    return target.queried_complex is None and any(
+        " " in name and _holds(spelled, _RWY.sub("runway", name))
+        for name in target.names
+    )
+
+
+def _matches_queried_complex(text: str, tokens: set[str], target: _Target) -> bool:
+    """Tell whether a text names the complex a target asks for, or lands inside it."""
+    queried = target.queried_complex
+    return queried is not None and (
+        _holds_complex(text, queried, target.aliases)
+        or _holds(text, queried)
+        or not target.complexes[queried].isdisjoint(tokens)
+        or _holds(text, _LANDING_NCT)
+    )
+
+
+def _member_kind(item: str, text: str, target: _Target) -> int | None:
+    """Return how a text reaches a member airport through its complex, or None."""
+    if any(_holds_complex(text, key, target.aliases) for key in target.member_of):
+        return _MATCH_THROUGH_COMPLEX
+    if any(_holds(text, key) for key in target.member_of):
+        return _MATCH_COMPLEX_NAME
+    if target.member_of and _LANDING_NCT in item_key(item):
+        return _MATCH_PHRASE
+    return None
+
+
+def _is_airport_filed(row: Row) -> bool:
+    """Tell whether an LOA departure names its airports instead of a sending sector."""
+    return row["direction"] == "loa_departure" and not row["from"]
+
+
+def _is_exclusion(qualifier: str) -> bool:
+    """Tell whether a qualifier takes targets away from its row."""
+    return qualifier.casefold().startswith(_EXCEPT_PREFIX)
+
+
+def _is_match_text(qualifier: str) -> bool:
+    """Tell whether a target can match a row by a qualifier, which limits a row instead of naming."""
+    return not qualifier.casefold().startswith(_NOT_MATCH_TEXT_PREFIXES)
+
+
+def _row_items(row: Row, with_airports: bool) -> list[str]:
+    """Return the texts of a row a target can match.
+
+    An airport-filed row read without its airports answers on destination and route only.
+    """
+    items = [*row["dest_or_route"], *row["route"]]
+    if with_airports or not _is_airport_filed(row):
+        items += [q for q in row["qualifiers"] if _is_match_text(q)]
+    if with_airports:
+        items += row["from_airports"]
+    return items
+
+
+def _row_kind(row: Row, target: _Target, with_airports: bool) -> int | None:
+    """Return how a row's text matches a target, the strongest of its items, or None."""
+    kinds = [_item_kind(item, target) for item in _row_items(row, with_airports)]
+    return min((kind for kind in kinds if kind is not None), default=None)
+
+
+def _is_catch_all(row: Row) -> bool:
+    """Tell whether an SOP row answers for whatever else its table doesn't name."""
+    return row["doc"] == "SOP" and any(
+        item_key(item) == _BARE_ALL or item_key(item).startswith(_CATCH_ALL_PREFIX)
+        for item in row["dest_or_route"]
+    )
+
+
+def _is_excluded(row: Row, target: _Target, chosen: AbstractSet[str]) -> bool:
+    """Tell whether one of a row's exclusion qualifiers removes it for a target."""
+    return any(
+        _excepts(qualifier, target, chosen)
+        for qualifier in row["qualifiers"]
+        if _is_exclusion(qualifier)
+    )
+
+
+def _excepts(qualifier: str, target: _Target, chosen: AbstractSet[str]) -> bool:
+    """Tell whether an exclusion qualifier names a target while its flow, if any, is chosen."""
+    folded = qualifier.casefold()
+    on_flow = _EXCEPT_ON_FLOW.search(folded)
+    if (
+        on_flow
+        and on_flow[1].upper() in FLOW_ORDER
+        and on_flow[1].upper() not in chosen
+    ):
+        return False
+    terms = set(target.names | target.member_of)
+    if target.queried_complex is not None:
+        terms.add(target.queried_complex)
+    return not terms.isdisjoint(_tokens(qualifier)) or any(
+        _holds(folded, term) for term in terms
+    )
+
+
+def _match_kinds(
+    rows: Iterable[Row], target: _Target, with_airports: bool, chosen: AbstractSet[str]
+) -> dict[str, int]:
+    """Map each row that matches a target by itself to how it matches."""
+    kinds = {}
+    for row in rows:
+        if _is_catch_all(row) or _is_excluded(row, target, chosen):
+            continue
+        kind = _row_kind(row, target, with_airports)
+        if kind is not None:
+            kinds[row["id"]] = kind
+    return kinds
+
+
+def _named_rows(
+    rows: Iterable[Row], target: _Target, with_airports: bool, chosen: AbstractSet[str]
+) -> list[Row]:
+    """Return the rows naming a target, narrowed to the airport asked."""
+    kinds = _match_kinds(rows, target, with_airports, chosen)
+    matched = [row for row in rows if row["id"] in kinds]
+    return _narrow_to_airport(matched, kinds, target, chosen)
+
+
+def _rows_of_kind(rows: list[Row], kinds: dict[str, int], kind: int) -> list[Row]:
+    """Keep the rows that matched one way."""
+    return [row for row in rows if kinds[row["id"]] == kind]
+
+
+def _narrow_to_airport(
+    rows: list[Row],
+    kinds: dict[str, int],
+    target: _Target,
+    chosen: AbstractSet[str],
+) -> list[Row]:
+    """Drop complex rows an active specific flow's row answers for the airport asked."""
+    if target.queried_complex is not None or not target.member_of:
+        return rows
+    parents = load_data()["flow_parents"]
+    active = chosen & parents.keys()
+    direct = _rows_of_kind(rows, kinds, _MATCH_DIRECT)
+    return [
+        row
+        for row in rows
+        if kinds[row["id"]] != _MATCH_THROUGH_COMPLEX
+        or not any(_answers_instead(other, row, active, parents) for other in direct)
+    ]
+
+
+def _answers_instead(
+    direct: Row, row: Row, active: AbstractSet[str], parents: dict[str, str]
+) -> bool:
+    """Tell whether a directly matched row replaces a complex row, as the row rule judges it."""
+    return (
+        _match_key(direct) == _match_key(row)
+        and _class_keys(row) <= _class_keys(direct)
+        and any(
+            flow in active and _competes(_tags(row), flow, parents)
+            for flow in _tags(direct)
+        )
+    )
+
+
+def _class_keys(row: Row) -> set[str]:
+    """Return a row's classes, normalised by ``class_key``."""
+    return {class_key(printed) for printed in row["aircraft"]}
+
+
+def _shown_classes(
+    row_set: Iterable[Row], named: list[Row], context: _Lookup
+) -> dict[str, list[str]]:
+    """Map each answering row to the classes it answers for."""
+    aircraft = context.query.aircraft
+    shown = {
+        row["id"]: list(row["aircraft"]) for row in named if has_class(row, aircraft)
+    }
+    for row in row_set:
+        if _is_catch_all(row) and not _is_excluded(row, context.target, context.chosen):
+            classes = _uncovered_classes(
+                row, _judged_rows(row, named, context), aircraft
+            )
+            if classes:
+                shown[row["id"]] = classes
+    return shown
+
+
+def _judged_rows(catch_all: Row, named: list[Row], context: _Lookup) -> list[Row]:
+    """Return the rows naming the target that a catch-all row gives way to.
+
+    An exit row gives way to its own table. An entry row gives way to its sender's exit
+    rows, so both directions of one handoff give the same answer.
+    """
+    if not context.query.entry:
+        return [row for row in named if row["table"] == catch_all["table"]]
+    sender = [
+        row
+        for row in context.applicable
+        if row["direction"] == "exit" and row["from"] == catch_all["from"]
+    ]
+    return _named_rows(sender, context.target, False, context.chosen)
+
+
+def _uncovered_classes(row: Row, named: list[Row], aircraft: str) -> list[str]:
+    """Return the classes a catch-all answers for: those no row naming the target covers.
+
+    (item, class) is the unit, so a row naming the target for another class leaves this
+    row answering. A blank-class catch-all answers only with no such row, as one blank class.
+    """
+    covering = _rows_for_class(named, aircraft)
+    if any(not row_named["aircraft"] for row_named in covering):
+        return []
+    if not row["aircraft"]:
+        return [] if covering else [_BLANK_CLASS]
+    covered = set().union(*map(_class_keys, covering))
+    return [
+        printed
+        for printed in row["aircraft"]
+        if class_key(printed) not in covered and _is_asked_class(printed, aircraft)
+    ]
+
+
+def _rows_for_class(rows: list[Row], aircraft: str) -> list[Row]:
+    """Keep the rows answering for a class."""
+    return [row for row in rows if has_class(row, aircraft)]
+
+
+def _is_asked_class(printed: str, aircraft: str) -> bool:
+    """Tell whether a printed class is the one asked for, when one was."""
+    return not aircraft or class_key(printed) == class_key(aircraft)
+
+
+def _warns_for_class(mismatch: Mismatch, aircraft: str) -> bool:
+    """Tell whether a disagreement concerns the class asked, or no class limits it."""
+    return (
+        not aircraft
+        or not mismatch.classes
+        or class_key(aircraft) in {class_key(printed) for printed in mismatch.classes}
+    )
+
+
+def _concerns_match(mismatch: Mismatch, row: Row, target: _Target) -> bool:
+    """Tell whether a disagreement covers what a row was matched by.
+
+    Only a row matched through a destination can miss: a qualifier, airport or catch-all
+    match says nothing about which item a disagreement is over.
+    """
+    matched = _matched_destinations(row, target)
+    if not matched:
+        return True
+    shared = {item_key(item) for item in mismatch.items}
+    return any(item_key(item) in shared for item in matched)
+
+
+def _worth_warning(
+    rows: Iterable[Row], target: _Target, aircraft: str, chosen: AbstractSet[str]
+) -> dict[str, list[Mismatch]]:
+    """Map each answered SOP row to its disagreements over what was asked."""
+    found = {}
+    for row in rows:
+        if row["doc"] != "SOP":
+            continue
+        kept = [
+            mismatch
+            for mismatch in conflicts_in_file(row, chosen).mismatches
+            if _warns_for_class(mismatch, aircraft)
+            and _concerns_match(mismatch, row, target)
+        ]
+        if kept:
+            found[row["id"]] = kept
+    return found
 
 
 def _judge(rows: list[Row]) -> dict[str, RowConflicts]:
