@@ -76,10 +76,8 @@ def test_sfo_ils_28l_has_hold_at_olymm():
     assert detail.has_hold is True
 
 
-def test_sid_has_no_hold_or_pt():
-    detail = get_procedure_detail("OAK", "CNDEL5")
-    if detail is None:
-        detail = get_procedure_detail("SFO", "OFFSH3")
+def test_sid_has_no_hold_or_pt(synthetic_sid: tuple[str, str]):
+    detail = get_procedure_detail(*synthetic_sid)
     assert detail is not None
     assert detail.has_hold is False
     assert detail.has_procedure_turn is False

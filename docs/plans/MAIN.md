@@ -21,7 +21,6 @@ Fresh agents: start here, work top-down (current focus → next up → backlog).
   - Caveat: the IAP side still needs the charts API (it enumerates `chart_code == "IAP"`), so the charts fetch does not go away entirely.
   - Caveat: CIFP-based name matching differs from the current chart-name fuzzy matcher (`ChartQuery.parse` → `find_chart_by_name`, e.g. `CCR2 → CONCORD TWO`). Needs its own tests so `apps`/`approaches` resolution behavior doesn't regress.
   - Origin: surfaced while fixing the STAR→STR rename (boundary-normalization fix shipped separately; this is the deferred architectural improvement the user asked to track).
-- [ ] **Stop the CIFP tests depending on the current AIRAC's procedure names.** `tests/test_cifp_terminators.py:80`, `tests/test_cifp_missed_approach.py:38` and `tests/test_cifp_continuation.py:64` look up `OAK CNDEL5`, falling back to `SFO OFFSH3`, in the cached live CIFP. Cycle 2611 has `CNDEL6` and neither name, so all three fail with `detail is None`. Build the SID from `make_cifp_line` instead, so a new cycle can't break them.
 - [ ] **Clear the two `nest_asyncio` DeprecationWarnings in the test run.** `src/zoa_ref/input.py:18` calls `nest_asyncio.apply()` at import time; `nest_asyncio.py:40` and `:71` call `asyncio.get_event_loop_policy`, deprecated and slated for removal in Python 3.16. Either drop `nest_asyncio` (check why prompt_toolkit needs a nested loop) or move `apply()` out of module import so tests don't trigger it.
 
 ## Backlog

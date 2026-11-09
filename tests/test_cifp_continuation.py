@@ -57,10 +57,8 @@ def test_sfo_h28ry_has_sbas_authorization():
     assert detail.is_sbas_authorized is True
 
 
-def test_sid_has_no_sbas_authorization():
+def test_sid_has_no_sbas_authorization(synthetic_sid: tuple[str, str]):
     """SIDs don't carry the 'W' continuation — flag is False."""
-    detail = get_procedure_detail("OAK", "CNDEL5")
-    if detail is None:
-        detail = get_procedure_detail("SFO", "OFFSH3")
+    detail = get_procedure_detail(*synthetic_sid)
     assert detail is not None
     assert detail.is_sbas_authorized is False

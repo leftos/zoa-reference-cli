@@ -30,12 +30,9 @@ def test_sfo_ils_28l_missed_approach_legs_split_out():
     assert "OLYMM" not in inbound_fixes
 
 
-def test_sid_has_no_missed_approach():
+def test_sid_has_no_missed_approach(synthetic_sid: tuple[str, str]):
     """SIDs have no MAP, so missed_approach_legs is empty."""
-    detail = get_procedure_detail("OAK", "CNDEL5")
-    if detail is None:
-        # CIFP cache may not have CNDEL5 — try another
-        detail = get_procedure_detail("SFO", "OFFSH3")
+    detail = get_procedure_detail(*synthetic_sid)
     assert detail is not None
     assert detail.procedure_type == "SID"
     assert detail.missed_approach_legs == []

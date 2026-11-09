@@ -7,6 +7,10 @@ constructs the exact 132-column primary record it needs.
 
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
+
 
 def make_cifp_line(
     *,
@@ -124,3 +128,28 @@ def make_cifp_line(
     put(128, 132, cycle_data)
 
     return "".join(line)
+
+
+@pytest.fixture
+def synthetic_sid(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[str, str]:
+    """Point the CIFP reader at a one-SID file, so a test doesn't depend on the AIRAC cycle.
+
+    Returns:
+        The airport and procedure name to pass to ``get_procedure_detail``.
+    """
+    legs = [
+        make_cifp_line(
+            fac_id="KZZZ",
+            fac_sub_code="D",
+            procedure_id="TESTY5",
+            procedure_type="2",
+            seq_no=seq_no,
+            fix_id=fix_id,
+        )
+        for seq_no, fix_id in (("010", "ALPHA"), ("020", "BRAVO"))
+    ]
+    cifp_file = tmp_path / "FAACIFP18"
+    cifp_file.write_text("\n".join(legs) + "\n", encoding="latin-1")
+    monkeypatch.setattr("zoa_ref.cifp.ensure_cifp_data", lambda: cifp_file)
+    monkeypatch.setattr("zoa_ref.navaids.get_all_navaid_identifiers", lambda name: [])
+    return "ZZZ", "TESTY5"
