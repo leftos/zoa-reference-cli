@@ -21,7 +21,8 @@ New NCT controllers struggle to find the right entry and exit route. The answer 
 - **Staleness: warn.** When a downloaded PDF no longer matches the stamped source, the lookup warns and keeps answering from the reviewed data.
 - **Conflicts: show both, and check.** Where an exit row and its reciprocal entry row disagree, the lookup prints both versions with a warning. A reciprocal checker compares all such pairs and produces an errata list for the facility.
 - **Flow: a persistent setting.** A `flow` command stores the active flows and injects them into later lookups, and `--flow` overrides per call. When a flow is not set, the lookup warns and assumes SFOW, SMFS and RNOS. Every answer prints the flow it used.
-- **Flow combinations: OAKE and SJCE need SFOW.** OAK and SJC can run east only while SFO runs west, so `zoa flow` accepts OAKE and SJCE, alone or together, only beside SFOW, and refuses them beside SFOE. The SOP §1-6 plans "SFOE / SJCW" and "SFOE / OAKW" are not settable flows: OAK and SJC can't run west while SFO runs east. SFO 10 and SFO 19 are subsets of SFOE, not flows of their own, so a table titled SFO10 applies under SFOE and says so in its qualifier.
+- **Flow combinations: OAKE and SJCE need SFOW.** OAK and SJC can run east only while SFO runs west, so `zoa flow` accepts OAKE and SJCE, alone or together, only beside SFOW, and refuses them beside SFOE. The SOP §1-6 plans "SFOE / SJCW" and "SFOE / OAKW" are not settable flows: OAK and SJC can't run west while SFO runs east. OAKE and SJCE are refused beside SFO10 and SFO19 too, since those are SFOE.
+- **SFO10 and SFO19: settable subsets of SFOE.** `zoa flow` can set either, one at a time, and either one implies SFOE. Where rows define an SFO10 and an SFO19 variation, or an SFO10 and an SFOE variation, an active SFO10 prefers the SFO10 row; the same holds for SFO19. Under plain SFOE, which doesn't say which runway, rows of all three kinds apply and an answer names each row's flow.
 - **Combined sectors: show the chain.** The answer names the SOP's receiving sector, its handoff symbol and its "combines to" chain, such as "Licke (combines to Toga, then Morgan)". Naming who is actually online waits for the VATSIM feed.
 - **No LLM answers.** A confidently wrong altitude is worse than a slow search, so every answer is a real row with its section and page.
 
@@ -60,7 +61,7 @@ One row per handoff, in a form the checker and lookup can both use:
 
 The draft's rows also carry `doubts`, what the extractor found suspect, for the data review. The reviewed file drops them.
 
-A row applies when all three flow conditions hold: `table_flows` is empty or names an active flow, `flows` is empty or names an active flow, and `not_flows` names no active flow.
+A row applies when all three flow conditions hold: `table_flows` is empty or names an active flow, `flows` is empty or names an active flow, and `not_flows` names no active flow. A row naming SFO10 or SFO19 also applies under plain SFOE. Among rows for the same sector, destination and class, one naming the active SFO10 or SFO19 replaces those naming only SFOE.
 
 A cell splits into several `dest_or_route` items only when every item is a recognisable destination or route. Otherwise it stays whole with a doubt, so a condition such as "East of or on T263" is never broken into false items.
 
@@ -85,7 +86,7 @@ The tables rely on prose elsewhere, so an answer must apply these:
 Follows the five-registry rule in `docs/ARCHITECTURE.md` (Integration Footguns): logic in a `do_*` function in `commands.py`, front ends in `cli.py` and `interactive.py`, help in `cli_utils.py`, and completion in `autocomplete.py`.
 
 - `zoa xfer <sector> <dest-or-route> [class]`, with `--flow`: rows out of the sector. Entry rows are available with a direction flag. For example `zoa xfer morgan SFO J` under SFOW gives "Cedar, 14,000, RV ALWYS/MOD, SOP §3-4 p22". The class is optional and without it every class's rows print.
-- `zoa flow [SFOW|SFOE|OAKE|SJCE|SMFS|SMFN|RNOS|RNON ...]`: show or set the active flows, in `~/.zoa-ref/`. The set must allow a Bay flow, a Sacramento flow and a Reno flow together.
+- `zoa flow [SFOW|SFOE|SFO10|SFO19|OAKE|SJCE|SMFS|SMFN|RNOS|RNON ...]`: show or set the active flows, in `~/.zoa-ref/`. The set must allow a Bay flow, a Sacramento flow and a Reno flow together.
 - LOA rows use the same lookup. `zoa xfer zoa SFO` lists arrivals, and a sector-to-ZOA query returns the exit row with its control statements.
 
 ## Steps
