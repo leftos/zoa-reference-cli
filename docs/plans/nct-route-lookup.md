@@ -16,12 +16,12 @@ New NCT controllers struggle to find the right entry and exit route. The answer 
 - **Primary moment: live on position.** Output is a terse answer. Sector cards, whole-flight traces and drills may reuse the data later, but they don't shape the first version.
 - **Input: typed first.** For example `zoa xfer morgan SFO J`. It works offline and is testable. Callsign lookup through the VATSIM data feed is a later step.
 - **Data: a reviewed file in the repo.** A dev-only extractor drafts it from the PDFs, a person reviews it, and it is committed stamped with the source versions (SOP v1.13, LOA CHG08). The CLI reads only this file and never parses PDFs for this feature.
-- **Data file: JSON in the package.** `src/zoa_ref/data/nct_routes.json`, one handoff row per line so diffs stay readable. It adds no dependency, `source_hash` in `install.py` already covers `src/`, and it ships through setuptools package data and the PyInstaller `datas` list.
+- **Data file: JSON in the package.** `src/zoa_ref/data/nct_routes.json`, one handoff row per line so diffs stay readable. It adds no dependency, `source_hash` in `install.py` already covers `src/`, and it ships through setuptools package data and an `--add-data` argument in `build_exe.py`.
 - **Data review: agent first, the owner rules.** An agent checks every draft row against the rendered pages and writes a file of ambiguous or doubtful cells, each with its page. The owner rules on those cells and does not read the clean rows.
 - **Staleness: warn.** When a downloaded PDF no longer matches the stamped source, the lookup warns and keeps answering from the reviewed data.
 - **Conflicts: show both, and check.** Where an exit row and its reciprocal entry row disagree, the lookup prints both versions with a warning. A reciprocal checker compares all such pairs and produces an errata list for the facility.
 - **Flow: a persistent setting.** A `flow` command stores the active flows and injects them into later lookups, and `--flow` overrides per call. When a flow is not set, the lookup warns and assumes SFOW, SMFS and RNOS. Every answer prints the flow it used.
-- **Flow combinations: OAKE and SJCE need SFOW.** OAK and SJC can run east only while SFO runs west, so `zoa flow` accepts OAKE and SJCE, alone or together, only beside SFOW, and refuses them beside SFOE. The SOP §1-6 plans "SFOE / SJCW" and "SFOE / OAKW" are not settable flows: OAK and SJC can't run west while SFO runs east.
+- **Flow combinations: OAKE and SJCE need SFOW.** OAK and SJC can run east only while SFO runs west, so `zoa flow` accepts OAKE and SJCE, alone or together, only beside SFOW, and refuses them beside SFOE. The SOP §1-6 plans "SFOE / SJCW" and "SFOE / OAKW" are not settable flows: OAK and SJC can't run west while SFO runs east. SFO 10 and SFO 19 are subsets of SFOE, not flows of their own, so a table titled SFO10 applies under SFOE and says so in its qualifier.
 - **Combined sectors: show the chain.** The answer names the SOP's receiving sector, its handoff symbol and its "combines to" chain, such as "Licke (combines to Toga, then Morgan)". Naming who is actually online waits for the VATSIM feed.
 - **No LLM answers.** A confidently wrong altitude is worse than a slow search, so every answer is a real row with its section and page.
 
@@ -48,6 +48,7 @@ One row per handoff, in a form the checker and lookup can both use:
 | `from_airports` | `LVK`, `HWD`, for a LOA departure filed by airport rather than sector |
 | `table_flows` | `SMFS`, from the table's title |
 | `flows` | `SFOW`, from the row's label or destination |
+| `not_flows` | `SJCE`, flows that hide the row when active |
 | `dest_or_route` | `SFO`, `V111`, `EMZOH` |
 | `route` | `SERFR STAR`, for a LOA arrival, which has both a destination and a route |
 | `qualifiers` | `HWD only`, conditions moved out of a label or destination |
@@ -56,9 +57,10 @@ One row per handoff, in a form the checker and lookup can both use:
 | `info` | `RV ALWYS/MOD` |
 | `restrictions` | control limits and conditions on the row |
 | `source` | `SOP §3-4 p22` |
-| `doubts` | what the extractor found suspect in the row, for the data review |
 
-A row applies when both flow conditions hold: `table_flows` is empty or names an active flow, and `flows` is empty or names an active flow.
+The draft's rows also carry `doubts`, what the extractor found suspect, for the data review. The reviewed file drops them.
+
+A row applies when all three flow conditions hold: `table_flows` is empty or names an active flow, `flows` is empty or names an active flow, and `not_flows` names no active flow.
 
 A cell splits into several `dest_or_route` items only when every item is a recognisable destination or route. Otherwise it stays whole with a doubt, so a condition such as "East of or on T263" is never broken into false items.
 
