@@ -14,7 +14,7 @@ The rule that shapes it: command logic lives once in `commands.py`, and both the
 | Change the `cifp` or `uses` output | `src/zoa_ref/commands.py` (`do_cifp_lookup`, `do_uses_lookup`) → `src/zoa_ref/display.py` → `src/zoa_ref/cifp.py` | none |
 | Change navaid or airway data | `src/zoa_ref/nasr.py` → `src/zoa_ref/navaids.py` → `src/zoa_ref/airways.py` → `tests/test_nasr_awy.py` | none |
 | Change fix coordinates, `distance` or `bearing` | `src/zoa_ref/waypoints.py` → `src/zoa_ref/distance.py` → `tests/test_bearing.py`, `tests/test_bearing_cli.py` | none |
-| Change `approaches` / `apps` | `src/zoa_ref/approaches.py` → `src/zoa_ref/commands.py` (`do_approaches_lookup`) | [`plans/MAIN.md`](plans/MAIN.md) (STAR sourcing task) |
+| Change `approaches` / `apps` | `src/zoa_ref/approaches.py` → `src/zoa_ref/commands.py` (`do_approaches_lookup`) → `src/zoa_ref/cifp.py` (`get_star_data`, `get_all_stars`) → `tests/test_approaches_star_resolution.py` | [`../.claude/rules/charts.md`](../.claude/rules/charts.md) |
 | Change SOP / procedure lookup | `src/zoa_ref/procedures.py` (`ProcedureQuery.parse`) → `src/zoa_ref/cache.py` (PDF and heading caches) → `src/zoa_ref/commands.py` → `tests/test_procedure_query.py` | none |
 | Change METAR, ATIS or ICAO lookups | `src/zoa_ref/metar.py`, `src/zoa_ref/atis.py`, `src/zoa_ref/icao.py` → `src/zoa_ref/display.py` → `tests/test_metar_display.py` | none |
 | Change AIRAC-cycle caching | `src/zoa_ref/cache.py` → `src/zoa_ref/config.py` → `tests/test_airac.py` | none |
@@ -42,7 +42,7 @@ Stated rule (`CLAUDE.md`): both the CLI and interactive mode use the shared `do_
 
 - **A command lives in five registries.** Adding a command means a `@main.command` in `cli.py`, an entry in `INTERACTIVE_COMMANDS` in `interactive.py`, `COMMAND_HELP` and `INTERACTIVE_HELP_COMMANDS` in `cli_utils.py`, and `INTERACTIVE_COMMANDS` (a plain list) in `autocomplete.py`. No test enforces that they agree, so a missed one shows up as a command missing in interactive mode, help or tab completion.
 - **Unknown first argument means a chart query.** `ImplicitChartGroup.parse_args` in `cli_utils.py` rewrites any first argument that is not a registered command into `chart <args>` (and `OAK sop` into `sop OAK`), so a mistyped command runs a chart lookup instead of erroring.
-- **Charts-API code renames.** The FAA renamed the arrival chart code `STAR` to `STR`; `charts.py` maps it back at the API boundary (`tests/test_charts_chart_code.py` covers it). `approaches.py` still filters on `chart_code == "STAR"`, which `docs/plans/MAIN.md` tracks for removal.
+- **Charts-API code renames.** The FAA renamed the arrival chart code `STAR` to `STR`; `charts.py` maps it back at the API boundary (`tests/test_charts_chart_code.py` covers it). `approaches.py` takes STARs from CIFP and uses the charts API only for approach charts, so a STAR code rename can't reach it; its `chart_code == "IAP"` filter still could.
 - **CIFP fixed-column offsets.** `cifp.py` decodes 132-column ARINC 424 records by position; `tests/conftest.py` `make_cifp_line` builds test records column by column, and `tests/test_conftest_fixture.py` checks that fields land in the expected columns. A column change in the parser needs the fixture to agree.
 - **AIRAC cycle drives every download cache.** `nasr.py` and `cifp.py` key their downloads on `get_current_airac_cycle()` from `cache.py`; `tests/test_airac.py` pins the cycle computation (UTC date).
 - **Opened PDFs go through a stable link.** `commands.py` writes each processed chart or SOP PDF to `processed/<AIRAC>/` and opens it through `processed/current/<name>.pdf` (`link_stable_pdf` in `cache.py`, called via `_stable_path`), so its `file://` URL and browser history survive a cycle change. A new open path that skips `_stable_path` gets a URL that changes every cycle.
@@ -62,6 +62,7 @@ Stated rule (`CLAUDE.md`): both the CLI and interactive mode use the shared `do_
 - `tests/test_airac.py`: AIRAC cycle math in `cache.py`.
 - `tests/test_stable_pdf_link.py`: the `processed/current/` links in `cache.py` (symlink, hardlink and copy fallbacks, dangling-link cleanup).
 - `tests/test_bearing.py`, `tests/test_bearing_cli.py`: bearing and distance calculation and the `bearing` / `distance` commands through `CliRunner` on `zoa_ref.cli.main`.
+- `tests/test_approaches_star_resolution.py`: STAR resolution from CIFP for `approaches` / `apps` (`resolve_star`), on synthetic CIFP files.
 - `tests/test_charts_chart_code.py`: chart-code normalisation in `charts.py`.
 - `tests/test_metar_display.py`: METAR output formatting.
 - `tests/test_install.py`: the root `install.py` (bin dir choice, source hash and install stamp, alias block upsert, the lock export and the `uv tool install` call), loaded by file path since it is not in the package.

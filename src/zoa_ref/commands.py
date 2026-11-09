@@ -1582,6 +1582,7 @@ def do_approaches_lookup(
         format_fix_approaches,
         is_star_name,
     )
+    from .cifp import get_all_stars
 
     runways = runways or []
 
@@ -1600,16 +1601,11 @@ def do_approaches_lookup(
         if star_analysis is None:
             click.echo(f"\nCould not find STAR '{star_or_fix}' for {airport}")
             # Show available STARs
-            charts = fetch_charts_from_api(airport)
-            stars = [
-                c
-                for c in charts
-                if c.chart_code == "STAR" and "CONT." not in c.chart_name
-            ]
+            stars = sorted(get_all_stars(airport))
             if stars:
                 click.echo("\nAvailable STARs:")
                 for star in stars:
-                    click.echo(f"  - {star.chart_name}")
+                    click.echo(f"  - {star}")
             return
 
         # Filter by runways if specified

@@ -12,7 +12,7 @@ structured procedure information.
 import re
 from dataclasses import dataclass
 
-from zoa_ref.charts import ChartInfo, fetch_charts_from_api
+from zoa_ref.charts import fetch_charts_from_api
 
 
 @dataclass
@@ -192,38 +192,45 @@ def analyze_approach(airport: str, chart_name: str) -> ApproachAnalysis | None:
     )
 
 
-def find_star_chart(charts: list[ChartInfo], star_name: str) -> ChartInfo | None:
-    """Find a STAR chart by name using the same fuzzy matching as chart lookup.
+def _star_base_name(star_name: str) -> str | None:
+    """Return a STAR name's letters, without its trailing cycle digit."""
+    match = re.match(r"^([A-Z]+)\d$", star_name.upper().strip())
+    if not match:
+        return None
+    return match.group(1)
 
-    This uses ChartQuery.parse to normalize the name (e.g., CCR2 -> CCR TWO)
-    and find_chart_by_name for fuzzy matching (e.g., CCR TWO -> CONCORD TWO).
+
+def resolve_star(airport: str, star_name: str) -> StarAnalysis | None:
+    """Find a STAR in CIFP by identifier, navaid name or a stale number.
+
+    Args:
+        airport: Airport code (e.g., "RNO")
+        star_name: STAR name as typed (e.g., "SCOLA1", "CCR2", "CONCORD2")
+
+    Returns:
+        The STAR's analysis. A number that doesn't exist resolves to the only
+        STAR with the same base name, since a cycle change bumps the number.
+        None when no STAR matches or several share the base name.
     """
-    from zoa_ref.charts import ChartQuery, ChartType, find_chart_by_name
+    from zoa_ref.cifp import get_all_stars
 
-    # Filter to only STAR charts (excluding continuation pages)
-    stars = [
-        c for c in charts if c.chart_code == "STAR" and "CONT." not in c.chart_name
+    analysis = analyze_star(airport, star_name)
+    if analysis is not None:
+        return analysis
+
+    base_name = _star_base_name(star_name)
+    if base_name is None:
+        return None
+
+    candidates = [
+        identifier
+        for identifier in get_all_stars(airport)
+        if _star_base_name(identifier) == base_name
     ]
-
-    if not stars:
+    if len(candidates) != 1:
         return None
 
-    # Create a query with the STAR name - use a dummy airport since we already have charts
-    # The ChartQuery.parse normalizes the name (e.g., "CCR2" -> "CCR TWO")
-    try:
-        query = ChartQuery.parse(f"XXX {star_name}")
-        # Force the chart type to STAR for proper matching
-        query = ChartQuery(
-            airport=query.airport,
-            chart_name=query.chart_name,
-            chart_type=ChartType.STAR,
-        )
-    except ValueError:
-        return None
-
-    # Use the same fuzzy matching as chart lookup
-    matched_star, _ = find_chart_by_name(stars, query)
-    return matched_star
+    return analyze_star(airport, candidates[0])
 
 
 def find_connected_approaches(
@@ -247,13 +254,7 @@ def find_connected_approaches(
     if not charts:
         return None, []
 
-    # Find the specified STAR chart (for name normalization)
-    star_chart = find_star_chart(charts, star_name)
-    if not star_chart:
-        return None, []
-
-    # Analyze the STAR using CIFP
-    star_analysis = analyze_star(airport, star_chart.chart_name)
+    star_analysis = resolve_star(airport, star_name)
     if not star_analysis:
         return None, []
 
