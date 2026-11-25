@@ -12,7 +12,7 @@ The rule that shapes it: command logic lives once in `commands.py`, and both the
 | Change chart lookup or name matching | `src/zoa_ref/charts.py` (`ChartQuery.parse`) → `src/zoa_ref/fuzzy.py` → `src/zoa_ref/commands.py` (`do_chart_lookup`, `do_list_charts`) → `tests/test_charts_chart_code.py` | [`../.claude/rules/charts.md`](../.claude/rules/charts.md) |
 | Fix a CIFP (ARINC 424) parsing bug | `src/zoa_ref/cifp.py` → `tests/conftest.py` (`make_cifp_line`) → the matching `tests/test_cifp_*.py` | [`plans/archive/cifp-parser-drift-from-yaat.md`](plans/archive/cifp-parser-drift-from-yaat.md) |
 | Change the `cifp` or `uses` output | `src/zoa_ref/commands.py` (`do_cifp_lookup`, `do_uses_lookup`) → `src/zoa_ref/display.py` → `src/zoa_ref/cifp.py` | none |
-| Change navaid or airway data | `src/zoa_ref/nasr.py` → `src/zoa_ref/navaids.py` → `src/zoa_ref/airways.py` → `tests/test_nasr_awy.py` | none |
+| Change navaid or airway data | `src/zoa_ref/nasr.py` → `src/zoa_ref/navaids.py` → `src/zoa_ref/airways.py` → `tests/test_nasr_awy.py`, `tests/test_airways.py` | none |
 | Change fix coordinates, `distance` or `bearing` | `src/zoa_ref/waypoints.py` → `src/zoa_ref/distance.py` → `tests/test_bearing.py`, `tests/test_bearing_cli.py` | none |
 | Change `approaches` / `apps` | `src/zoa_ref/approaches.py` → `src/zoa_ref/commands.py` (`do_approaches_lookup`) → `src/zoa_ref/cifp.py` (`get_star_data`, `get_all_stars`) → `tests/test_approaches_star_resolution.py` | [`../.claude/rules/charts.md`](../.claude/rules/charts.md) |
 | Change SOP / procedure lookup | `src/zoa_ref/procedures.py` (`ProcedureQuery.parse`) → `src/zoa_ref/cache.py` (PDF and heading caches) → `src/zoa_ref/commands.py` → `tests/test_procedure_query.py` | none |
@@ -59,6 +59,7 @@ Stated rule (`CLAUDE.md`): both the CLI and interactive mode use the shared `do_
 - `tests/test_cifp_*.py`: the CIFP parser in `src/zoa_ref/cifp.py` (altitude, continuation records, fix role, fly-over, geometry, missed approach, navaids, RF arcs, route type, terminators, waypoints), built from `make_cifp_line` in `tests/conftest.py`.
 - `tests/test_conftest_fixture.py`: the `make_cifp_line` fixture itself.
 - `tests/test_nasr_awy.py`: NASR AWY parsing in `nasr.py`.
+- `tests/test_airways.py`: CIFP airway parsing in `airways.py`, its split into continuous segments, and the `airway` output in `display.py`.
 - `tests/test_airac.py`: AIRAC cycle math in `cache.py`.
 - `tests/test_stable_pdf_link.py`: the `processed/current/` links in `cache.py` (symlink, hardlink and copy fallbacks, dangling-link cleanup).
 - `tests/test_bearing.py`, `tests/test_bearing_cli.py`: bearing and distance calculation and the `bearing` / `distance` commands through `CliRunner` on `zoa_ref.cli.main`.

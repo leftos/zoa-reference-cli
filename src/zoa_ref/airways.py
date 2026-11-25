@@ -7,6 +7,7 @@ including the sequence of fixes/waypoints that make up each airway.
 import re
 from dataclasses import dataclass
 from functools import lru_cache
+from typing import NamedTuple
 
 from zoa_ref.cifp import ensure_cifp_data
 
@@ -25,15 +26,35 @@ class AirwayFix:
         return self.identifier
 
 
+class AirwayRecord(NamedTuple):
+    """One fix of an airway, as a CIFP SUSAER record gives it."""
+
+    airway_id: str
+    fix_id: str
+    sequence: int
+    is_navaid: bool
+    ends_segment: bool  # No leg from this fix to the next one in sequence
+
+
 @dataclass
 class AirwayInfo:
-    """An airway with its sequence of fixes."""
+    """An airway as its continuous segments, each an ordered list of fixes.
+
+    Most airways are one segment. CIFP ends a segment where the airway stops and
+    resumes elsewhere (V108 has no leg from CROIT to OAKEY), so consecutive
+    segments are not joined.
+    """
 
     identifier: str  # e.g., "V23", "J60", "T270"
-    fixes: list[AirwayFix]
+    segments: list[list[AirwayFix]]
     min_altitude: int | None = None  # MEA in feet
     max_altitude: int | None = None  # Maximum altitude in feet
     direction: str | None = None  # e.g., "SE to NW", "S to N"
+
+    @property
+    def fixes(self) -> list[AirwayFix]:
+        """All fixes in display order, across segments."""
+        return [fix for segment in self.segments for fix in segment]
 
     @property
     def fix_names(self) -> list[str]:
@@ -58,7 +79,10 @@ class FixAirwaysResult:
     airways: list[AirwayInfo]
 
 
-def parse_airway_record(line: str) -> tuple[str, str, int, bool] | None:
+_END_OF_AIRWAY_COL = 40  # ARINC 424 column 41, 0-indexed
+
+
+def parse_airway_record(line: str) -> AirwayRecord | None:
     """Parse a single CIFP airway record.
 
     ARINC 424 airway records (section E, subsection R):
@@ -70,12 +94,14 @@ def parse_airway_record(line: str) -> tuple[str, str, int, bool] | None:
     - Position 30-34: Fix identifier
     - Position 35-36: ICAO region
     - Position 37: Subsection code (D = VOR, B = NDB, A = Enroute waypoint)
+    - Position 41: Waypoint description, second character ("E" = end of
+      continuous airway: no leg from this fix to the next)
 
     Args:
         line: Raw CIFP record line
 
     Returns:
-        Tuple of (airway_id, fix_identifier, sequence, is_navaid) or None
+        The parsed record, or None if the line is not an airway record
     """
     if len(line) < 40:
         return None
@@ -126,7 +152,9 @@ def parse_airway_record(line: str) -> tuple[str, str, int, bool] | None:
         fix_type = line[seq_end + 7]
         is_navaid = fix_type in ("D", "B")  # VOR or NDB
 
-    return (airway_id, fix_identifier, sequence, is_navaid)
+    ends_segment = len(line) > _END_OF_AIRWAY_COL and line[_END_OF_AIRWAY_COL] == "E"
+
+    return AirwayRecord(airway_id, fix_identifier, sequence, is_navaid, ends_segment)
 
 
 def _compute_direction_and_should_reverse(
@@ -214,36 +242,34 @@ def get_airway(airway_id: str) -> AirwayInfo | None:
     # Normalize airway ID
     airway_id = airway_id.upper().strip()
 
-    # Collect all fixes for this airway
-    fixes: dict[int, tuple[str, bool]] = {}  # sequence -> (fix_id, is_navaid)
+    # Collect all fixes for this airway, keyed by sequence number
+    records: dict[int, AirwayRecord] = {}
 
     with open(cifp_path, "r", encoding="latin-1") as f:
         for line in f:
             if not line.startswith("SUSAER"):
                 continue
 
-            result = parse_airway_record(line)
-            if not result:
-                continue
+            record = parse_airway_record(line)
+            if record and record.airway_id == airway_id:
+                records[record.sequence] = record
 
-            parsed_airway, fix_id, sequence, is_navaid = result
-
-            if parsed_airway == airway_id:
-                fixes[sequence] = (fix_id, is_navaid)
-
-    if not fixes:
+    if not records:
         return None
 
-    # Sort by sequence and build fix list with coordinates
-    sorted_fixes = []
-    for seq, (fix_id, is_navaid) in sorted(fixes.items()):
-        fix = AirwayFix(identifier=fix_id, sequence=seq, is_navaid=is_navaid)
-        # Look up coordinates
-        coords = get_point_coordinates(fix_id)
+    # Sort by sequence, splitting after each end-of-continuous-airway fix
+    segments: list[list[AirwayFix]] = [[]]
+    for seq, record in sorted(records.items()):
+        fix = AirwayFix(identifier=record.fix_id, sequence=seq, is_navaid=record.is_navaid)
+        coords = get_point_coordinates(record.fix_id)
         if coords:
             fix.latitude = coords.latitude
             fix.longitude = coords.longitude
-        sorted_fixes.append(fix)
+        segments[-1].append(fix)
+        if record.ends_segment:
+            segments.append([])
+    segments = [segment for segment in segments if segment]
+    sorted_fixes = [fix for segment in segments for fix in segment]
 
     # Compute direction from first to last fix with coordinates
     # and determine if we should reverse for consistent display order
@@ -256,9 +282,9 @@ def get_airway(airway_id: str) -> AirwayInfo | None:
             first.latitude, first.longitude, last.latitude, last.longitude
         )
         if should_reverse:
-            sorted_fixes = list(reversed(sorted_fixes))
+            segments = [list(reversed(segment)) for segment in reversed(segments)]
 
-    return AirwayInfo(identifier=airway_id, fixes=sorted_fixes, direction=direction)
+    return AirwayInfo(identifier=airway_id, segments=segments, direction=direction)
 
 
 def search_airway(
@@ -322,13 +348,9 @@ def find_airways_by_fix(fix_id: str) -> FixAirwaysResult:
             if not line.startswith("SUSAER"):
                 continue
 
-            result = parse_airway_record(line)
-            if not result:
-                continue
-
-            airway_id, parsed_fix, _sequence, _is_navaid = result
-            if parsed_fix == fix_id:
-                matching_airway_ids.add(airway_id)
+            record = parse_airway_record(line)
+            if record and record.fix_id == fix_id:
+                matching_airway_ids.add(record.airway_id)
 
     # Load full airway info for each match (reuses cached get_airway)
     airways = []

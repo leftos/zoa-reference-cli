@@ -2,7 +2,7 @@
 
 import click
 
-from .airways import AirwaySearchResult, FixAirwaysResult
+from .airways import AirwayFix, AirwaySearchResult, FixAirwaysResult
 from .atis import AtisInfo
 from .charts import ChartMatch
 from .cifp import CifpProcedureDetail, FixUsesResult, ProcedureLeg
@@ -451,15 +451,29 @@ def display_fix_descent(result: FixDescentResult) -> None:
     )
 
 
+def _airway_fix_label(fix: AirwayFix, highlight_fixes: list[str] | None) -> str:
+    """Label a fix for airway output: navaids get their name, highlights get brackets."""
+    from .navaids import get_navaid_name
+
+    label = fix.identifier
+    if fix.is_navaid:
+        name = get_navaid_name(fix.identifier)
+        if name:
+            label = f"{fix.identifier} ({name})"
+
+    if highlight_fixes and fix.identifier in highlight_fixes:
+        label = click.style(f"[{label}]", fg="yellow", bold=True)
+    return label
+
+
 def display_airway(result: AirwaySearchResult) -> None:
     """Display airway information with fixes.
 
-    Shows the airway identifier, direction, and list of fixes.
+    Shows the airway identifier, direction, and list of fixes, one block per
+    continuous segment with a line naming each gap between segments.
     Navaids show their full name in parentheses.
     If a highlight fix is specified, it's marked with brackets.
     """
-    from .navaids import get_navaid_name
-
     if not result.airway:
         click.echo(f"\nAirway '{result.query}' not found.")
         return
@@ -468,28 +482,26 @@ def display_airway(result: AirwaySearchResult) -> None:
 
     # Header with direction
     direction_str = f" ({airway.direction})" if airway.direction else ""
+    segments_str = f" in {len(airway.segments)} segments" if len(airway.segments) > 1 else ""
     click.echo()
-    click.echo(f"AIRWAY {airway.identifier}{direction_str} - {len(airway.fixes)} fixes")
+    click.echo(f"AIRWAY {airway.identifier}{direction_str} - {len(airway.fixes)} fixes{segments_str}")
     click.echo()
 
-    # Build fix strings
-    fix_parts = []
-    for fix in airway.fixes:
-        # Look up navaid name if it's a navaid
-        if fix.is_navaid:
-            name = get_navaid_name(fix.identifier)
-            fix_str = f"{fix.identifier} ({name})" if name else fix.identifier
-        else:
-            fix_str = fix.identifier
+    previous: list[AirwayFix] | None = None
+    for segment in airway.segments:
+        if previous:
+            click.echo(f"  (no airway between {previous[-1].identifier} and {segment[0].identifier})")
+        for line in _wrap_fix_parts([_airway_fix_label(fix, result.highlight_fixes) for fix in segment]):
+            click.echo(line)
+        previous = segment
+    click.echo()
 
-        # Highlight the specified fixes in yellow
-        if result.highlight_fixes and fix.identifier in result.highlight_fixes:
-            fix_str = click.style(f"[{fix_str}]", fg="yellow", bold=True)
 
-        fix_parts.append(fix_str)
+def _wrap_fix_parts(fix_parts: list[str]) -> list[str]:
+    """Join fix labels with ".." and wrap to a reasonable line length.
 
-    # Join with ".." and wrap to reasonable line length
-    # Use click.unstyle to get visible length (without ANSI codes)
+    Uses click.unstyle to measure visible length (without ANSI codes).
+    """
     max_width = 75
     lines = []
     current_line = ""
@@ -510,16 +522,11 @@ def display_airway(result: AirwaySearchResult) -> None:
 
     if current_line:
         lines.append(current_line)
-
-    for line in lines:
-        click.echo(line)
-    click.echo()
+    return lines
 
 
 def display_fix_airways(result: FixAirwaysResult) -> None:
-    """Display all airways that contain a given fix."""
-    from .navaids import get_navaid_name
-
+    """Display all airways that contain a given fix, with its neighbours on its segment."""
     if not result.airways:
         click.echo(f"\nNo airways found containing '{result.query}'.")
         return
@@ -532,32 +539,19 @@ def display_fix_airways(result: FixAirwaysResult) -> None:
     for airway in result.airways:
         direction_str = f" ({airway.direction})" if airway.direction else ""
 
-        # Build a snippet of fixes around the queried fix
-        names = airway.fix_names
-        try:
-            idx = names.index(fix)
-        except ValueError:
+        # Build a snippet of fixes around the queried fix, within its segment
+        segment = next((s for s in airway.segments if any(f.identifier == fix for f in s)), None)
+        if segment is None:
             continue
+        idx = next(i for i, f in enumerate(segment) if f.identifier == fix)
 
         # Show up to 2 fixes before and after
         start = max(0, idx - 2)
-        end = min(len(names), idx + 3)
-        snippet_parts = []
-        for i in range(start, end):
-            fix_obj = airway.fixes[i]
-            if fix_obj.is_navaid:
-                name = get_navaid_name(fix_obj.identifier)
-                label = f"{fix_obj.identifier} ({name})" if name else fix_obj.identifier
-            else:
-                label = fix_obj.identifier
-
-            if fix_obj.identifier == fix:
-                label = click.style(f"[{label}]", fg="yellow", bold=True)
-
-            snippet_parts.append(label)
+        end = min(len(segment), idx + 3)
+        snippet_parts = [_airway_fix_label(f, [fix]) for f in segment[start:end]]
 
         prefix = ".." if start > 0 else ""
-        suffix = ".." if end < len(names) else ""
+        suffix = ".." if end < len(segment) else ""
         snippet = prefix + "..".join(snippet_parts) + suffix
 
         click.echo(
